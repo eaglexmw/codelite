@@ -10,7 +10,6 @@
 #include "quick_outline_dlg.h"
 #include <wx/app.h>
 #include <wx/filedlg.h>
-#include "new_workspace_selection_dlg.h"
 #include "new_php_workspace_dlg.h"
 #include "php_workspace.h"
 #include "php_workspace_view.h"
@@ -30,19 +29,23 @@
 #include "localsview.h"
 #include "evalpane.h"
 #include "XDebugTester.h"
-#include "XDebugDiagDlg.h"
 #include "clZipReader.h"
 #include "cl_standard_paths.h"
 #include "php_configuration_data.h"
 #include "PHPLocator.h"
 #include <wx/regex.h>
 #include "bookmark_manager.h"
-#include "NewPHPProjectDlg.h"
+#include "NewPHPProjectWizard.h"
+#include "PHPXDebugSetupWizard.h"
+#include "globals.h"
+#include "clWorkspaceView.h"
+#include "clWorkspaceManager.h"
+#include "clSFTPEvent.h"
 
 static PhpPlugin* thePlugin = NULL;
 
 // Define the plugin entry point
-extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
     if(thePlugin == 0) {
         thePlugin = new PhpPlugin(manager);
@@ -50,17 +53,17 @@ extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
     return thePlugin;
 }
 
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
-    info.SetAuthor(wxT("The CodeLite Team"));
+    static PluginInfo info;
+    info.SetAuthor(wxT("Eran Ifrah"));
     info.SetName(wxT("PHP"));
-    info.SetDescription(wxT("Enable PHP support for codelite IDE"));
+    info.SetDescription(_("Enable PHP support for codelite IDE"));
     info.SetVersion(wxT("v1.0"));
-    return info;
+    return &info;
 }
 
-extern "C" EXPORT int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 
 PhpPlugin::PhpPlugin(IManager* manager)
     : IPlugin(manager)
@@ -70,10 +73,14 @@ PhpPlugin::PhpPlugin(IManager* manager)
     , m_xdebugLocalsView(NULL)
     , m_xdebugEvalPane(NULL)
     , m_showWelcomePage(false)
+    , m_toggleToolbar(false)
 {
     m_lint.Reset(new PHPLint(this));
 
-    m_longName = wxT("PHP Plugin for the codelite IDE");
+    // Add new workspace type
+    clWorkspaceManager::Get().RegisterWorkspace(new PHPWorkspace());
+
+    m_longName = _("PHP Plugin for the codelite IDE");
     m_shortName = wxT("PHP");
 
     // Instantiate the bitmaps, we do this so they will be populated in wxXmlResource
@@ -82,23 +89,14 @@ PhpPlugin::PhpPlugin(IManager* manager)
     PHPWorkspace::Get()->SetPluginManager(m_mgr);
     XDebugManager::Initialize(this);
 
+    // BitmapLoader::RegisterImage(FileExtManager::TypeWorkspacePHP, images.Bitmap("m_bmpPhpWorkspace"));
+
     // Add our UI
     // create tab (possibly detached)
-    Notebook* book = m_mgr->GetWorkspacePaneNotebook();
-    if(IsWorkspaceViewDetached()) {
-        // Make the window child of the main panel (which is the grand parent of the notebook)
-        DockablePane* cp = new DockablePane(
-            book->GetParent()->GetParent(), book, PHPStrings::PHP_WORKSPACE_VIEW_TITLE, wxNullBitmap, wxSize(200, 200));
-        m_workspaceView = new PHPWorkspaceView(cp, m_mgr);
-        cp->SetChildNoReparent(m_workspaceView);
-
-    } else {
-        m_workspaceView = new PHPWorkspaceView(book, m_mgr);
-        book->InsertPage(0, m_workspaceView, PHPStrings::PHP_WORKSPACE_VIEW_TITLE, true);
-    }
+    m_workspaceView = new PHPWorkspaceView(m_mgr->GetWorkspaceView()->GetBook(), m_mgr);
+    m_mgr->GetWorkspaceView()->AddPage(m_workspaceView, PHPStrings::PHP_WORKSPACE_VIEW_LABEL);
 
     PHPCodeCompletion::Instance()->SetManager(m_mgr);
-
     PHPEditorContextMenu::Instance()->ConnectEvents();
     PHPParserThread::Instance()->Start();
 
@@ -111,7 +109,7 @@ PhpPlugin::PhpPlugin(IManager* manager)
     EventNotifier::Get()->Connect(
         wxEVT_DBG_UI_DELTE_ALL_BREAKPOINTS, clDebugEventHandler(PhpPlugin::OnXDebugDeleteAllBreakpoints), NULL, this);
     EventNotifier::Get()->Connect(
-        wxEVT_CMD_CREATE_NEW_WORKSPACE, wxCommandEventHandler(PhpPlugin::OnNewWorkspace), NULL, this);
+        wxEVT_CMD_CREATE_NEW_WORKSPACE, clCommandEventHandler(PhpPlugin::OnNewWorkspace), NULL, this);
     EventNotifier::Get()->Connect(
         wxEVT_NEW_PROJECT_WIZARD_SHOWING, clNewProjectEventHandler(PhpPlugin::OnNewProject), NULL, this);
     EventNotifier::Get()->Connect(
@@ -129,17 +127,14 @@ PhpPlugin::PhpPlugin(IManager* manager)
     EventNotifier::Get()->Connect(
         wxEVT_CMD_GET_WORKSPACE_FILES, wxCommandEventHandler(PhpPlugin::OnGetWorkspaceFiles), NULL, this);
     EventNotifier::Get()->Connect(wxEVT_CMD_GET_CURRENT_FILE_PROJECT_FILES,
-                                  wxCommandEventHandler(PhpPlugin::OnGetCurrentFileProjectFiles),
-                                  NULL,
-                                  this);
+        wxCommandEventHandler(PhpPlugin::OnGetCurrentFileProjectFiles), NULL, this);
     EventNotifier::Get()->Connect(
         wxEVT_CMD_GET_ACTIVE_PROJECT_FILES, wxCommandEventHandler(PhpPlugin::OnGetActiveProjectFiles), NULL, this);
-    EventNotifier::Get()->Connect(
-        wxEVT_CMD_GET_FIND_IN_FILES_MASK, clCommandEventHandler(PhpPlugin::OnGetFiFMask), NULL, this);
     EventNotifier::Get()->Connect(
         wxEVT_CMD_FIND_IN_FILES_DISMISSED, clCommandEventHandler(PhpPlugin::OnFindInFilesDismissed), NULL, this);
 
     EventNotifier::Get()->Connect(wxEVT_FILE_SAVED, clCommandEventHandler(PhpPlugin::OnFileSaved), NULL, this);
+    EventNotifier::Get()->Bind(wxEVT_FILES_MODIFIED_REPLACE_IN_FILES, &PhpPlugin::OnReplaceInFiles, this);
     EventNotifier::Get()->Connect(wxEVT_PHP_LOAD_URL, PHPEventHandler(PhpPlugin::OnLoadURL), NULL, this);
     EventNotifier::Get()->Connect(
         wxEVT_ALL_EDITORS_CLOSED, wxCommandEventHandler(PhpPlugin::OnAllEditorsClosed), NULL, this);
@@ -149,7 +144,7 @@ PhpPlugin::PhpPlugin(IManager* manager)
 
     EventNotifier::Get()->Connect(wxEVT_GOING_DOWN, clCommandEventHandler(PhpPlugin::OnGoingDown), NULL, this);
     EventNotifier::Get()->Bind(wxEVT_FILE_SYSTEM_UPDATED, &PhpPlugin::OnFileSysetmUpdated, this);
-    
+    EventNotifier::Get()->Bind(wxEVT_SAVE_SESSION_NEEDED, &PhpPlugin::OnSaveSession, this);
     CallAfter(&PhpPlugin::FinalizeStartup);
 
     // Extract all CC files from PHP.zip into the folder ~/.codelite/php-plugin/cc
@@ -163,18 +158,25 @@ PhpPlugin::PhpPlugin(IManager* manager)
         // Don't extract the zip if one of the files on disk is newer or equal to the zip timestamp
         wxFileName fnSampleFile(targetDir.GetPath(), "basic.php");
         fnSampleFile.AppendDir("cc");
+        PHPConfigurationData config;
         if(!fnSampleFile.Exists() || // the sample file does not exists
                                      // Or the resource file (PHP.zip) is newer than the sample file
-           (phpResources.GetModificationTime().GetTicks() > fnSampleFile.GetModificationTime().GetTicks())) {
+            (phpResources.GetModificationTime().GetTicks() > fnSampleFile.GetModificationTime().GetTicks())) {
 
             targetDir.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
             zipReader.Extract("*", targetDir.GetPath());
 
             // Make sure we add this path to the general PHP settings
             targetDir.AppendDir("cc"); // the CC files are located under an internal folder named "cc" (lowercase)
-            PHPConfigurationData config;
+
             if(config.Load().GetCcIncludePath().Index(targetDir.GetPath()) == wxNOT_FOUND) {
                 config.Load().GetCcIncludePath().Add(targetDir.GetPath());
+                config.Save();
+            }
+        } else if(fnSampleFile.Exists()) {
+            // Ensure that we have the core PHP code completion methods
+            if(config.Load().GetCcIncludePath().Index(fnSampleFile.GetPath()) == wxNOT_FOUND) {
+                config.Load().GetCcIncludePath().Add(fnSampleFile.GetPath());
                 config.Save();
             }
         }
@@ -227,7 +229,7 @@ void PhpPlugin::UnPlug()
     EventNotifier::Get()->Disconnect(
         wxEVT_CC_SHOW_QUICK_OUTLINE, clCodeCompletionEventHandler(PhpPlugin::OnShowQuickOutline), NULL, this);
     EventNotifier::Get()->Disconnect(
-        wxEVT_CMD_CREATE_NEW_WORKSPACE, wxCommandEventHandler(PhpPlugin::OnNewWorkspace), NULL, this);
+        wxEVT_CMD_CREATE_NEW_WORKSPACE, clCommandEventHandler(PhpPlugin::OnNewWorkspace), NULL, this);
     EventNotifier::Get()->Disconnect(
         wxEVT_NEW_PROJECT_WIZARD_SHOWING, clNewProjectEventHandler(PhpPlugin::OnNewProject), NULL, this);
     EventNotifier::Get()->Disconnect(
@@ -247,14 +249,11 @@ void PhpPlugin::UnPlug()
     EventNotifier::Get()->Disconnect(
         wxEVT_CMD_FIND_IN_FILES_DISMISSED, clCommandEventHandler(PhpPlugin::OnFindInFilesDismissed), NULL, this);
     EventNotifier::Get()->Disconnect(wxEVT_CMD_GET_CURRENT_FILE_PROJECT_FILES,
-                                     wxCommandEventHandler(PhpPlugin::OnGetCurrentFileProjectFiles),
-                                     NULL,
-                                     this);
+        wxCommandEventHandler(PhpPlugin::OnGetCurrentFileProjectFiles), NULL, this);
     EventNotifier::Get()->Disconnect(
         wxEVT_CMD_GET_ACTIVE_PROJECT_FILES, wxCommandEventHandler(PhpPlugin::OnGetActiveProjectFiles), NULL, this);
-    EventNotifier::Get()->Disconnect(
-        wxEVT_CMD_GET_FIND_IN_FILES_MASK, clCommandEventHandler(PhpPlugin::OnGetFiFMask), NULL, this);
     EventNotifier::Get()->Disconnect(wxEVT_FILE_SAVED, clCommandEventHandler(PhpPlugin::OnFileSaved), NULL, this);
+    EventNotifier::Get()->Unbind(wxEVT_FILES_MODIFIED_REPLACE_IN_FILES, &PhpPlugin::OnReplaceInFiles, this);
     EventNotifier::Get()->Disconnect(wxEVT_PHP_LOAD_URL, PHPEventHandler(PhpPlugin::OnLoadURL), NULL, this);
     EventNotifier::Get()->Disconnect(
         wxEVT_ALL_EDITORS_CLOSED, wxCommandEventHandler(PhpPlugin::OnAllEditorsClosed), NULL, this);
@@ -263,20 +262,18 @@ void PhpPlugin::UnPlug()
     EventNotifier::Get()->Unbind(wxEVT_XDEBUG_SESSION_ENDED, &PhpPlugin::OnDebugEnded, this);
     EventNotifier::Get()->Disconnect(wxEVT_GOING_DOWN, clCommandEventHandler(PhpPlugin::OnGoingDown), NULL, this);
     EventNotifier::Get()->Unbind(wxEVT_FILE_SYSTEM_UPDATED, &PhpPlugin::OnFileSysetmUpdated, this);
-    
+    EventNotifier::Get()->Unbind(wxEVT_SAVE_SESSION_NEEDED, &PhpPlugin::OnSaveSession, this);
+
     SafelyDetachAndDestroyPane(m_debuggerPane, "XDebug");
     SafelyDetachAndDestroyPane(m_xdebugLocalsView, "XDebugLocals");
     SafelyDetachAndDestroyPane(m_xdebugEvalPane, "XDebugEval");
 
     // Remove the PHP tab
-    size_t index = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(m_workspaceView);
-    if(index != Notebook::npos) {
-        m_mgr->GetWorkspacePaneNotebook()->RemovePage(index, false);
-    }
+    m_mgr->GetWorkspaceView()->RemovePage(PHPStrings::PHP_WORKSPACE_VIEW_LABEL);
 
     // Close any open workspace
     if(PHPWorkspace::Get()->IsOpen()) {
-        PHPWorkspace::Get()->Close();
+        PHPWorkspace::Get()->Close(true, false);
         m_workspaceView->UnLoadWorkspace();
     }
 
@@ -305,22 +302,23 @@ void PhpPlugin::OnShowQuickOutline(clCodeCompletionEvent& e)
     }
 }
 
-void PhpPlugin::OnNewWorkspace(wxCommandEvent& e)
+void PhpPlugin::OnNewWorkspace(clCommandEvent& e)
 {
-    NewWorkspaceSelectionDlg dlg(FRAME);
-    if(dlg.ShowModal() == wxID_OK) {
-        if(dlg.GetIsPHPWorkspace()) {
-
-            // Create a PHP workspace
-            NewPHPWorkspaceDlg newWspDlg(m_mgr->GetTheApp()->GetTopWindow());
-            if(newWspDlg.ShowModal() == wxID_OK) {
-                PHPWorkspace::Get()->Create(newWspDlg.GetWorkspacePath());
-                DoOpenWorkspace(newWspDlg.GetWorkspacePath());
+    e.Skip();
+    if(e.GetString() == PHPWorkspace::Get()->GetWorkspaceType()) {
+        e.Skip(false);
+        // Create a PHP workspace
+        NewPHPWorkspaceDlg newWspDlg(m_mgr->GetTheApp()->GetTopWindow());
+        if(newWspDlg.ShowModal() == wxID_OK) {
+            // Ensure that the workspace path exists
+            wxFileName workspaceFile(newWspDlg.GetWorkspacePath());
+            if(!workspaceFile.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL)) {
+                ::wxMessageBox(wxString::Format(_("Could not create workspace folder:\n%s"), workspaceFile.GetPath()),
+                    "CodeLite", wxICON_ERROR | wxOK | wxCENTER);
+                return;
             }
-
-        } else {
-            // Call skip so the normal new workspace dialog will popup
-            e.Skip();
+            PHPWorkspace::Get()->Create(newWspDlg.GetWorkspacePath());
+            DoOpenWorkspace(newWspDlg.GetWorkspacePath(), false /* create if missing */, newWspDlg.IsCreateProject());
         }
     }
 }
@@ -341,7 +339,7 @@ void PhpPlugin::OnCloseWorkspace(clCommandEvent& e)
     if(PHPWorkspace::Get()->IsOpen()) {
 
         m_mgr->EnableClangCodeCompletion(m_clangOldFlag);
-        PHPWorkspace::Get()->Close();
+        PHPWorkspace::Get()->Close(true, true);
         m_workspaceView->UnLoadWorkspace();
 
         // notify codelite to close the currently opened workspace
@@ -352,12 +350,6 @@ void PhpPlugin::OnCloseWorkspace(clCommandEvent& e)
         wxCommandEvent eventCloseWsp(wxEVT_COMMAND_MENU_SELECTED, XRCID("close_workspace"));
         eventCloseWsp.SetEventObject(FRAME);
         FRAME->GetEventHandler()->ProcessEvent(eventCloseWsp);
-
-        // Show the 'Workspace' tab by sending the main frame a "Hide workspace tab" event
-        wxCommandEvent event(wxEVT_COMMAND_MENU_SELECTED, XRCID("show_workspace_tab"));
-        event.SetEventObject(FRAME);
-        event.SetInt(1);
-        FRAME->GetEventHandler()->AddPendingEvent(event);
 
         /// The 'wxID_CLOSE_ALL' is done async (i.e. it will take place in the next event loop)
         /// So we mark ourself that we should display the welcome page next time we capture
@@ -387,12 +379,12 @@ void PhpPlugin::OnOpenWorkspace(clCommandEvent& e)
 
     // Check if this is a PHP workspace
     if(PHPWorkspace::Get()->IsOpen()) {
-        PHPWorkspace::Get()->Close();
+        PHPWorkspace::Get()->Close(true, true);
     }
     DoOpenWorkspace(workspaceFile.GetFullPath());
 }
 
-void PhpPlugin::DoOpenWorkspace(const wxString& filename, bool createIfMissing)
+void PhpPlugin::DoOpenWorkspace(const wxString& filename, bool createIfMissing, bool createProjectFromSources)
 {
     // notify codelite to close the currently opened workspace
     wxCommandEvent eventClose(wxEVT_COMMAND_MENU_SELECTED, XRCID("close_workspace"));
@@ -401,10 +393,8 @@ void PhpPlugin::DoOpenWorkspace(const wxString& filename, bool createIfMissing)
 
     // Open the PHP workspace
     if(!PHPWorkspace::Get()->Open(filename, createIfMissing)) {
-        wxMessageBox(_("Failed to open workspace: corrupted workspace file"),
-                     wxT("CodeLite"),
-                     wxOK | wxICON_WARNING | wxCENTER,
-                     FRAME);
+        wxMessageBox(_("Failed to open workspace: corrupted workspace file"), wxT("CodeLite"),
+            wxOK | wxICON_WARNING | wxCENTER, FRAME);
         return;
     }
 
@@ -415,20 +405,20 @@ void PhpPlugin::DoOpenWorkspace(const wxString& filename, bool createIfMissing)
     m_mgr->EnableClangCodeCompletion(false);
     m_workspaceView->LoadWorkspace();
 
-    // Hide the 'Workspace' tab by sending the main frame a "Hide workspace tab" event
-    wxCommandEvent event(wxEVT_COMMAND_MENU_SELECTED, XRCID("show_workspace_tab"));
-    event.SetEventObject(FRAME);
-    event.SetInt(0);
-    FRAME->GetEventHandler()->AddPendingEvent(event);
-
     // Select the 'PHP' tab
-    size_t index = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(m_workspaceView);
-    if(index != Notebook::npos) {
-        m_mgr->GetWorkspacePaneNotebook()->SetSelection(index);
-    }
+    m_mgr->GetWorkspaceView()->SelectPage(PHPStrings::PHP_WORKSPACE_VIEW_LABEL);
 
-    // and finally, request codelite to keep this workspace in the recently opened workspace list
-    m_mgr->AddWorkspaceToRecentlyUsedList(filename);
+    if(createProjectFromSources) {
+        PHPConfigurationData conf;
+        PHPProject::CreateData cd;
+        conf.Load();
+        cd.importFilesUnderPath = true;
+        cd.name = PHPWorkspace::Get()->GetWorkspaceName();
+        cd.phpExe = conf.GetPhpExe();
+        cd.path = PHPWorkspace::Get()->GetFilename().GetPath();
+        cd.projectType = PHPProjectSettingsData::kRunAsCLI;
+        m_workspaceView->CallAfter(&PHPWorkspaceView::CreateNewProject, cd);
+    }
 }
 
 void PhpPlugin::OnOpenResource(wxCommandEvent& e)
@@ -438,11 +428,13 @@ void PhpPlugin::OnOpenResource(wxCommandEvent& e)
         if(dlg.ShowModal() == wxID_OK) {
             ResourceItem* itemData = dlg.GetSelectedItem();
             if(itemData) {
-                if(m_mgr->OpenFile(itemData->filename.GetFullPath())) {
-                    IEditor* editor = m_mgr->GetActiveEditor();
-                    if(editor && itemData->line != wxNOT_FOUND) {
-                        editor->FindAndSelect(
-                            itemData->displayName, itemData->displayName, editor->PosFromLine(itemData->line), NULL);
+                IEditor* editor = m_mgr->OpenFile(itemData->filename.GetFullPath());
+                if(editor) {
+                    if(itemData->line != wxNOT_FOUND) {
+                        if(!editor->FindAndSelect(itemData->displayName, itemData->displayName,
+                               editor->PosFromLine(itemData->line), NULL)) {
+                            editor->CenterLine(itemData->line);
+                        }
                     }
                 }
             }
@@ -460,7 +452,7 @@ void PhpPlugin::OnGetActiveProjectFiles(wxCommandEvent& e)
             wxString activeProjectName = PHPWorkspace::Get()->GetActiveProjectName();
             PHPProject::Ptr_t proj = PHPWorkspace::Get()->GetProject(activeProjectName);
             CHECK_PTR_RET(proj);
-            const wxArrayString& projfiles = proj->GetFiles();
+            const wxArrayString& projfiles = proj->GetFiles(NULL);
             pfiles->insert(pfiles->end(), projfiles.begin(), projfiles.end());
         }
     } else {
@@ -501,6 +493,8 @@ void PhpPlugin::OnGetWorkspaceFiles(wxCommandEvent& e)
 void PhpPlugin::OnNewProject(clNewProjectEvent& e)
 {
     if(!PHPWorkspace::Get()->IsOpen()) {
+        e.Skip();
+#if 0
         // No workspace is opened yet, let codelite process this event normally
         e.Skip();
         clNewProjectEvent::Template phpTemplate;
@@ -512,23 +506,13 @@ void PhpPlugin::OnNewProject(clNewProjectEvent& e)
         phpTemplate.m_toolchain = "PHP Tools";
         phpTemplate.m_allowSeparateFolder = true;
         e.GetTemplates().push_back(phpTemplate);
+#endif
     } else {
         // we have a PHP workspace opened - handle it ourself
-        NewPHPProjectDlg dlg(EventNotifier::Get()->TopFrame());
-        if(dlg.ShowModal() == wxID_OK) {
-            m_workspaceView->CallAfter(&PHPWorkspaceView::CreateNewProject, dlg.GetCreateData());
+        NewPHPProjectWizard wiz(EventNotifier::Get()->TopFrame());
+        if(wiz.RunWizard(wiz.GetFirstPage())) {
+            m_workspaceView->CallAfter(&PHPWorkspaceView::CreateNewProject, wiz.GetCreateData());
         }
-    }
-}
-
-void PhpPlugin::OnGetFiFMask(clCommandEvent& e)
-{
-    // always skip this event so other plugins could modify it as well
-    e.Skip();
-    if(PHPWorkspace::Get()->IsOpen()) {
-        // set the default find in files mask
-        PHPConfigurationData conf;
-        e.SetString(conf.Load().GetFindInFilesMask());
     }
 }
 
@@ -538,23 +522,17 @@ void PhpPlugin::DoPlaceMenuBar(wxMenuBar* menuBar)
     wxMenu* phpMenuBarMenu = new wxMenu();
     phpMenuBarMenu->Append(wxID_PHP_SETTINGS, _("Settings..."), _("Settings..."));
     phpMenuBarMenu->Append(
-        wxID_PHP_RUN_XDEBUG_DIAGNOSTICS, _("Run XDebug Diagnostics..."), _("Run XDebug Diagnostics..."));
+        wxID_PHP_RUN_XDEBUG_DIAGNOSTICS, _("Run XDebug Setup Wizard..."), _("Run XDebug Setup Wizard..."));
 
     int helpLoc = menuBar->FindMenu(_("Help"));
     if(helpLoc != wxNOT_FOUND) {
         menuBar->Insert(helpLoc, phpMenuBarMenu, _("P&HP"));
     }
 
-    phpMenuBarMenu->Connect(wxID_PHP_SETTINGS,
-                            wxEVT_COMMAND_MENU_SELECTED,
-                            wxCommandEventHandler(PhpPlugin::OnMenuCommand),
-                            NULL,
-                            (wxEvtHandler*)this);
-    phpMenuBarMenu->Connect(wxID_PHP_RUN_XDEBUG_DIAGNOSTICS,
-                            wxEVT_COMMAND_MENU_SELECTED,
-                            wxCommandEventHandler(PhpPlugin::OnRunXDebugDiagnostics),
-                            NULL,
-                            (wxEvtHandler*)this);
+    phpMenuBarMenu->Connect(wxID_PHP_SETTINGS, wxEVT_COMMAND_MENU_SELECTED,
+        wxCommandEventHandler(PhpPlugin::OnMenuCommand), NULL, (wxEvtHandler*)this);
+    phpMenuBarMenu->Connect(wxID_PHP_RUN_XDEBUG_DIAGNOSTICS, wxEVT_COMMAND_MENU_SELECTED,
+        wxCommandEventHandler(PhpPlugin::OnRunXDebugDiagnostics), NULL, (wxEvtHandler*)this);
 }
 
 void PhpPlugin::OnMenuCommand(wxCommandEvent& e)
@@ -575,34 +553,16 @@ void PhpPlugin::OnFileSaved(clCommandEvent& e)
     e.Skip();
 
     if(PHPWorkspace::Get()->IsOpen()) {
-        // Check to see if we got a remote-upload setup
-        SSHWorkspaceSettings settings;
-        settings.Load();
-
-        if(settings.IsRemoteUploadSet() && settings.IsRemoteUploadEnabled()) {
-            // Post an event to the SFTP plugin and ask it to save our file
-            wxFileName fnLocalFile(e.GetString());
-
-            fnLocalFile.MakeRelativeTo(PHPWorkspace::Get()->GetFilename().GetPath());
-            fnLocalFile.MakeAbsolute(wxFileName(settings.GetRemoteFolder(), "", wxPATH_UNIX).GetPath());
-            wxString remoteFile = fnLocalFile.GetFullPath(wxPATH_UNIX);
-            wxString localFile = e.GetString();
-
-            JSONRoot root(cJSON_Object);
-            root.toElement().addProperty("account", settings.GetAccount());
-            root.toElement().addProperty("local_file", localFile);
-            root.toElement().addProperty("remote_file", remoteFile);
-
-            clCommandEvent eventSave(XRCID("wxEVT_SFTP_SAVE_FILE"));
-            eventSave.SetString(root.toElement().format());
-            EventNotifier::Get()->AddPendingEvent(eventSave);
-        }
+        DoSyncFileWithRemote(e.GetString());
     }
 
     // Run php lint
+    IEditor* editor = m_mgr->GetActiveEditor();
+    CHECK_PTR_RET(editor);
+
     PHPConfigurationData conf;
     conf.Load();
-    if(::IsPHPFile(e.GetFileName()) && conf.IsRunLint()) {
+    if(::IsPHPFile(editor) && conf.IsRunLint()) {
         if(m_mgr->GetActiveEditor()) {
             m_mgr->GetActiveEditor()->DelAllCompilerMarkers();
         }
@@ -646,12 +606,22 @@ void PhpPlugin::OnDebugEnded(XDebugEvent& e)
         m_mgr->GetDockingManager()->LoadPerspective(m_savedPerspective);
         m_savedPerspective.Clear();
     }
+
+    if(m_toggleToolbar) {
+        m_mgr->ShowToolBar(false);
+        m_toggleToolbar = false;
+    }
 }
 
 void PhpPlugin::OnDebugStarted(XDebugEvent& e)
 {
     e.Skip();
     DoEnsureXDebugPanesVisible();
+    m_toggleToolbar = !m_mgr->IsToolBarShown();
+    if(m_toggleToolbar) {
+        // toolbar not shown
+        m_mgr->ShowToolBar();
+    }
 }
 
 void PhpPlugin::OnXDebugDeleteAllBreakpoints(clDebugEvent& e)
@@ -761,6 +731,10 @@ void PhpPlugin::SetEditorActive(IEditor* editor) { editor->SetActive(); }
 
 void PhpPlugin::RunXDebugDiagnostics()
 {
+    PHPXDebugSetupWizard wiz(EventNotifier::Get()->TopFrame());
+    if(wiz.RunWizard(wiz.GetFirstPage())) {
+    }
+#if 0
     XDebugTester xdebugTester;
     if(xdebugTester.RunTest()) {
         // Display the result
@@ -785,6 +759,7 @@ void PhpPlugin::RunXDebugDiagnostics()
         dlg.Load(html);
         dlg.ShowModal();
     }
+#endif
 }
 
 void PhpPlugin::OnRunXDebugDiagnostics(wxCommandEvent& e)
@@ -796,25 +771,23 @@ void PhpPlugin::OnRunXDebugDiagnostics(wxCommandEvent& e)
 void PhpPlugin::FinalizeStartup()
 {
     // Create the debugger windows (hidden)
-    m_debuggerPane = new PHPDebugPane(EventNotifier::Get()->TopFrame());
-    m_mgr->GetDockingManager()->AddPane(m_debuggerPane,
-                                        wxAuiPaneInfo()
-                                            .Name("XDebug")
-                                            .Caption("Call Stack & Breakpoints")
-                                            .Hide()
-                                            .CloseButton()
-                                            .MaximizeButton()
-                                            .Bottom()
-                                            .Position(3));
+    wxWindow* parent = m_mgr->GetDockingManager()->GetManagedWindow();
+    m_debuggerPane = new PHPDebugPane(parent);
+    m_mgr->GetDockingManager()->AddPane(m_debuggerPane, wxAuiPaneInfo()
+                                                            .Name("XDebug")
+                                                            .Caption("Call Stack & Breakpoints")
+                                                            .Hide()
+                                                            .CloseButton()
+                                                            .MaximizeButton()
+                                                            .Bottom()
+                                                            .Position(3));
 
-    m_xdebugLocalsView = new LocalsView(EventNotifier::Get()->TopFrame());
-    m_mgr->GetDockingManager()->AddPane(
-        m_xdebugLocalsView,
+    m_xdebugLocalsView = new LocalsView(parent);
+    m_mgr->GetDockingManager()->AddPane(m_xdebugLocalsView,
         wxAuiPaneInfo().Name("XDebugLocals").Caption("Locals").Hide().CloseButton().MaximizeButton().Bottom());
 
-    m_xdebugEvalPane = new EvalPane(EventNotifier::Get()->TopFrame());
-    m_mgr->GetDockingManager()->AddPane(
-        m_xdebugEvalPane,
+    m_xdebugEvalPane = new EvalPane(parent);
+    m_mgr->GetDockingManager()->AddPane(m_xdebugEvalPane,
         wxAuiPaneInfo().Name("XDebugEval").Caption("PHP").Hide().CloseButton().MaximizeButton().Bottom().Position(2));
 
     // Check to see if the have a PHP executable setup
@@ -824,34 +797,15 @@ void PhpPlugin::FinalizeStartup()
 
     PHPLocator locator;
     if(locator.Locate()) {
+        // update a PHP executable in the settings
         if(data.GetPhpExe().IsEmpty()) {
             data.SetPhpExe(locator.GetPhpExe().GetFullPath());
         }
-
-        wxArrayString ccPaths = data.GetCcIncludePath();
-        const wxArrayString& foundPaths = locator.GetIncludePaths();
-        for(size_t i = 0; i < foundPaths.GetCount(); ++i) {
-            if(ccPaths.Index(foundPaths.Item(i)) == wxNOT_FOUND) {
-                ccPaths.Add(foundPaths.Item(i));
-            }
-        }
-        data.SetCcIncludePath(ccPaths);
         data.Save();
     }
 }
 
-void PhpPlugin::OnGoingDown(clCommandEvent& event)
-{
-    event.Skip();
-    // Close the workspace. We do this here so have a chance to save the current session properly
-    //  before we exit
-    if(PHPWorkspace::Get()->IsOpen()) {
-        PHPWorkspace::Get()->Close();
-        if(m_workspaceView) {
-            m_workspaceView->UnLoadWorkspace();
-        }
-    }
-}
+void PhpPlugin::OnGoingDown(clCommandEvent& event) { event.Skip(); }
 
 void PhpPlugin::PhpLintDone(const wxString& lintOutput, const wxString& filename)
 {
@@ -898,6 +852,51 @@ void PhpPlugin::OnFileSysetmUpdated(clFileSystemEvent& event)
     event.Skip();
     if(PHPWorkspace::Get()->IsOpen()) {
         PHPWorkspace::Get()->SyncWithFileSystem();
-        m_workspaceView->ReloadWorkspace(true);
+        m_workspaceView->LoadWorkspace();
+    }
+}
+
+void PhpPlugin::OnSaveSession(clCommandEvent& event)
+{
+    if(PHPWorkspace::Get()->IsOpen()) {
+        // CodeLite requires us to store the session, do it
+        m_mgr->StoreWorkspaceSession(PHPWorkspace::Get()->GetFilename());
+    } else {
+        event.Skip();
+    }
+}
+
+void PhpPlugin::DoSyncFileWithRemote(const wxFileName& localFile)
+{
+    // Check to see if we got a remote-upload setup
+    SSHWorkspaceSettings settings;
+    settings.Load();
+
+    if(settings.IsRemoteUploadSet() && settings.IsRemoteUploadEnabled()) {
+        // Post an event to the SFTP plugin and ask it to save our file
+        wxFileName fnLocalFile = localFile;
+
+        fnLocalFile.MakeRelativeTo(PHPWorkspace::Get()->GetFilename().GetPath());
+        fnLocalFile.MakeAbsolute(wxFileName(settings.GetRemoteFolder(), "", wxPATH_UNIX).GetPath());
+
+        wxString remoteFile = fnLocalFile.GetFullPath(wxPATH_UNIX);
+
+        // Fire this event, if the sftp plugin is ON, it will handle it
+        clSFTPEvent eventSave(wxEVT_SFTP_SAVE_FILE);
+        eventSave.SetAccount(settings.GetAccount());
+        eventSave.SetLocalFile(localFile.GetFullPath());
+        eventSave.SetRemoteFile(remoteFile);
+        EventNotifier::Get()->AddPendingEvent(eventSave);
+    }
+}
+
+void PhpPlugin::OnReplaceInFiles(clFileSystemEvent& e)
+{
+    e.Skip();
+    if(PHPWorkspace::Get()->IsOpen()) {
+        const wxArrayString& files = e.GetStrings();
+        for(size_t i = 0; i < files.size(); ++i) {
+            DoSyncFileWithRemote(files.Item(i));
+        }
     }
 }

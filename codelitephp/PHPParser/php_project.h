@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php_project.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHP_PROJECT_H
 #define PHP_PROJECT_H
 
@@ -32,6 +57,8 @@ public:
         wxString phpExe;
         int projectType;
         bool importFilesUnderPath;
+        wxString ccPaths;
+        
         CreateData()
             : projectType(0)
             , importFilesUnderPath(false)
@@ -42,8 +69,9 @@ public:
 public:
     PHPProject()
         : m_isActive(false)
-        , m_importFileSpec("*.php;*.html;*.phtml;*.inc;*.css;*.js;.htaccess")
-        , m_excludeFolders(".git;.svn;.codelite")
+        , m_importFileSpec(
+              "*.php;*.inc;*.phtml;*.js;*.html;*.css;*.scss;*.json;*.xml;*.ini;*.md;*.txt;*.text;.htaccess")
+        , m_excludeFolders(".git;.svn;.codelite;.clang")
     {
     }
     ~PHPProject() {}
@@ -70,8 +98,13 @@ public:
     /**
      * @brief return a list of all project files (fullpath)
      */
-    wxArrayString& GetFiles(wxProgressDialog* progress = NULL);
-
+    wxArrayString& GetFiles(wxProgressDialog* progress);
+    
+    /**
+     * @brief return a list of all project files (fullpath)
+     */
+    void GetFilesArray(wxArrayString& files) const;
+    
     /**
      * @brief check if filename is part of this project
      * @param filename

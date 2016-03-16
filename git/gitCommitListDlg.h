@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitCommitListDlg.h
 //
 // -------------------------------------------------------------------------
@@ -36,8 +36,8 @@
 #include <map>
 #include "gitui.h"
 #include "macros.h"
+#include "cl_command_event.h"
 
-class GitCommitEditor;
 class IProcess;
 class GitPlugin;
 class GitCommitListDlg : public GitCommitListDlgBase
@@ -49,11 +49,17 @@ class GitCommitListDlg : public GitCommitListDlgBase
     IProcess* m_process;
     wxString m_gitPath;
     wxString m_commitList;
+    int m_skip;
+    std::map<int, wxString> m_history;
+
 protected:
+    virtual void OnNext(wxCommandEvent& event);
+    virtual void OnPrevious(wxCommandEvent& event);
+    virtual void OnPreviousUI(wxUpdateUIEvent& event);
     virtual void OnSearchCommitList(wxCommandEvent& event);
-    void DoLoadCommits(const wxString &filter);
+    void DoLoadCommits(const wxString& filter);
     bool IsMatchFilter(const wxArrayString& filters, const wxArrayString& columns);
-    
+
 public:
     GitCommitListDlg(wxWindow* parent, const wxString& workingDir, GitPlugin* git);
     ~GitCommitListDlg();
@@ -62,11 +68,10 @@ public:
 
 private:
     void OnChangeFile(wxCommandEvent& e);
-    DECLARE_EVENT_TABLE()
 
     // Event handlers
-    void OnProcessTerminated(wxCommandEvent& event);
-    void OnProcessOutput(wxCommandEvent& event);
+    void OnProcessTerminated(clProcessEvent& event);
+    void OnProcessOutput(clProcessEvent& event);
 
 protected:
     virtual void OnOK(wxCommandEvent& event);

@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php_workspace_view.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef __php_workspace_view__
 #define __php_workspace_view__
 
@@ -8,6 +33,7 @@
 #include "php_event.h"
 #include <cl_command_event.h>
 #include "wx_ordered_map.h"
+#include "clTreeKeyboardInput.h"
 
 class IManager;
 class ItemData;
@@ -19,16 +45,23 @@ class PHPWorkspaceView : public PHPWorkspaceViewBase
     wxOrderedMap<wxTreeItemId, bool> m_itemsToSort;
     std::map<wxString, wxTreeItemId> m_filesItems;
     std::map<wxString, wxTreeItemId> m_foldersItems;
-    
+    clTreeKeyboardInput::Ptr_t m_keyboardHelper;
+
 private:
     enum {
         ID_TOGGLE_AUTOMATIC_UPLOAD = wxID_HIGHEST + 1,
     };
 
 protected:
+    virtual void OnCollapse(wxCommandEvent& event);
+    virtual void DoCollapseItem(wxTreeItemId& item);
+    void OnFolderDropped(clCommandEvent& event);
+
+    virtual void OnCollapseUI(wxUpdateUIEvent& event);
     virtual void OnSetupRemoteUploadUI(wxUpdateUIEvent& event);
     virtual void OnItemActivated(wxTreeEvent& event);
     virtual void OnMenu(wxTreeEvent& event);
+    void OnWorkspaceLoaded(PHPEvent& event);
 #if USE_SFTP
     virtual void OnSetupRemoteUpload(wxAuiToolBarEvent& event);
 #endif
@@ -37,15 +70,17 @@ protected:
     virtual void OnProjectSettings(wxCommandEvent& event);
     virtual void OnActiveProjectSettingsUI(wxUpdateUIEvent& event);
     void DoGetSelectedFiles(wxArrayString& files);
+    void DoGetSelectedFolders(wxArrayString &paths);
+    
     // Helpers
     void DoSortItems();
-    wxTreeItemId DoAddFolder(const wxString &project, const wxString& path);
+    wxTreeItemId DoAddFolder(const wxString& project, const wxString& path);
     wxTreeItemId DoCreateFile(const wxTreeItemId& parent, const wxString& fullpath, const wxString& content = "");
-    wxTreeItemId DoGetProject(const wxString &project);
+    wxTreeItemId DoGetProject(const wxString& project);
     PHPProject::Ptr_t DoGetProjectForItem(const wxTreeItemId& item);
     wxTreeItemId DoGetSingleSelection();
     void DoGetSelectedItems(wxArrayTreeItemIds& items);
-    
+
     wxString DoGetSelectedProject();
     ItemData* DoGetItemData(const wxTreeItemId& item);
     const ItemData* DoGetItemData(const wxTreeItemId& item) const;
@@ -56,7 +91,7 @@ protected:
 #if USE_SFTP
     void DoOpenSSHAccountManager();
 #endif
-
+    
     /**
      * @brief construct the project in the tree view
      * @param projectItem
@@ -68,6 +103,9 @@ protected:
      * @brief open an item into an editor
      */
     void DoOpenFile(const wxTreeItemId& item);
+
+    void DoSetProjectActive(const wxString& projectName);
+
 protected:
     // Handlers for PHPWorkspaceViewBase events.
 
@@ -77,6 +115,7 @@ protected:
     void OnCloseWorkspace(wxCommandEvent& e);
     void OnReloadWorkspace(wxCommandEvent& e);
     void OnNewFolder(wxCommandEvent& e);
+    void OnRenameFolder(wxCommandEvent& e);
     void OnNewClass(wxCommandEvent& e);
     void OnDeleteProject(wxCommandEvent& e);
     void OnSetProjectActive(wxCommandEvent& e);
@@ -85,6 +124,7 @@ protected:
     void OnOpenInExplorer(wxCommandEvent& e);
     void OnOpenShell(wxCommandEvent& e);
     void OnRetagWorkspace(wxCommandEvent& e);
+    void OnAddExistingProject(wxCommandEvent& e);
     void OnFindInFiles(wxCommandEvent& e);
     void OnRemoveFile(wxCommandEvent& e);
     void OnOpenFile(wxCommandEvent& e);
@@ -95,11 +135,12 @@ protected:
     void OnSyncProjectWithFileSystem(wxCommandEvent& e);
     void OnOpenWithDefaultApp(wxCommandEvent& e);
     void OnRunActiveProject(clExecuteEvent& e);
-    void OnStopExecutedProgram(wxCommandEvent& e);
-    void OnIsProgramRunning(wxCommandEvent& e);
+    void OnStopExecutedProgram(clExecuteEvent& e);
+    void OnIsProgramRunning(clExecuteEvent& e);
     void OnEditorChanged(wxCommandEvent& e);
     void OnFileRenamed(PHPEvent& e);
-    void OnWorkspaceRenamed(PHPEvent &e);
+    void OnWorkspaceRenamed(PHPEvent& e);
+    void OnFindInFilesShowing(clCommandEvent& e);
     void OnToggleAutoUpload(wxCommandEvent& e);
 
     // Php parser events

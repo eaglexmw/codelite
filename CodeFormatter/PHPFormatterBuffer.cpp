@@ -2,6 +2,30 @@
 #include "PHPScannerTokens.h"
 #include <wx/tokenzr.h>
 
+struct PHPScannerCollectWhitespace
+{
+    phpLexerUserData* m_userdata;
+    bool m_oldState;
+
+    PHPScannerCollectWhitespace(PHPScanner_t scanner)
+        : m_userdata(NULL)
+        , m_oldState(false)
+    {
+        m_userdata = ::phpLexerGetUserData(scanner);
+        if(m_userdata) {
+            m_oldState = m_userdata->IsCollectingWhitespace();
+            m_userdata->SetCollectingWhitespace(true);
+        }
+    }
+
+    ~PHPScannerCollectWhitespace()
+    {
+        if(m_userdata) {
+            m_userdata->SetCollectingWhitespace(m_oldState);
+        }
+    }
+};
+
 PHPFormatterBuffer::PHPFormatterBuffer(const wxString& buffer, const PHPFormatterOptions& options)
     : m_scanner(NULL)
     , m_options(options)
@@ -11,6 +35,7 @@ PHPFormatterBuffer::PHPFormatterBuffer(const wxString& buffer, const PHPFormatte
     , m_insideHereDoc(false)
     , m_depth(0)
     , m_lastCommentLine(-1)
+    , m_parenDepth(0)
 {
     m_scanner = ::phpLexerNew(buffer, kPhpLexerOpt_ReturnComments | kPhpLexerOpt_ReturnAllNonPhp);
 }
@@ -118,6 +143,11 @@ PHPFormatterBuffer& PHPFormatterBuffer::ProcessToken(const phpLexerToken& token)
             RemoveLastSpace();
             m_buffer << token.text;
 
+            if(m_options.flags & kPFF_VerticalArrays && token.type == '(' && m_lastToken.type == kPHP_T_ARRAY &&
+               m_parenDepth == 1) {
+                ProcessArray('(', ')');
+            }
+
         } else if(token.type == ')') {
             RemoveLastSpace();
             m_buffer << token.text;
@@ -140,6 +170,16 @@ PHPFormatterBuffer& PHPFormatterBuffer::ProcessToken(const phpLexerToken& token)
             RemoveLastSpace();
             m_buffer << token.text << " ";
 
+        } else if(token.type == '.') {
+            m_buffer << token.text << " ";
+            if(m_options.flags & kPFF_BreakAfterStringConcatentation && (m_parenDepth == 1)) {
+                // inside a function call
+                wxString whitepace = GetIndentationToLast('(');
+                if(!whitepace.IsEmpty()) {
+                    m_buffer << m_options.eol;
+                    m_buffer << whitepace;
+                }
+            }
         } else if(token.type == '&') {
             // attach reference to the next token
             m_buffer << token.text;
@@ -155,10 +195,14 @@ PHPFormatterBuffer& PHPFormatterBuffer::ProcessToken(const phpLexerToken& token)
             // Doxygen style comment: we first format it to match
             // the current indentation + line ending before adding
             // it to the current buffer
-            AppendEOL();
-            m_buffer << FormatDoxyComment(token.text);
-            AppendEOL();
-            m_lastCommentLine = token.endLineNumber + 1;
+            if(m_parenDepth == 0) {
+                AppendEOL();
+                m_buffer << FormatDoxyComment(token.text);
+                AppendEOL();
+                m_lastCommentLine = token.endLineNumber + 1;
+            } else {
+                m_buffer << token.text << " ";
+            }
 
         } else if(token.type == kPHP_T_OBJECT_OPERATOR || token.type == kPHP_T_PAAMAYIM_NEKUDOTAYIM) {
             // -> operator or ::
@@ -174,7 +218,6 @@ PHPFormatterBuffer& PHPFormatterBuffer::ProcessToken(const phpLexerToken& token)
                 RemoveLastSpace();
             }
             m_buffer << token.text;
-
         } else {
             // by default, add the token text and a space after it
             m_buffer << token.text << " ";
@@ -204,6 +247,7 @@ void PHPFormatterBuffer::AppendEOL(eDepthCommand depth)
     switch(depth) {
     case kDepthDec:
         --m_depth;
+        if(m_depth < 0) m_depth = 0;
         break;
     case kDepthIncTemporarily:
     case kDepthInc:
@@ -215,6 +259,7 @@ void PHPFormatterBuffer::AppendEOL(eDepthCommand depth)
     m_buffer << GetIndent();
     if(kDepthIncTemporarily == depth) {
         --m_depth;
+        if(m_depth < 0) m_depth = 0;
     }
 }
 
@@ -239,21 +284,25 @@ void PHPFormatterBuffer::RemoveLastSpace()
 
 wxString PHPFormatterBuffer::FormatDoxyComment(const wxString& comment)
 {
-    wxString formattedBlock;
-    wxString indent = GetIndent();
-    wxArrayString lines = ::wxStringTokenize(comment, "\n", wxTOKEN_STRTOK);
-    for(size_t i = 0; i < lines.GetCount(); ++i) {
-        lines.Item(i).Trim().Trim(false);
-        if(i) {
-            // preprend space + the indent string for every line except for the first line
-            lines.Item(i).Prepend(" ");
-            lines.Item(i).Prepend(indent);
+    if(m_parenDepth == 0) {
+        wxString formattedBlock;
+        wxString indent = GetIndent();
+        wxArrayString lines = ::wxStringTokenize(comment, "\n", wxTOKEN_STRTOK);
+        for(size_t i = 0; i < lines.GetCount(); ++i) {
+            lines.Item(i).Trim().Trim(false);
+            if(i) {
+                // preprend space + the indent string for every line except for the first line
+                lines.Item(i).Prepend(" ");
+                lines.Item(i).Prepend(indent);
+            }
+            formattedBlock << lines.Item(i) << m_options.eol;
         }
-        formattedBlock << lines.Item(i) << m_options.eol;
-    }
 
-    formattedBlock.RemoveLast(m_options.eol.length());
-    return formattedBlock;
+        formattedBlock.RemoveLast(m_options.eol.length());
+        return formattedBlock;
+    } else {
+        return comment;
+    }
 }
 wxString& PHPFormatterBuffer::GetIndent()
 {
@@ -351,7 +400,14 @@ void PHPFormatterBuffer::format()
 bool PHPFormatterBuffer::NextToken(phpLexerToken& token)
 {
     if(m_tokensBuffer.empty()) {
-        return ::phpLexerNext(m_scanner, token);
+        bool res = ::phpLexerNext(m_scanner, token);
+        if(token.type == '(') {
+            ++m_parenDepth;
+        } else if(token.type == ')') {
+            --m_parenDepth;
+        }
+        return res;
+
     } else {
         token = *m_tokensBuffer.begin();
         m_tokensBuffer.erase(m_tokensBuffer.begin());
@@ -364,4 +420,93 @@ bool PHPFormatterBuffer::PeekToken(phpLexerToken& token)
     if(!::phpLexerNext(m_scanner, token)) return false;
     m_tokensBuffer.push_back(token);
     return true;
+}
+
+wxString PHPFormatterBuffer::GetIndentationToLast(wxChar ch)
+{
+    wxString whitespace;
+    wxString workingBuffer = m_buffer;
+    if(ch != '\n') {
+        int startPos = m_buffer.Find(ch, true);
+        if(startPos != wxNOT_FOUND) {
+            workingBuffer = m_buffer.Mid(0, startPos + 1);
+        } else {
+            return GetIndent();
+        }
+    }
+    int where = workingBuffer.Find('\n', true);
+
+    // did we find our match on the previous line?
+    if(where != wxNOT_FOUND) {
+        // Build the whitespace
+        wxString buff = workingBuffer.Mid(where + 1);
+        while(!buff.IsEmpty()) {
+            if(buff.at(0) == '\t') {
+                // replace tab with 4 spaces
+                whitespace << wxString(' ', m_options.indentSize);
+            } else {
+                whitespace << " ";
+            }
+            buff.Remove(0, 1);
+        }
+    }
+
+    if(m_options.flags & kPFF_UseTabs) {
+        int tabsCount = (whitespace.length() / m_options.indentSize);
+        int extraSpaces = (whitespace.length() % m_options.indentSize);
+        whitespace.clear();
+        whitespace << wxString('\t', tabsCount);
+        whitespace << wxString(' ', extraSpaces);
+    }
+    return whitespace;
+}
+
+#define SQUEEZE_WHITESPACE() m_buffer.erase(m_buffer.find_last_not_of(" \t") + 1);
+
+void PHPFormatterBuffer::ProcessArray(int openParen, int closingChar)
+{
+    wxString whitespace = GetIndentationToLast('\n');
+    int depth = 1;
+    // we exit at depth 0
+    phpLexerToken token;
+    // PHPScannerCollectWhitespace whitespaceCollector(m_scanner);
+
+    while(NextToken(token)) {
+        if(::phpLexerIsPHPCode(m_scanner)) {
+            // inside PHP block
+            if(token.type == openParen) {
+                ++depth;
+                RemoveLastSpace();
+                m_buffer << token.text;
+            } else if(token.type == closingChar) {
+                --depth;
+                RemoveLastSpace();
+                m_buffer << token.text;
+                if(depth == 0) break;
+
+            } else if(token.type == ',') {
+                // New line
+                RemoveLastSpace();
+                m_buffer << token.text;
+                m_buffer << m_options.eol;
+                m_buffer << whitespace;
+
+            } else if(token.type == '(' || token.type == ')' || token.type == kPHP_T_OBJECT_OPERATOR ||
+                      token.type == kPHP_T_PAAMAYIM_NEKUDOTAYIM || token.type == kPHP_T_NS_SEPARATOR ||
+                      token.type == kPHP_T_VARIABLE ||token.type == '[' || token.type == ']') {
+                RemoveLastSpace();
+                m_buffer << token.text;
+
+            } else {
+                m_buffer << token.text << " ";
+            }
+
+        } else {
+            // Non PHP code, copy text as is
+            if(token.type == kPHP_T_CLOSE_TAG && !m_openTagWithEcho) {
+                AppendEOL();
+            }
+            m_buffer << token.text;
+        }
+    }
 }

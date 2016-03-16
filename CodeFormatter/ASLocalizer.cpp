@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : ASLocalizer.cpp
 //
 // -------------------------------------------------------------------------
@@ -184,7 +184,7 @@ void ASLocalizer::setLanguageFromLCID(size_t lcid)
 //       Same with LCIDToLocaleName().
 {
     m_lcid = lcid;
-    m_langID == "en"; // default to english
+    m_langID = "en"; // default to english
 
     size_t lang = PRIMARYLANGID(LANGIDFROMLCID(m_lcid));
     size_t sublang = SUBLANGID(LANGIDFROMLCID(m_lcid));

@@ -30,6 +30,7 @@
 #include "pluginmanager.h"
 #include "imanager.h"
 #include "map"
+#include "clTreeKeyboardInput.h"
 
 class wxMenu;
 
@@ -42,8 +43,13 @@ struct FileViewItem {
 class FileViewTree : public wxTreeCtrl
 {
     DECLARE_DYNAMIC_CLASS()
+
     std::map<void*, bool> m_itemsToSort;
     wxArrayTreeItemIds m_draggedItems;
+    clTreeKeyboardInput::Ptr_t m_keyboardHelper;
+
+protected:
+    void DoCreateProjectContextMenu(wxMenu& menu, const wxString& projectName);
 
 public:
     /**
@@ -59,11 +65,8 @@ public:
      * @param size Window size
      * @param style Window style
      */
-    FileViewTree(wxWindow* parent,
-                 const wxWindowID id,
-                 const wxPoint& pos = wxDefaultPosition,
-                 const wxSize& size = wxDefaultSize,
-                 long style = wxBORDER_NONE);
+    FileViewTree(wxWindow* parent, const wxWindowID id, const wxPoint& pos = wxDefaultPosition,
+        const wxSize& size = wxDefaultSize, long style = wxBORDER_NONE);
 
     /**
      * Destructor .
@@ -78,11 +81,8 @@ public:
      * @param size Window size
      * @param style Window style
      */
-    virtual void Create(wxWindow* parent,
-                        const wxWindowID id,
-                        const wxPoint& pos = wxDefaultPosition,
-                        const wxSize& size = wxDefaultSize,
-                        long style = 0);
+    virtual void Create(wxWindow* parent, const wxWindowID id, const wxPoint& pos = wxDefaultPosition,
+        const wxSize& size = wxDefaultSize, long style = 0);
 
     // Build the actual tree from the workspace
     void BuildTree();
@@ -124,6 +124,12 @@ public:
      */
     ProjectPtr GetSelectedProject() const;
 
+    /**
+     * @brief public access to the "OnFolderDropped" function
+     * @param event
+     */
+    void FolderDropped(const wxArrayString& folders);
+
 protected:
     virtual void OnPopupMenu(wxTreeEvent& event);
     virtual void OnItemActivated(wxTreeEvent& event);
@@ -163,6 +169,8 @@ protected:
     virtual void OnReconcileProject(wxCommandEvent& e);
     virtual void OnRenameItem(wxCommandEvent& e);
     virtual void OnCompileItem(wxCommandEvent& e);
+    virtual void OnOpenShellFromFilePath(wxCommandEvent& e);
+    virtual void OnOpenFileExplorerFromFilePath(wxCommandEvent& e);
     virtual void OnExcludeFromBuild(wxCommandEvent& e);
     virtual void OnPreprocessItem(wxCommandEvent& e);
     virtual void SortTree();
@@ -172,6 +180,7 @@ protected:
     virtual void OnLocalWorkspaceSettings(wxCommandEvent& e);
     virtual void OnOpenWithDefaultApplication(wxCommandEvent& event);
     virtual void OnBuildTree(wxCommandEvent& e);
+    void OnFolderDropped(clCommandEvent& event);
 
     // Tree sorting
     virtual int OnCompareItems(const wxTreeItemId& item1, const wxTreeItemId& item2);
@@ -181,7 +190,7 @@ protected:
     void ShowProjectContextMenu(const wxString& projectName);
     void ShowVirtualFolderContextMenu(FilewViewTreeItemData* itemData);
     void ShowFileContextMenu();
-    
+
     // internal
     void OnBuildProjectOnlyInternal(wxCommandEvent& e);
     void OnCleanProjectOnlyInternal(wxCommandEvent& e);
@@ -202,6 +211,9 @@ private:
     void DoRemoveItems();
     void DoItemActivated(wxTreeItemId& item, wxEvent& event);
     void DoAddItem(ProjectPtr proj, const FileViewItem& item);
+    void DoImportFolder(ProjectPtr proj, const wxString& baseDir, const wxArrayString& all_files,
+        const wxString& filespec, bool extlessFiles);
+
     wxTreeItemId DoGetItemByText(const wxTreeItemId& parent, const wxString& text);
 
     wxTreeItemId GetSingleSelection();

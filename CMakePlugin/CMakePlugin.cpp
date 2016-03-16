@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CMakePlugin.cpp
 //
 // -------------------------------------------------------------------------
@@ -102,7 +102,7 @@ const wxString CMakePlugin::CMAKELISTS_FILE = "CMakeLists.txt";
 
 /* ************************************************************************ */
 
-static const wxString HELP_TAB_NAME = "CMake Help";
+static const wxString HELP_TAB_NAME = _("CMake Help");
 
 /* ************************************************************************ */
 /* FUNCTIONS                                                                */
@@ -115,7 +115,7 @@ static const wxString HELP_TAB_NAME = "CMake Help";
  *
  * @return CMake plugin instance.
  */
-extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
     if(!g_plugin) {
         g_plugin = new CMakePlugin(manager);
@@ -131,16 +131,16 @@ extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
  *
  * @return Plugin info.
  */
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
+    static PluginInfo info;
 
     info.SetAuthor(L"Jiří Fatka");
     info.SetName("CMakePlugin");
     info.SetDescription(_("CMake integration for CodeLite"));
     info.SetVersion("0.8");
 
-    return info;
+    return &info;
 }
 
 /* ************************************************************************ */
@@ -150,10 +150,7 @@ extern "C" EXPORT PluginInfo GetPluginInfo()
  *
  * @return Interface version.
  */
-extern "C" EXPORT int GetPluginInterfaceVersion()
-{
-    return PLUGIN_INTERFACE_VERSION;
-}
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 
 /* ************************************************************************ */
 
@@ -204,7 +201,7 @@ CMakePlugin::CMakePlugin(IManager* manager)
     m_shortName = "CMakePlugin";
 
     // Create CMake configuration file
-    m_configuration.reset(new CMakeConfiguration(wxStandardPaths::Get().GetUserDataDir() +
+    m_configuration.reset(new CMakeConfiguration(clStandardPaths::Get().GetUserDataDir() +
                                                  wxFileName::GetPathSeparator() + "config/cmake.ini"));
 
     // Create cmake application
@@ -213,12 +210,16 @@ CMakePlugin::CMakePlugin(IManager* manager)
     Notebook* book = m_mgr->GetWorkspacePaneNotebook();
     cmakeImages images;
     const wxBitmap& bmp = images.Bitmap("cmake_16");
-    if(IsPaneDetached()) {
-        DockablePane* cp = new DockablePane(book->GetParent()->GetParent(), book, HELP_TAB_NAME, bmp, wxSize(200, 200));
-        cp->SetChildNoReparent(new CMakeHelpTab(cp, this));
 
+    if(IsPaneDetached()) {
+        DockablePane* cp =
+            new DockablePane(book->GetParent()->GetParent(), book, HELP_TAB_NAME, false, bmp, wxSize(200, 200));
+        m_helpTab = new CMakeHelpTab(cp, this);
+        cp->SetChildNoReparent(m_helpTab);
     } else {
-        book->AddPage(new CMakeHelpTab(book, this), HELP_TAB_NAME, false, bmp);
+        m_helpTab = new CMakeHelpTab(book, this);
+        book->AddPage(m_helpTab, HELP_TAB_NAME, false, bmp);
+        m_mgr->AddWorkspaceTab(HELP_TAB_NAME);
     }
 
     // Bind events
@@ -230,6 +231,7 @@ CMakePlugin::CMakePlugin(IManager* manager)
         wxEVT_GET_IS_PLUGIN_MAKEFILE, clBuildEventHandler(CMakePlugin::OnGetIsPluginMakefile), this);
     EventNotifier::Get()->Bind(wxEVT_PLUGIN_EXPORT_MAKEFILE, clBuildEventHandler(CMakePlugin::OnExportMakefile), this);
     EventNotifier::Get()->Bind(wxEVT_WORKSPACE_LOADED, wxCommandEventHandler(CMakePlugin::OnWorkspaceLoaded), this);
+    EventNotifier::Get()->Bind(wxEVT_SHOW_WORKSPACE_TAB, &CMakePlugin::OnToggleHelpTab, this);
 }
 
 /* ************************************************************************ */
@@ -243,7 +245,7 @@ CMakePlugin::~CMakePlugin()
 
 wxFileName CMakePlugin::GetWorkspaceDirectory() const
 {
-    const Workspace* workspace = m_mgr->GetWorkspace();
+    const clCxxWorkspace* workspace = m_mgr->GetWorkspace();
     wxASSERT(workspace);
 
     return wxFileName::DirName(workspace->GetWorkspaceFileName().GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME));
@@ -253,7 +255,7 @@ wxFileName CMakePlugin::GetWorkspaceDirectory() const
 
 wxFileName CMakePlugin::GetProjectDirectory(const wxString& projectName) const
 {
-    const Workspace* workspace = m_mgr->GetWorkspace();
+    const clCxxWorkspace* workspace = m_mgr->GetWorkspace();
     wxASSERT(workspace);
 
     wxString errMsg;
@@ -278,7 +280,7 @@ wxString CMakePlugin::GetSelectedProjectConfig() const
 
 BuildConfigPtr CMakePlugin::GetSelectedBuildConfig() const
 {
-    const Workspace* workspace = m_mgr->GetWorkspace();
+    const clCxxWorkspace* workspace = m_mgr->GetWorkspace();
     wxASSERT(workspace);
 
     const ProjectPtr projectPtr = GetSelectedProject();
@@ -444,8 +446,8 @@ void CMakePlugin::UnPlug()
     Notebook* notebook = m_mgr->GetWorkspacePaneNotebook();
     wxASSERT(notebook);
 
-    size_t pos = notebook->GetPageIndex("CMake Help");
-    if(pos != Notebook::npos) {
+    int pos = notebook->GetPageIndex("CMake Help");
+    if(pos != wxNOT_FOUND) {
         CMakeHelpTab* helpTab = dynamic_cast<CMakeHelpTab*>(notebook->GetPage(pos));
         if(helpTab) {
             helpTab->Stop();
@@ -467,6 +469,7 @@ void CMakePlugin::UnPlug()
     EventNotifier::Get()->Unbind(
         wxEVT_PLUGIN_EXPORT_MAKEFILE, clBuildEventHandler(CMakePlugin::OnExportMakefile), this);
     EventNotifier::Get()->Unbind(wxEVT_WORKSPACE_LOADED, wxCommandEventHandler(CMakePlugin::OnWorkspaceLoaded), this);
+    EventNotifier::Get()->Unbind(wxEVT_SHOW_WORKSPACE_TAB, &CMakePlugin::OnToggleHelpTab, this);
 }
 
 /* ************************************************************************ */
@@ -533,17 +536,11 @@ void CMakePlugin::OnSaveConfig(clProjectSettingsEvent& event)
 
 /* ************************************************************************ */
 
-void CMakePlugin::OnGetCleanCommand(clBuildEvent& event)
-{
-    ProcessBuildEvent(event, "clean");
-}
+void CMakePlugin::OnGetCleanCommand(clBuildEvent& event) { ProcessBuildEvent(event, "clean"); }
 
 /* ************************************************************************ */
 
-void CMakePlugin::OnGetBuildCommand(clBuildEvent& event)
-{
-    ProcessBuildEvent(event);
-}
+void CMakePlugin::OnGetBuildCommand(clBuildEvent& event) { ProcessBuildEvent(event); }
 
 /* ************************************************************************ */
 
@@ -657,7 +654,7 @@ void CMakePlugin::OnExportMakefile(clBuildEvent& event)
                                                   "BUILD_DIR  := " << buildDirEsc << "\n"
                                                                                      "SOURCE_DIR := " << sourceDirEsc
                 << "\n"
-                   "CMAKE_ARGS := " << CreateArguments(*settings, *m_configuration.get())
+                   "CMAKE_ARGS := " << CreateArguments(*settings, *m_configuration)
                 << "\n"
                    "\n"
                    "# Building project(s)\n"
@@ -756,6 +753,26 @@ void CMakePlugin::ProcessBuildEvent(clBuildEvent& event, wxString param)
 
     // The build command is simple make call with different makefile
     event.SetCommand(cmd);
+}
+
+void CMakePlugin::OnToggleHelpTab(clCommandEvent& event)
+{
+    if(event.GetString() != HELP_TAB_NAME) {
+        event.Skip();
+        return;
+    }
+
+    if(event.IsSelected()) {
+        // show it
+        cmakeImages images;
+        const wxBitmap& bmp = images.Bitmap("cmake_16");
+        m_mgr->GetWorkspacePaneNotebook()->InsertPage(0, m_helpTab, HELP_TAB_NAME, true, bmp);
+    } else {
+        int where = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(HELP_TAB_NAME);
+        if(where != wxNOT_FOUND) {
+            m_mgr->GetWorkspacePaneNotebook()->RemovePage(where);
+        }
+    }
 }
 
 /* ************************************************************************ */

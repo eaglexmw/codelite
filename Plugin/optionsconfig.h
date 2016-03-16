@@ -37,32 +37,36 @@ class WXDLLIMPEXP_SDK OptionsConfig : public ConfObject
 {
 public:
     enum {
-        TabClassic = 0x00000001,
-        TabGlossy = 0x00000002,
-        TabCurved = 0x00000004,
-        TabAll = TabClassic | TabGlossy | TabCurved,
+        Opt_Unused10 = 0x00000001,
+        Opt_Unused11 = 0x00000002,
+        Opt_Unused12 = 0x00000004,
         Opt_AutoCompleteCurlyBraces = 0x00000008,
         Opt_AutoCompleteNormalBraces = 0x00000010,
         Opt_SmartAddFiles = 0x00000020,
         Opt_IconSet_FreshFarm = 0x00000040,
         Opt_IconSet_Classic = 0x00000100,
         Opt_AutoCompleteDoubleQuotes = 0x00000200,
-        Opt_NavKey_Shift = 0x00000400,
+        Opt_NavKey_Shift = 0x00000400, // (No longer actively used)
         Opt_NavKey_Alt = 0x00000800,
         Opt_NavKey_Control = 0x00001000,
         Opt_IconSet_Classic_Dark = 0x00002000,
         Opt_Mark_Debugger_Line = 0x00004000,
-        Opt_Unused1 = 0x00008000,
-        Opt_Unused2 = 0x00010000,
+        Opt_TabNoXButton = 0x00008000,
+        Opt_TabColourPersistent = 0x00010000,
         Opt_Unused3 = 0x00020000,
         Opt_Use_CodeLite_Terminal = 0x00040000,
-        Opt_Unused4 = 0x00080000,
+        Opt_Unused6 = 0x00080000,
         Opt_Unused5 = 0x00100000,
         Opt_AllowCaretAfterEndOfLine = 0x00200000,
         Opt_HideDockingWindowCaption = 0x00400000,
         Opt_WrapQuotes = 0x00800000,
         Opt_WrapBrackets = 0x01000000,
         Opt_WrapCmdWithDoubleQuotes = 0x02000000,
+        Opt_FoldHighlightActiveBlock = 0x04000000,
+        Opt_EnsureCaptionsVisible = 0x08000000,
+        Opt_DisableMouseCtrlZoom = 0x10000000,
+        Opt_UseBlockCaret =   0x20000000,
+        Opt_TabStyleMinimal = 0x40000000,
     };
 
 protected:
@@ -116,6 +120,7 @@ protected:
     bool m_hideOutputPaneNotIfDebug;
     bool m_hideOutputPaneNotIfMemCheck;
     bool m_findBarAtBottom;
+    bool m_showReplaceBar;
     bool m_TrimLine;
     bool m_AppendLF;
     bool m_disableSmartIndent;
@@ -133,6 +138,9 @@ protected:
     bool m_trimOnlyModifiedLines;
     size_t m_options;
     wxColour m_debuggerMarkerLine;
+    wxDirection m_workspaceTabsDirection; // Up/Down/Left/Right
+    wxDirection m_outputTabsDirection;    // Up/Down
+    bool m_indentedComments;
 
 public:
     // Helpers
@@ -152,10 +160,24 @@ public:
     OptionsConfig(wxXmlNode* node);
     virtual ~OptionsConfig(void);
 
+    void SetOutputTabsDirection(const wxDirection& outputTabsDirection)
+    {
+        this->m_outputTabsDirection = outputTabsDirection;
+    }
+    void SetWorkspaceTabsDirection(const wxDirection& workspaceTabsDirection)
+    {
+        this->m_workspaceTabsDirection = workspaceTabsDirection;
+    }
+    const wxDirection& GetOutputTabsDirection() const { return m_outputTabsDirection; }
+    const wxDirection& GetWorkspaceTabsDirection() const { return m_workspaceTabsDirection; }
     wxString GetEOLAsString() const;
     //-------------------------------------
     // Setters/Getters
     //-------------------------------------
+    void SetTabColourMatchesTheme(bool b) { EnableOption(Opt_TabColourPersistent, !b); }
+    bool IsTabColourMatchesTheme() const { return !HasOption(Opt_TabColourPersistent); }
+    void SetTabHasXButton(bool b) { EnableOption(Opt_TabNoXButton, !b); }
+    bool IsTabHasXButton() const { return !HasOption(Opt_TabNoXButton); }
 
     void SetOptions(size_t options) { this->m_options = options; }
     size_t GetOptions() const { return m_options; }
@@ -185,6 +207,8 @@ public:
     const bool& GetAppendLF() const { return m_AppendLF; }
     void SetFindBarAtBottom(const bool& findBarAtBottom) { this->m_findBarAtBottom = findBarAtBottom; }
     const bool& GetFindBarAtBottom() const { return m_findBarAtBottom; }
+    void SetShowReplaceBar(bool show) { m_showReplaceBar = show; }
+    bool GetShowReplaceBar() const { return m_showReplaceBar; }
     void SetHideOutpuPaneOnUserClick(const bool& hideOutpuPaneOnUserClick)
     {
         this->m_hideOutpuPaneOnUserClick = hideOutpuPaneOnUserClick;
@@ -267,6 +291,7 @@ public:
 
     bool GetHideChangeMarkerMargin() const { return m_hideChangeMarkerMargin; }
 
+    bool GetIndentedComments() const { return m_indentedComments; }
     bool GetDisplayFoldMargin() const { return m_displayFoldMargin; }
     bool GetUnderlineFoldLine() const { return m_underlineFoldLine; }
     bool GetScrollBeyondLastLine() const { return m_scrollBeyondLastLine; }
@@ -286,6 +311,7 @@ public:
     bool GetShowIndentationGuidelines() const { return m_showIndentationGuidelines; }
     wxColour GetCaretLineColour() const { return m_caretLineColour; }
 
+    void SetIndentedComments(bool b) { m_indentedComments = b; }
     void SetDisplayFoldMargin(bool b) { m_displayFoldMargin = b; }
     void SetUnderlineFoldLine(bool b) { m_underlineFoldLine = b; }
     void SetScrollBeyondLastLine(bool b) { m_scrollBeyondLastLine = b; }
@@ -353,7 +379,9 @@ public:
 
     bool GetAutoAddMatchedNormalBraces() const { return HasOption(Opt_AutoCompleteNormalBraces); }
     bool GetAutoCompleteDoubleQuotes() const { return HasOption(Opt_AutoCompleteDoubleQuotes); }
-    void SetAutoCompleteDoubleQuotes(bool b) { return EnableOption(Opt_AutoCompleteDoubleQuotes, b); }
+    void SetAutoCompleteDoubleQuotes(bool b) { EnableOption(Opt_AutoCompleteDoubleQuotes, b); }
+    void SetHighlightFoldWhenActive(bool b) { EnableOption(Opt_FoldHighlightActiveBlock, b); }
+    bool IsHighlightFoldWhenActive() const { return HasOption(Opt_FoldHighlightActiveBlock); }
     void SetFoldBgColour(const wxColour& foldBgColour) { this->m_foldBgColour = foldBgColour; }
     const wxColour& GetFoldBgColour() const { return m_foldBgColour; }
     void SetAutoAdjustHScrollBarWidth(const bool& autoAdjustHScrollBarWidth)
@@ -386,7 +414,8 @@ public:
     const wxColour& GetDebuggerMarkerLine() const { return m_debuggerMarkerLine; }
 
     void SetShowDockingWindowCaption(bool show) { EnableOption(Opt_HideDockingWindowCaption, !show); }
-
+    void SetEnsureCaptionsVisible(bool b) { EnableOption(Opt_EnsureCaptionsVisible, b); }
+    bool IsEnsureCaptionsVisible() const { return HasOption(Opt_EnsureCaptionsVisible); }
     bool IsShowDockingWindowCaption() const { return !HasOption(Opt_HideDockingWindowCaption); }
     bool IsWrapSelectionWithQuotes() const { return HasOption(Opt_WrapQuotes); }
     bool IsWrapSelectionBrackets() const { return HasOption(Opt_WrapBrackets); }
@@ -394,8 +423,9 @@ public:
     void SetWrapSelectionBrackets(bool b) { return EnableOption(Opt_WrapBrackets, b); }
 
     void MSWWrapCmdWithDoubleQuotes(bool b) { EnableOption(Opt_WrapCmdWithDoubleQuotes, b); }
-    bool MSWIsWrapCmdWithDoubleQuotes() const { return HasOption(Opt_WrapCmdWithDoubleQuotes); }
-    
+    bool MSWIsWrapCmdWithDoubleQuotes() const { return true; }
+    bool IsMouseZoomEnabled() const { return !HasOption(Opt_DisableMouseCtrlZoom); }
+    void SetMouseZoomEnabled(bool b) { EnableOption(Opt_DisableMouseCtrlZoom, !b); }
     /**
      * Return an XML representation of this object
      * \return XML node

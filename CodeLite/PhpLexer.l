@@ -291,6 +291,7 @@ horizontal_white [ ]|{h_tab}
 <PHP>"public"               {LEX_RETURN(kPHP_T_PUBLIC);}
 <PHP>"unset"                {LEX_RETURN(kPHP_T_UNSET);}
 <PHP>"=>"                   {LEX_RETURN(kPHP_T_DOUBLE_ARROW);}
+<PHP>"<=>"                  {LEX_RETURN(kPHP_T_SPACE_SHIP_OPERATPR);}
 <PHP>"list"                 {LEX_RETURN(kPHP_T_LIST);}
 <PHP>"array"                {LEX_RETURN(kPHP_T_ARRAY);}
 <PHP>"callable"             {LEX_RETURN(kPHP_T_CALLABLE);}
@@ -422,6 +423,13 @@ horizontal_white [ ]|{h_tab}
 //=============-------------------------------
 // API methods implementation
 //=============-------------------------------
+
+phpLexerUserData* phpLexerGetUserData(void* scanner)
+{
+    struct yyguts_t * yyg = (struct yyguts_t*)scanner;
+    phpLexerUserData* userData = (phpLexerUserData*)yyg->yyextra_r;
+    return userData;
+}
 
 bool phpLexerIsPHPCode(void* scanner)
 {

@@ -2,10 +2,27 @@
 #include <wx/dcbuffer.h>
 #include <wx/dcmemory.h>
 #include <wx/msgdlg.h>
+#include "drawingutils.h"
 
 //++++++++---------------------------------
 // wxFlatButtonEvent
 //++++++++---------------------------------
+
+static wxBitmap ConvertToDisabled(const wxBitmap& bmp)
+{
+#if wxVERSION_NUMBER >= 3100 && !defined(__WXMSW__)
+    // Convert the image to disabled
+    // It seems that m_bitmap.ConvertToDisabled() looses the scale
+    // factor, so use this kind of conversion
+    wxImage img = bmp.ConvertToImage();
+    img = img.ConvertToDisabled();
+    // Keep the original m_bitmap scale factor
+    wxBitmap disabledBmp = wxBitmap(img, -1, bmp.GetScaleFactor());
+    return disabledBmp;
+#else
+    return bmp.ConvertToDisabled();
+#endif
+}
 
 wxDEFINE_EVENT(wxEVT_CMD_FLATBUTTON_CLICK, wxFlatButtonEvent);
 wxDEFINE_EVENT(wxEVT_CMD_FLATBUTTON_MENU_SHOWING, wxFlatButtonEvent);
@@ -34,14 +51,14 @@ wxFlatButtonEvent& wxFlatButtonEvent::operator=(const wxFlatButtonEvent& src)
 //++++++++---------------------------------
 #define X_SPACER 5
 #define Y_SPACER 3
-#define BTN_RADIUS 3
+#define BTN_RADIUS 2
 
 wxFlatButton::wxFlatButton(wxWindow* parent,
-                           const wxString& label,
-                           const wxFlatButton::eTheme theme,
-                           const wxBitmap& bmp,
-                           const wxSize& size,
-                           int style)
+    const wxString& label,
+    const wxFlatButton::eTheme theme,
+    const wxBitmap& bmp,
+    const wxSize& size,
+    int style)
     : wxFlatButtonBase(parent)
     , m_theme(theme)
     , m_state(kStateNormal)
@@ -84,7 +101,7 @@ wxFlatButton::wxFlatButton(wxWindow* parent,
         SetTextColour("rgb(248, 248, 242)");
         SetTextColourDisabled("rgb(109, 109, 109)");
         if(m_bmp.IsOk()) {
-            m_bmpDisabled = m_bmp.ConvertToDisabled(100);
+            m_bmpDisabled = ConvertToDisabled(m_bmp);
         }
 
     } else {
@@ -104,7 +121,7 @@ wxFlatButton::wxFlatButton(wxWindow* parent,
         SetTextColour("rgb(15, 15, 15)");
         SetTextColourDisabled(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
         if(m_bmp.IsOk()) {
-            m_bmpDisabled = m_bmp.ConvertToDisabled();
+            m_bmpDisabled = ConvertToDisabled(m_bmp);
         }
     }
 
@@ -120,8 +137,7 @@ wxFlatButton::~wxFlatButton() { wxDELETE(m_contextMenu); }
 
 void wxFlatButton::OnEnterWindow(wxMouseEvent& event)
 {
-    if(!IsEnabled())
-        return;
+    if(!IsEnabled()) return;
     if(!m_isChecked) {
         m_state = kStateHover;
         Refresh();
@@ -132,8 +148,7 @@ void wxFlatButton::OnKeyDown(wxKeyEvent& event) { event.Skip(); }
 
 void wxFlatButton::OnLeaveWindow(wxMouseEvent& event)
 {
-    if(!IsEnabled())
-        return;
+    if(!IsEnabled()) return;
 
     if(!m_isChecked) {
         m_state = kStateNormal;
@@ -145,8 +160,7 @@ void wxFlatButton::OnLeftUp(wxMouseEvent& event) { DoActivate(); }
 
 void wxFlatButton::DoActivate()
 {
-    if(!IsEnabled())
-        return;
+    if(!IsEnabled()) return;
 
     wxFlatButtonEvent btnEvent(wxEVT_CMD_FLATBUTTON_CLICK);
     btnEvent.SetEventObject(this);
@@ -193,6 +207,8 @@ void wxFlatButton::OnPaint(wxPaintEvent& event)
 {
     wxUnusedVar(event);
     wxAutoBufferedPaintDC paintDC(this);
+    PrepareDC(paintDC);
+
     wxGCDC gdc;
     GetGCDC(paintDC, gdc);
 
@@ -204,32 +220,13 @@ void wxFlatButton::OnPaint(wxPaintEvent& event)
 
     switch(m_state) {
     case kStateHover: {
-        if(!IsChecked()) {
-            // Hover
-            gdc.SetBrush(GetBgHoverColour());
-            gdc.SetPen(m_penHoverOuterColour);
-            gdc.DrawRoundedRectangle(clientRect, BTN_RADIUS);
-
-            clientRect.Deflate(1);
-            gdc.SetBrush(*wxTRANSPARENT_BRUSH);
-            gdc.SetPen(m_penHoverColourInner);
-            gdc.DrawRoundedRectangle(clientRect, BTN_RADIUS);
-
-            // gdc.SetPen(m_penHoverColourInner);
-            // gdc.DrawLine(clientRect.GetBottomLeft(), clientRect.GetTopLeft());
-            // gdc.DrawLine(clientRect.GetTopLeft(), clientRect.GetTopRight());
-            //
-            // gdc.SetPen(m_penHoverOuterColour);
-            // gdc.DrawLine(clientRect.GetTopRight(), clientRect.GetBottomRight());
-            // gdc.DrawLine(clientRect.GetBottomRight(), clientRect.GetBottomLeft());
-        }
-        break;
-    }
-    case kStateNormal: {
         // do nothing
         gdc.SetBrush(GetBgColour());
         gdc.SetPen(GetPenNormalColour());
         gdc.DrawRoundedRectangle(clientRect, BTN_RADIUS);
+        break;
+    }
+    case kStateNormal: {
         break;
     }
     case kStatePressed: {
@@ -237,30 +234,45 @@ void wxFlatButton::OnPaint(wxPaintEvent& event)
         gdc.SetBrush(GetBgPressedColour());
         gdc.SetPen(GetPenPressedColour());
         gdc.DrawRoundedRectangle(clientRect, BTN_RADIUS);
-
-        // gdc.SetBrush(GetBgPressedColour());
-        // gdc.DrawRectangle(clientRect);
-        //
-        // gdc.SetPen(m_penHoverOuterColour);
-        // gdc.DrawLine(clientRect.GetBottomLeft(), clientRect.GetTopLeft());
-        // gdc.DrawLine(clientRect.GetTopLeft(), clientRect.GetTopRight());
-        //
-        // gdc.SetPen(m_penHoverColourInner);
-        // gdc.DrawLine(clientRect.GetTopRight(), clientRect.GetBottomRight());
-        // gdc.DrawLine(clientRect.GetBottomRight(), clientRect.GetBottomLeft());
         break;
     }
     }
 
     // Draw text
     gdc.SetFont(GetTextFont());
-    if(!IsEnabled()) {
-        gdc.SetTextForeground(GetTextColourDisabled());
-        gdc.DrawLabel(
-            m_text, m_bmpDisabled, clientRect, wxALIGN_CENTER_VERTICAL | wxALIGN_CENTER_HORIZONTAL, m_accelIndex);
-    } else {
-        gdc.SetTextForeground(GetTextColour());
-        gdc.DrawLabel(m_text, m_bmp, clientRect, wxALIGN_CENTER_VERTICAL | wxALIGN_CENTER_HORIZONTAL, m_accelIndex);
+    wxColour textColour = IsEnabled() ? GetTextColour() : GetTextColourDisabled();
+    wxBitmap bmp = IsEnabled() ? m_bmp : m_bmpDisabled;
+
+    wxCoord textY;
+    wxCoord bmpY;
+
+    wxCoord totalLen = 0;
+    const int spacer = 2;
+    if(bmp.IsOk()) {
+        // we got a bitmap
+        totalLen += bmp.GetScaledWidth();
+    }
+
+    wxSize textSize;
+    if(!m_text.IsEmpty()) {
+        textSize = gdc.GetTextExtent(m_text);
+        totalLen += spacer;
+        totalLen += textSize.x;
+    }
+
+    wxCoord offset = (clientRect.GetWidth() - totalLen) / 2;
+    bmpY = (clientRect.GetHeight() - bmp.GetScaledHeight()) / 2;
+    textY = (clientRect.GetHeight() - textSize.y) / 2;
+    if(bmp.IsOk()) {
+        gdc.DrawBitmap(bmp, offset, bmpY);
+        offset += bmp.GetScaledWidth();
+        offset += spacer;
+    }
+
+    if(!m_text.IsEmpty()) {
+        gdc.DrawText(m_text, offset, textY);
+        offset += textSize.x;
+        offset += spacer;
     }
 }
 
@@ -380,7 +392,7 @@ wxColour wxFlatButton::GetBarBgColour(wxFlatButton::eTheme theme)
     if(theme == wxFlatButton::kThemeDark) {
         return wxColour("rgb(87, 87, 87)");
     } else {
-        return wxColour(wxSystemSettings::GetColour(wxSYS_COLOUR_3DFACE));
+        return wxColour(DrawingUtils::GetPanelBgColour());
     }
 }
 

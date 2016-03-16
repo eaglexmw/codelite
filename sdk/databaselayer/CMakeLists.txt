@@ -23,12 +23,20 @@ if(WIN32)
     add_definitions(-DWXMAKINGDLL_DATABASELAYER)
 endif(WIN32)
 
-# Add RPATH
-if (UNIX)
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif (UNIX)
+if (UNIX AND NOT APPLE)
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+endif()
 
-FILE(GLOB SRCS "src/dblayer/Sqlite*.cpp" "src/dblayer/Database*.cpp" "src/dblayer/Prepared*.cpp" "src/sqlite3/*.c")
+if ( APPLE )
+    add_definitions(-fPIC)
+endif()
+
+if(APPLE)
+    FILE(GLOB SRCS "src/dblayer/Sqlite*.cpp" "src/dblayer/Database*.cpp" "src/dblayer/Prepared*.cpp" "src/sqlite3/*.c")
+else()
+    FILE(GLOB SRCS "src/dblayer/Sqlite*.cpp" "src/dblayer/Database*.cpp" "src/dblayer/Prepared*.cpp")
+endif()
 
 if ( WITH_MYSQL )
     find_library(LIBMYSQLCLIENT NAMES mysql mysqlclient mariadb mariadbclient)
@@ -53,4 +61,10 @@ endif ( WITH_MYSQL )
 # Define the output
 add_library(databaselayersqlite SHARED ${SRCS} ${MYSQL_SRCS})
 target_link_libraries(databaselayersqlite ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES})
-install(TARGETS databaselayersqlite DESTINATION ${PLUGINS_DIR})
+
+if(APPLE)
+    install(TARGETS databaselayersqlite DESTINATION ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/)
+    CL_INSTALL_NAME_TOOL_STD(${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/libdatabaselayersqlite.dylib)
+else()
+    install(TARGETS databaselayersqlite DESTINATION ${PLUGINS_DIR})
+endif()

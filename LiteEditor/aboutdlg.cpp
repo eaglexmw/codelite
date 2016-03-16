@@ -41,7 +41,8 @@ AboutDlg::AboutDlg( wxWindow* parent, const wxString &mainTitle )
     m_buttonOk->SetFocus();
     wxFileName license(ManagerST::Get()->GetInstallDir() + wxFileName::GetPathSeparator() + wxT("LICENSE"));
     wxString licenseFullname = license.GetFullPath();
-
+    
+    GetSizer()->Fit(this);
     if(license.FileExists()) {
         wxFFile fp(licenseFullname);
         if(fp.IsOpened()) {
@@ -58,7 +59,7 @@ AboutDlg::AboutDlg( wxWindow* parent, const wxString &mainTitle )
             m_textCtrlLicense->SetEditable(false);
         }
     }
-    CentreOnScreen();
+    CentreOnParent();
 }
 
 AboutDlg::~AboutDlg()

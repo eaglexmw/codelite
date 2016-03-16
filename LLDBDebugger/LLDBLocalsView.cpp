@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : LLDBLocalsView.cpp
 //
 // -------------------------------------------------------------------------
@@ -29,6 +29,7 @@
 #include <wx/treelist.h>
 #include <wx/wupdlock.h>
 #include <wx/textdlg.h>
+#include "globals.h"
 
 #define LOCALS_VIEW_NAME_COL_IDX 0
 #define LOCALS_VIEW_VALUE_COL_IDX 1
@@ -45,7 +46,9 @@ LLDBLocalsView::LLDBLocalsView(wxWindow* parent, LLDBPlugin* plugin)
                                     wxDefaultSize,
                                     wxTR_HIDE_ROOT | wxTR_HAS_BUTTONS | wxTR_FULL_ROW_HIGHLIGHT | wxTR_COLUMN_LINES |
                                         wxTR_ROW_LINES | wxTR_TWIST_BUTTONS | wxTR_MULTIPLE);
-
+    m_treeList->SetBackgroundStyle(wxBG_STYLE_CUSTOM);
+    m_treeList->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    
     m_treeList->AddColumn(_("Name"), 150);
     m_treeList->AddColumn(_("Value"), 300);
     m_treeList->AddColumn(_("Summary"), 300);
@@ -61,6 +64,7 @@ LLDBLocalsView::LLDBLocalsView(wxWindow* parent, LLDBPlugin* plugin)
     m_plugin->GetLLDB()->Bind(wxEVT_LLDB_VARIABLE_EXPANDED, &LLDBLocalsView::OnLLDBVariableExpanded, this);
 
     m_treeList->Bind(wxEVT_COMMAND_TREE_ITEM_EXPANDING, &LLDBLocalsView::OnItemExpanding, this);
+    m_treeList->Bind(wxEVT_CONTEXT_MENU, &LLDBLocalsView::OnLocalsContextMenu, this);
     GetSizer()->Layout();
 }
 
@@ -72,6 +76,7 @@ LLDBLocalsView::~LLDBLocalsView()
     m_plugin->GetLLDB()->Unbind(wxEVT_LLDB_RUNNING, &LLDBLocalsView::OnLLDBRunning, this);
     m_plugin->GetLLDB()->Unbind(wxEVT_LLDB_VARIABLE_EXPANDED, &LLDBLocalsView::OnLLDBVariableExpanded, this);
     m_treeList->Unbind(wxEVT_COMMAND_TREE_ITEM_EXPANDING, &LLDBLocalsView::OnItemExpanding, this);
+    m_treeList->Unbind(wxEVT_CONTEXT_MENU, &LLDBLocalsView::OnLocalsContextMenu, this);
 }
 
 void LLDBLocalsView::OnLLDBExited(LLDBEvent& event)
@@ -183,7 +188,7 @@ void LLDBLocalsView::OnNewWatch(wxCommandEvent& event)
         return;
     }
     m_plugin->GetLLDB()->AddWatch(watch);
-    
+
     // Refresh the locals view
     m_plugin->GetLLDB()->RequestLocals();
 }
@@ -211,7 +216,7 @@ void LLDBLocalsView::OnDelete(wxCommandEvent& event)
     m_plugin->GetLLDB()->RequestLocals();
 }
 
-void LLDBLocalsView::OnDeleteUI(wxUpdateUIEvent& event) 
+void LLDBLocalsView::OnDeleteUI(wxUpdateUIEvent& event)
 {
     wxArrayTreeItemIds items;
     GetWatchesFromSelections(items);
@@ -223,7 +228,7 @@ void LLDBLocalsView::GetWatchesFromSelections(wxArrayTreeItemIds& items)
     items.Clear();
     wxArrayTreeItemIds arr;
     m_treeList->GetSelections(arr);
-    
+
     for(size_t i = 0; i < arr.GetCount(); ++i) {
         wxTreeItemId item = arr.Item(i);
         if(!GetItemData(item)) continue;
@@ -232,9 +237,50 @@ void LLDBLocalsView::GetWatchesFromSelections(wxArrayTreeItemIds& items)
 
         LLDBVariable::Ptr_t lldbVar = data->GetVariable();
         if(!lldbVar) continue;
-        
+
         if(lldbVar->IsWatch()) {
             items.Add(item);
+        }
+    }
+}
+
+void LLDBLocalsView::OnLocalsContextMenu(wxContextMenuEvent& event)
+{
+    
+    wxMenu menu;
+    menu.Append(wxID_COPY, _("Copy value to clipboard"));
+    int selection = GetPopupMenuSelectionFromUser(menu);
+    if(selection == wxID_COPY) {
+        wxString content;
+        wxArrayTreeItemIds arr;
+        m_treeList->GetSelections(arr);
+        for(size_t i = 0; i < arr.GetCount(); ++i) {
+            wxString itemValue;
+            wxTreeItemId item = arr.Item(i);
+            if(!GetItemData(item)) continue;
+            LLDBVariableClientData* data = GetItemData(item);
+            if(!data) continue;
+            LLDBVariable::Ptr_t lldbVar = data->GetVariable();
+            if(!lldbVar) continue;
+            if(!lldbVar->GetValue().IsEmpty()) {
+                itemValue << lldbVar->GetValue();
+            }
+            
+            if(!lldbVar->GetSummary().IsEmpty()) {
+                if(!itemValue.IsEmpty()) itemValue << " ";
+                itemValue << lldbVar->GetSummary();
+            }
+            
+            if(!itemValue.IsEmpty()) {
+                if(!content.IsEmpty()) {
+                    content << "\n";
+                }
+                content << itemValue;
+            }
+        }
+        
+        if(!content.IsEmpty()) {
+            ::CopyToClipboard(content);
         }
     }
 }

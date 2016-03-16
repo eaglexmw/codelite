@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : GitConsole.cpp
 //
 // -------------------------------------------------------------------------
@@ -39,6 +39,9 @@
 #include "drawingutils.h"
 #include "cl_aui_tool_stickness.h"
 #include "macros.h"
+#include "globals.h"
+#include "clCommandProcessor.h"
+#include <wx/wupdlock.h>
 
 #define GIT_MESSAGE(...) AddText(wxString::Format(__VA_ARGS__));
 #define GIT_MESSAGE1(...)                       \
@@ -175,23 +178,18 @@ GitConsole::GitConsole(wxWindow* parent, GitPlugin* git)
     , m_git(git)
 {
     // set the font to fit the C++ lexer default font
-    LexerConf::Ptr_t lexCpp = EditorConfigST::Get()->GetLexer("c++");
+    LexerConf::Ptr_t lexCpp = EditorConfigST::Get()->GetLexer("text");
     if(lexCpp) {
-        wxFont font = lexCpp->GetFontForSyle(wxSTC_C_DEFAULT);
-        for(int i = 0; i < wxSTC_STYLE_MAX; ++i) {
-            m_stcLog->StyleSetFont(i, font);
-        }
+        lexCpp->Apply(m_stcLog);
     }
-    m_stcLog->SetReadOnly(true);
-
-    m_bitmapLoader = new BitmapLoader();
+    m_bitmapLoader = clGetManager()->GetStdIcons();
     GitImages m_images;
     m_bitmaps = m_bitmapLoader->MakeStandardMimeMap();
-    m_modifiedBmp = m_bitmapLoader->LoadBitmap("subversion/16/modified");
-    m_untrackedBmp = m_bitmapLoader->LoadBitmap("subversion/16/unversioned");
-    m_folderBmp = m_bitmapLoader->LoadBitmap("mime/16/folder");
-    m_newBmp = m_images.Bitmap("gitFileAdd");
-    m_deleteBmp = m_bitmapLoader->LoadBitmap("subversion/16/deleted");
+    m_modifiedBmp = m_bitmapLoader->LoadBitmap("warning");
+    m_untrackedBmp = m_bitmapLoader->LoadBitmap("info");
+    m_folderBmp = m_bitmapLoader->LoadBitmap("folder");
+    m_newBmp = m_bitmapLoader->LoadBitmap("plus");
+    m_deleteBmp = m_bitmapLoader->LoadBitmap("minus");
 
     EventNotifier::Get()->Connect(
         wxEVT_GIT_CONFIG_CHANGED, wxCommandEventHandler(GitConsole::OnConfigurationChanged), NULL, this);
@@ -244,6 +242,9 @@ GitConsole::GitConsole(wxWindow* parent, GitPlugin* git)
          wxAuiToolBarEventHandler(GitConsole::OnGitRebaseDropdown),
          this,
          XRCID("git_rebase"));
+
+    // Adjust the h-scrollbar of git log
+    ::clRecalculateSTCHScrollBar(m_stcLog);
 }
 
 GitConsole::~GitConsole()
@@ -254,7 +255,6 @@ GitConsole::~GitConsole()
     data.SetGitConsoleSashPos(m_splitter->GetSashPosition());
     conf.WriteItem(&data);
 
-    wxDELETE(m_bitmapLoader);
     EventNotifier::Get()->Disconnect(
         wxEVT_GIT_CONFIG_CHANGED, wxCommandEventHandler(GitConsole::OnConfigurationChanged), NULL, this);
     EventNotifier::Get()->Disconnect(
@@ -268,48 +268,37 @@ GitConsole::~GitConsole()
            XRCID("git_pull"));
 }
 
-void GitConsole::OnClearGitLog(wxCommandEvent& event)
-{
-    m_stcLog->SetReadOnly(false);
-    m_stcLog->ClearAll();
-    m_stcLog->SetReadOnly(true);
-}
+void GitConsole::OnClearGitLog(wxCommandEvent& event) { m_stcLog->ClearAll(); }
 
 void GitConsole::OnStopGitProcess(wxCommandEvent& event)
 {
     if(m_git->GetProcess()) {
         m_git->GetProcess()->Terminate();
     }
+
+    if(m_git->GetFolderProcess()) {
+        m_git->GetFolderProcess()->Terminate();
+    }
 }
 
-void GitConsole::OnStopGitProcessUI(wxUpdateUIEvent& event) { event.Enable(m_git->GetProcess()); }
+void GitConsole::OnStopGitProcessUI(wxUpdateUIEvent& event)
+{
+    event.Enable(m_git->GetProcess() || m_git->GetFolderProcess());
+}
 
 void GitConsole::OnClearGitLogUI(wxUpdateUIEvent& event) { event.Enable(!m_stcLog->IsEmpty()); }
 
 void GitConsole::AddText(const wxString& text)
 {
+    wxWindowUpdateLocker locker(m_stcLog);
     wxString tmp = text;
     tmp.Replace("\r\n", "\n");
-
-    m_stcLog->SetReadOnly(false);
-
-    int lineNumber = m_stcLog->GetLineCount(); // there is always at least 1 line in the document
-    --lineNumber;                              // wxSTC count lines from 0
-
-    wxArrayString lines = ::wxStringTokenize(tmp, "\n", wxTOKEN_STRTOK);
-    for(size_t i = 0; i < lines.GetCount(); ++i) {
-        wxString& curline = lines.Item(i);
-        if(curline.StartsWith("\r") && lineNumber) {
-            m_stcLog->LineDelete(); // Deletes the "\n" we append to each line
-            m_stcLog->LineDelete(); // The the last line we added
-        }
-        m_stcLog->AppendText(curline + "\n");
-
-        // update the lineNumber
-        lineNumber = m_stcLog->GetLineCount(); // there is always at least 1 line in the document
-        --lineNumber;                          // wxSTC count lines from 0
+    if(!tmp.EndsWith("\n")) {
+        tmp.Append("\n");
     }
-    m_stcLog->SetReadOnly(false);
+    wxString curtext = m_stcLog->GetText();
+    curtext << tmp;
+    m_stcLog->SetText(curtext);
     m_stcLog->ScrollToEnd();
 }
 
@@ -324,16 +313,6 @@ void GitConsole::OnConfigurationChanged(wxCommandEvent& e)
     GitEntry data;
     conf.ReadItem(&data);
     m_isVerbose = (data.GetFlags() & GitEntry::Git_Verbose_Log);
-}
-
-static wxVariant MakeIconText(const wxString& text, const wxBitmap& bmp)
-{
-    wxIcon icn;
-    icn.CopyFromBitmap(bmp);
-    wxDataViewIconText ict(text, icn);
-    wxVariant v;
-    v << ict;
-    return v;
 }
 
 void GitConsole::UpdateTreeView(const wxString& output)
@@ -453,11 +432,11 @@ void GitConsole::OnContextMenu(wxDataViewEvent& event)
     menu.AppendSeparator();
     menu.Append(XRCID("git_console_add_file"), _("Add file"));
     menu.Append(XRCID("git_console_reset_file"), _("Reset file"));
-    menu.Connect(XRCID("git_console_open_file"),
-                 wxEVT_COMMAND_MENU_SELECTED,
-                 wxCommandEventHandler(GitConsole::OnOpenFile),
-                 NULL,
-                 this);
+    menu.AppendSeparator();
+    menu.Append(XRCID("git_console_close_view"), _("Close View"));
+
+    menu.Bind(wxEVT_MENU, &GitConsole::OnOpenFile, this, XRCID("git_console_open_file"));
+    menu.Bind(wxEVT_MENU, &GitConsole::OnCloseView, this, XRCID("git_console_close_view"));
     m_dvFiles->PopupMenu(&menu);
 }
 
@@ -517,7 +496,9 @@ void GitConsole::OnWorkspaceClosed(wxCommandEvent& e)
 {
     e.Skip();
     m_dvFilesModel->Clear();
+    OnClearGitLog(e);
 }
+
 void GitConsole::OnItemSelectedUI(wxUpdateUIEvent& event) { event.Enable(m_dvFiles->GetSelectedItemsCount()); }
 
 void GitConsole::OnFileActivated(wxDataViewEvent& event)
@@ -570,7 +551,8 @@ void GitConsole::OnEditorThemeChanged(wxCommandEvent& e)
     m_stcLog->Refresh();
 }
 
-struct GitCommandData : public wxObject {
+struct GitCommandData : public wxObject
+{
     GitCommandData(const wxArrayString a, const wxString n, int i)
         : arr(a)
         , name(n)
@@ -650,23 +632,20 @@ void GitConsole::OnDropDownMenuEvent(wxCommandEvent& event)
 
 void GitConsole::HideProgress()
 {
-    if(m_panelProgress->IsShown()) {
+    if(m_gauge->IsShown()) {
         m_gauge->SetValue(0);
-        m_staticTextGauge->SetLabel("");
-        m_panelProgress->Hide();
-        m_splitterPageTreeView->GetSizer()->Layout();
+        m_gauge->Hide();
+        GetSizer()->Layout();
     }
 }
 
 void GitConsole::ShowProgress(const wxString& message, bool pulse)
 {
-    if(!m_panelProgress->IsShown()) {
-        m_panelProgress->Show();
-        m_splitterPageTreeView->GetSizer()->Layout();
+    if(!m_gauge->IsShown()) {
+        m_gauge->Show();
+        GetSizer()->Layout();
     }
 
-    wxString trimmedMessage = message;
-    m_staticTextGauge->SetLabel(trimmedMessage.Trim().Trim(false));
     if(pulse) {
         m_gauge->Pulse();
         m_gauge->Update();
@@ -681,10 +660,10 @@ void GitConsole::UpdateProgress(unsigned long current, const wxString& message)
 {
     wxString trimmedMessage = message;
     m_gauge->SetValue(current);
-    m_staticTextGauge->SetLabel(trimmedMessage.Trim().Trim(false));
+    // m_staticTextGauge->SetLabel(trimmedMessage.Trim().Trim(false));
 }
 
-bool GitConsole::IsProgressShown() const { return m_panelProgress->IsShown(); }
+bool GitConsole::IsProgressShown() const { return m_gauge->IsShown(); }
 
 void GitConsole::PulseProgress() { m_gauge->Pulse(); }
 
@@ -695,4 +674,28 @@ bool GitConsole::IsDirty() const
     bool hasNew = m_itemNew.IsOk() && m_dvFilesModel->HasChildren(m_itemNew);
 
     return hasDeleted || hasModified || hasNew;
+}
+void GitConsole::OnStclogStcChange(wxStyledTextEvent& event)
+{
+    event.Skip();
+    ::clRecalculateSTCHScrollBar(m_stcLog);
+}
+
+void GitConsole::OnCloseView(wxCommandEvent& e)
+{
+    e.Skip();
+
+    // Write down that we don't want to set this git repo once this workspace
+    // is re-loaded
+    if(m_git->IsWorkspaceOpened()) {
+        clConfig conf("git.conf");
+        GitEntry entry;
+        if(conf.ReadItem(&entry)) {
+            entry.DeleteEntry(m_git->GetWorkspaceFileName().GetName());
+            conf.WriteItem(&entry);
+        }
+    }
+    // Close the git view
+    m_git->WorkspaceClosed();
+    OnWorkspaceClosed(e);
 }

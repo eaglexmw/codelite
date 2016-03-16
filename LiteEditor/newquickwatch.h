@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : newquickwatch.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : newquickwatch.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef NEWQUICKWATCH_BASE_CLASSES_H
-#define NEWQUICKWATCH_BASE_CLASSES_H
+#ifndef CODELITE_LITEEDITOR_NEWQUICKWATCH_BASE_CLASSES_H
+#define CODELITE_LITEEDITOR_NEWQUICKWATCH_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -47,6 +47,12 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 #include <wx/button.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class clDebuggerTipWindowBase : public wxPopupWindow
 {
@@ -69,6 +75,11 @@ protected:
     virtual void OnTipLeftDown(wxMouseEvent& event) { event.Skip(); }
 
 public:
+    wxTreeCtrl* GetTreeCtrl() { return m_treeCtrl; }
+    wxScrolledWindow* GetScrollWin6() { return m_scrollWin6; }
+    wxStaticBitmap* GetStaticBitmap44() { return m_staticBitmap44; }
+    wxPanel* GetPanelStatusBar() { return m_panelStatusBar; }
+    wxPanel* GetPanel46() { return m_panel46; }
     clDebuggerTipWindowBase(wxWindow* parent, long style = wxBORDER_NONE);
     virtual ~clDebuggerTipWindowBase();
 };
@@ -86,6 +97,11 @@ protected:
 protected:
 
 public:
+    wxStaticText* GetStaticText36() { return m_staticText36; }
+    wxTextCtrl* GetTextCtrl38() { return m_textCtrl38; }
+    wxPanel* GetPanel32() { return m_panel32; }
+    wxButton* GetButton28() { return m_button28; }
+    wxButton* GetButton30() { return m_button30; }
     clDebuggerEditItemDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Edit Item"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(400,-1), long style = wxDEFAULT_DIALOG_STYLE|wxSTAY_ON_TOP);
     virtual ~clDebuggerEditItemDlgBase();
 };

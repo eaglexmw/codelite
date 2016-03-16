@@ -30,17 +30,18 @@
 #include "iconfigtool.h"
 #include "wx/treectrl.h"
 #include "project.h"
-#include "notebook_ex.h"
+#include "Notebook.h"
 #include "optionsconfig.h"
 #include "queuecommand.h"
 #include <wx/aui/framemanager.h>
 #include "bitmap_loader.h"
-#include "notebook_ex.h"
 #include <vector>
 #include "debugger.h"
+#include "clStatusBar.h"
 
+class clWorkspaceView;
 class TagsManager;
-class Workspace;
+class clCxxWorkspace;
 class EnvironmentConfig;
 class JobQueue;
 class wxApp;
@@ -72,6 +73,23 @@ enum TreeType { TreeFileView = 0, TreeFileExplorer };
 
 enum eOutputPaneTab { kOutputTab_Build, kOutputTab_Output };
 
+// A struct representing a tab in the notebook control
+struct clTab {
+    typedef std::vector<clTab> Vec_t;
+    wxString text;
+    wxWindow* window;
+    wxBitmap bitmap;
+    bool isFile;
+    wxFileName filename;
+    bool isModified;
+    clTab()
+        : window(NULL)
+        , isFile(false)
+        , isModified(false)
+    {
+    }
+};
+
 //------------------------------------------------------------------
 // Defines the interface of the manager
 //------------------------------------------------------------------
@@ -85,9 +103,65 @@ enum eOutputPaneTab { kOutputTab_Build, kOutputTab_Output };
  */
 class IManager
 {
+    wxArrayString m_workspaceTabs;
+    wxArrayString m_outputTabs;
+
 public:
     IManager() {}
     virtual ~IManager() {}
+
+    /**
+     * @brief return a list of all possible output tabs registered by the user
+     */
+    const wxArrayString& GetOutputTabs() const { return m_outputTabs; }
+
+    /**
+     * @brief return a list of all possible workspace tabs
+     */
+    const wxArrayString& GetWorkspaceTabs() const { return m_workspaceTabs; }
+
+    /**
+     * @brief register a workspace tab
+     */
+    void AddWorkspaceTab(const wxString& tabLabel)
+    {
+        if(m_workspaceTabs.Index(tabLabel) == wxNOT_FOUND) {
+            m_workspaceTabs.Add(tabLabel);
+        }
+    }
+
+    /**
+     * @brief register output pane tab
+     */
+    void AddOutputTab(const wxString& tabLabel)
+    {
+        if(m_outputTabs.Index(tabLabel) == wxNOT_FOUND) {
+            m_outputTabs.Add(tabLabel);
+        }
+    }
+
+    /**
+     * @brief show the output pane and if provided, select 'selectedWindow'
+     * @param selectWindow tab within the 'Output Pane' to select, if empty don't change
+     * the selection
+     */
+    virtual void ShowOutputPane(const wxString& selectWindow = "") = 0;
+
+    /**
+     * @brief show the toolbar. This only works when using the native toolbar
+     */
+    virtual void ShowToolBar(bool show = true) = 0;
+
+    /**
+     * @brief is the native toolbar visible?
+     */
+    virtual bool IsToolBarShown() const = 0;
+    /**
+     * @brief toggle the output pane
+     * @param selectWindow tab within the 'Output Pane' to select, if empty don't change
+     * the selection
+     */
+    virtual void ToggleOutputPane(const wxString& selectedWindow = "") = 0;
 
     // return the current editor
     /**
@@ -96,6 +170,12 @@ public:
      * editor open
      */
     virtual IEditor* GetActiveEditor() = 0;
+
+    /**
+     * @brief return the main frame's status bar
+     */
+    virtual clStatusBar* GetStatusBar() = 0;
+
     /**
      * @brief open file and make it the active editor
      * @param fileName the file to open - use absolute path
@@ -103,15 +183,15 @@ public:
      * @param lineno if lineno is not wxNOT_FOUD, the caret will placed on this line number
      * @return true if file opened
      */
-    virtual bool
-        OpenFile(const wxString& fileName, const wxString& projectName = wxEmptyString, int lineno = wxNOT_FOUND) = 0;
+    virtual IEditor* OpenFile(
+        const wxString& fileName, const wxString& projectName = wxEmptyString, int lineno = wxNOT_FOUND) = 0;
 
     /**
      * @brief Open file using browsing record
      * @param rec browsing record
      * @return true on success false otherwise
      */
-    virtual bool OpenFile(const BrowseRecord& rec) = 0;
+    virtual IEditor* OpenFile(const BrowseRecord& rec) = 0;
 
     /**
      * @brief return a pointer to the configuration tool
@@ -146,7 +226,7 @@ public:
      * @sa Notebook
      */
     virtual Notebook* GetOutputPaneNotebook() = 0;
-    
+
     /**
      * @brief append text line to the tab in the "Output View"
      */
@@ -156,9 +236,9 @@ public:
      * @brief clear the content of the selected output tab
      */
     virtual void ClearOutputTab(eOutputPaneTab tab) = 0;
-    
+
     virtual wxPanel* GetEditorPaneNotebook() = 0;
-    virtual void AddEditorPage(wxWindow* page, const wxString& name,const wxString& tooltip = wxEmptyString) = 0;
+    virtual void AddEditorPage(wxWindow* page, const wxString& name, const wxString& tooltip = wxEmptyString) = 0;
     virtual wxWindow* GetActivePage() = 0;
     virtual wxWindow* GetPage(size_t page) = 0;
 
@@ -192,10 +272,15 @@ public:
      */
     virtual TagsManager* GetTagsManager() = 0;
     /**
-     * @brief return a pointer to the workspace manager
-     * @sa Workspace
+     * @brief return a pointer to the ** C++ ** workspace manager
      */
-    virtual Workspace* GetWorkspace() = 0;
+    virtual clCxxWorkspace* GetWorkspace() = 0;
+
+    /**
+     * @brief return the workspace view tab
+     * @return
+     */
+    virtual clWorkspaceView* GetWorkspaceView() = 0;
 
     /**
      * @brief add files to a virtual folder in the project
@@ -325,7 +410,7 @@ public:
      * @param col the statusbar pane to use
      * @param seconds_to_live how many seconds to display it for; 0 == forever; -1 == use the default
      */
-    virtual void SetStatusMessage(const wxString& msg, int col, int seconds_to_live = wxID_ANY) = 0;
+    virtual void SetStatusMessage(const wxString& msg, int seconds_to_live = wxID_ANY) = 0;
 
     /**
      * @brief start processing commands from the queue
@@ -382,12 +467,24 @@ public:
      */
     virtual NavMgr* GetNavigationMgr() = 0;
 
-    void SetStatusMessage(const wxString& msg) { SetStatusMessage(msg, 0); }
-
     /**
      * @brief close the named page in the mainbook
+     * @param the tab title.
+     * @note if there are multiple items with this title, all of them will be closed
      */
-    virtual bool ClosePage(const wxString& text) = 0;
+    virtual bool ClosePage(const wxString& title) = 0;
+
+    /**
+     * @brief close an editor with a given file name (full path)
+     */
+    virtual bool ClosePage(const wxFileName& filename) = 0;
+
+    /**
+     * @brief close 'editor' from the notebook
+     * @param editor editor to close
+     * @param prompt if set to 'true' prompt if editor is modified, otherwise, close withotu prompting
+     */
+    virtual bool CloseEditor(IEditor* editor, bool prompt = true) = 0;
 
     /**
      * @brief return named window in mainbook
@@ -397,8 +494,8 @@ public:
     /**
      * @brief add a page to the mainbook
      */
-    virtual bool
-        AddPage(wxWindow* win, const wxString& text, const wxString& tooltip = wxEmptyString, const wxBitmap& bmp = wxNullBitmap, bool selected = false) = 0;
+    virtual bool AddPage(wxWindow* win, const wxString& text, const wxString& tooltip = wxEmptyString,
+        const wxBitmap& bmp = wxNullBitmap, bool selected = false) = 0;
 
     /**
      * @brief select a window in mainbook
@@ -455,9 +552,17 @@ public:
     virtual size_t GetPageCount() const = 0;
 
     /**
-     * @brief return list of all open editors
+     * @brief return list of all open editors in the main notebook.
+     * This function returns only instances of IEditor (i.e. a file text editor)
      */
     virtual size_t GetAllEditors(IEditor::List_t& editors, bool inOrder = false) = 0;
+
+    /**
+     * @brief return list of open tabs in the main notebook. If you need only editors, use GetAllEditors
+     * @param tabs [output]
+     * @param inOrder retain the editors order
+     */
+    virtual size_t GetAllTabs(clTab::Vec_t& tabs) = 0;
 
     // ---------------------------------------------
     // Breakpoint management
@@ -484,18 +589,18 @@ public:
      * @param editor the editor
      */
     virtual void ProcessEditEvent(wxCommandEvent& e, IEditor* editor) = 0;
-    
+
     /**
      * @brief add 'fileName' to the list of recently used workspaces
      * @param fileName
      */
     virtual void AddWorkspaceToRecentlyUsedList(const wxFileName& fileName) = 0;
-    
+
     /**
      * @brief store a new session for the workspace file associated with the file 'workspaceFile'
      */
     virtual void StoreWorkspaceSession(const wxFileName& workspaceFile) = 0;
-    
+
     /**
      * @brief load the session associated with 'workspaceFile'
      */
@@ -515,17 +620,17 @@ public:
      * this function also makes sure that the 'Perspective' menu is updated
      */
     virtual void SavePerspective(const wxString& perspectiveName) = 0;
-    
-    // Search 
+
+    // Search
     /**
      * @brief open the find in files dialog and select 'path' to search in
      */
-    virtual void OpenFindInFileForPath(const wxString &path) = 0;
-    
+    virtual void OpenFindInFileForPath(const wxString& path) = 0;
+
     /**
      * @brief open the find in files dialog with multiple search paths
      */
-    virtual void OpenFindInFileForPaths(const wxArrayString &paths) = 0;
+    virtual void OpenFindInFileForPaths(const wxArrayString& paths) = 0;
 };
 
 #endif // IMANAGER_H

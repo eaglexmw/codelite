@@ -39,13 +39,12 @@ EditorSettingsComments::EditorSettingsComments( wxWindow* parent )
     
     size_t flags = EditorConfigST::Get()->GetOptions()->GetOptions();
     
-    if ( !(flags & (OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control|OptionsConfig::Opt_NavKey_Shift)) ) {
-        flags = OptionsConfig::Opt_NavKey_Shift; // force at least one meta key
+    if ( !(flags & (OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control)) ) {
+        flags = OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control; // force the least-instrusive meta key default
     }
     
     m_checkBoxAlt->SetValue( flags & OptionsConfig::Opt_NavKey_Alt );
     m_checkBoxCtrl->SetValue( flags & OptionsConfig::Opt_NavKey_Control );
-    m_checkBoxShift->SetValue( flags & OptionsConfig::Opt_NavKey_Shift );
 }
 
 void EditorSettingsComments::Save(OptionsConfigPtr options)
@@ -65,18 +64,15 @@ void EditorSettingsComments::Save(OptionsConfigPtr options)
     
     // clear the navigation key code
     flags &= ~(OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control|OptionsConfig::Opt_NavKey_Shift);
-    
-    if( m_checkBoxShift->IsChecked() )
-        flags |= OptionsConfig::Opt_NavKey_Shift;
-    
+   
     if( m_checkBoxCtrl->IsChecked() )
         flags |= OptionsConfig::Opt_NavKey_Control;
         
     if( m_checkBoxAlt->IsChecked() )
         flags |= OptionsConfig::Opt_NavKey_Alt;
     
-    if ( !(flags & (OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control|OptionsConfig::Opt_NavKey_Shift)) ) {
-        flags |= OptionsConfig::Opt_NavKey_Shift; // force at least one meta key
+    if ( !(flags & (OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control)) ) {
+        flags |= OptionsConfig::Opt_NavKey_Alt|OptionsConfig::Opt_NavKey_Control; // force the least-instrusive meta key default
     }
     
     options->SetOptions(flags);

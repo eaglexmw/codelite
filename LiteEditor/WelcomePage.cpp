@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : WelcomePage.cpp
 //
 // -------------------------------------------------------------------------
@@ -34,6 +34,7 @@
 #include "event_notifier.h"
 #include "plugin.h"
 #include "editor_config.h"
+#include "pluginmanager.h"
 
 WelcomePage::WelcomePage(wxWindow* parent)
     : WelcomePageBase(parent)
@@ -46,15 +47,6 @@ WelcomePage::~WelcomePage()
 {
     EventNotifier::Get()->Disconnect(
         wxEVT_CL_THEME_CHANGED, wxCommandEventHandler(WelcomePage::OnThemeChanged), NULL, this);
-}
-
-void WelcomePage::OnNewProject(wxCommandEvent& event)
-{
-    wxUnusedVar(event);
-    wxCommandEvent e(wxEVT_COMMAND_MENU_SELECTED, XRCID("new_project"));
-    e.SetEventObject(clMainFrame::Get());
-
-    clMainFrame::Get()->GetEventHandler()->AddPendingEvent(e);
 }
 
 void WelcomePage::OnOpenForums(wxCommandEvent& event)
@@ -72,14 +64,13 @@ void WelcomePage::OnOpenWiki(wxCommandEvent& event)
 void WelcomePage::OnSize(wxSizeEvent& event)
 {
     event.Skip();
-    m_staticBitmap161->Refresh();
+    m_staticBitmap->Refresh();
 }
 
 void WelcomePage::OnShowFileseMenu(wxCommandEvent& event)
 {
     wxArrayString recentFiles;
     clMainFrame::Get()->GetMainBook()->GetRecentlyOpenedFiles(recentFiles);
-    recentFiles.Sort();
 
     int id = DoGetPopupMenuSelection(m_cmdLnkBtnFilesMenu, recentFiles, _("Select file to open"));
     if(id != wxID_NONE) {
@@ -95,8 +86,8 @@ void WelcomePage::OnShowWorkspaceMenu(wxCommandEvent& event)
     //  files.Sort();
 
     wxArrayString recentWorkspaces;
-    for(size_t i = files.GetCount(); i > 0; --i) {
-        wxFileName fn(files.Item(i - 1));
+    for(size_t i = 0; i < files.size(); ++i) {
+        wxFileName fn(files.Item(i));
         recentWorkspaces.Add(fn.GetName() + " @ " + fn.GetFullPath());
     }
 
@@ -117,17 +108,28 @@ void WelcomePage::OnShowWorkspaceMenu(wxCommandEvent& event)
 int
 WelcomePage::DoGetPopupMenuSelection(wxCommandLinkButton* btn, const wxArrayString& strings, const wxString& menuTitle)
 {
-    BitmapLoader bl;
-    BitmapLoader::BitmapMap_t bmps = bl.MakeStandardMimeMap();
+    BitmapLoader::BitmapMap_t bmps = PluginManager::Get()->GetStdIcons()->MakeStandardMimeMap();
 
     m_idToName.clear();
     wxUnusedVar(menuTitle);
     wxMenu menu;
 
-    for(size_t i = 0; i < strings.GetCount(); i++) {
+    for(size_t i = 0; i < strings.GetCount(); ++i) {
 
         wxBitmap bmp = bmps[FileExtManager::TypeText];
-        FileExtManager::FileType type = FileExtManager::GetType(strings.Item(i));
+        wxString filename = strings.Item(i);
+        if(filename.Find("@") != wxNOT_FOUND) {
+            filename = filename.AfterFirst('@');
+        }
+        filename.Trim().Trim(false);
+        
+        // Ensure that the file exists...
+        if(!wxFileName(filename).Exists()) {
+            // Don't show non existing files in the menu
+            continue;
+        }
+        
+        FileExtManager::FileType type = FileExtManager::GetType(filename);
         if(bmps.count(type)) {
             bmp = bmps[type];
         }
@@ -170,14 +172,18 @@ void WelcomePage::OnRecentProjectUI(wxUpdateUIEvent& event)
     event.Enable(!files.IsEmpty());
 }
 
-void WelcomePage::OnThemeChanged(wxCommandEvent& e)
-{
-    e.Skip();
-}
+void WelcomePage::OnThemeChanged(wxCommandEvent& e) { e.Skip(); }
 
 void WelcomePage::OnNewWorkspace(wxCommandEvent& event)
 {
     wxCommandEvent e(wxEVT_COMMAND_MENU_SELECTED, XRCID("new_workspace"));
+    e.SetEventObject(clMainFrame::Get());
+    clMainFrame::Get()->GetEventHandler()->AddPendingEvent(e);
+}
+void WelcomePage::OnOpenWorkspace(wxCommandEvent& event)
+{
+    wxUnusedVar(event);
+    wxCommandEvent e(wxEVT_COMMAND_MENU_SELECTED, XRCID("switch_to_workspace"));
     e.SetEventObject(clMainFrame::Get());
     clMainFrame::Get()->GetEventHandler()->AddPendingEvent(e);
 }

@@ -32,9 +32,9 @@ SpellCheckerSettings_base::SpellCheckerSettings_base(wxWindow* parent, wxWindowI
     
     m_staticText2 = new wxStaticText(this, wxID_ANY, _("Dictionary path:"), wxDefaultPosition, wxSize(-1, -1), 0);
     
-    bSizer51->Add(m_staticText2, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    bSizer51->Add(m_staticText2, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5);
     
-    m_pDirPicker = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, wxT("Select a folder"), wxDefaultPosition, wxSize(-1, -1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
+    m_pDirPicker = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, _("Select a folder"), wxDefaultPosition, wxSize(-1, -1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
     m_pDirPicker->SetToolTip(_("Select the location of the installed dictionaries"));
     
     bSizer51->Add(m_pDirPicker, 1, wxALL, 2);
@@ -120,11 +120,23 @@ SpellCheckerSettings_base::SpellCheckerSettings_base(wxWindow* parent, wxWindowI
     m_stdBtnSizer12->AddButton(m_buttonCancel);
     m_stdBtnSizer12->Realize();
     
-    SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    SetName(wxT("SpellCheckerSettings_base"));
+    SetSize(-1,-1);
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre();
+    if(GetParent()) {
+        CentreOnParent();
+    } else {
+        CentreOnScreen();
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     this->Connect(wxEVT_INIT_DIALOG, wxInitDialogEventHandler(SpellCheckerSettings_base::OnInitDialog), NULL, this);
     m_pDirPicker->Connect(wxEVT_COMMAND_DIRPICKER_CHANGED, wxFileDirPickerEventHandler(SpellCheckerSettings_base::OnDirChanged), NULL, this);
@@ -187,20 +199,19 @@ CorrectSpellingDlg_base::CorrectSpellingDlg_base(wxWindow* parent, wxWindowID id
     bSizer2->Add(m_staticText2, 0, wxLEFT|wxRIGHT|wxTOP|wxEXPAND, 3);
     
     wxArrayString m_pSuggestionsArr;
-    m_pSuggestions = new wxListBox(this, wxID_ANY, wxDefaultPosition, wxSize(130,100), m_pSuggestionsArr, 0);
+    m_pSuggestions = new wxListBox(this, wxID_ANY, wxDefaultPosition, wxSize(200,-1), m_pSuggestionsArr, 0);
     
     bSizer2->Add(m_pSuggestions, 1, wxLEFT|wxRIGHT|wxBOTTOM|wxEXPAND, 3);
-    m_pSuggestions->SetMinSize(wxSize(130,100));
     
     wxBoxSizer* bSizer12 = new wxBoxSizer(wxVERTICAL);
     
-    bSizer7->Add(bSizer12, 1, wxEXPAND, 5);
+    bSizer7->Add(bSizer12, 0, wxALL|wxEXPAND, 5);
     
     wxFlexGridSizer* fgSizer4 = new wxFlexGridSizer(2, 2, 0, 0);
     fgSizer4->SetFlexibleDirection( wxBOTH );
     fgSizer4->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
     
-    bSizer12->Add(fgSizer4, 1, wxALL|wxEXPAND, 5);
+    bSizer12->Add(fgSizer4, 1, wxEXPAND, 5);
     
     m_button1 = new wxButton(this, wxID_ANY, _("Change"), wxDefaultPosition, wxSize(-1, -1), 0);
     m_button1->SetDefault();
@@ -223,11 +234,16 @@ CorrectSpellingDlg_base::CorrectSpellingDlg_base(wxWindow* parent, wxWindowID id
     
     bSizer12->Add(m_button3, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5);
     
-    SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    SetName(wxT("CorrectSpellingDlg_base"));
+    SetSize(-1,-1);
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre();
+    if(GetParent()) {
+        CentreOnParent();
+    } else {
+        CentreOnScreen();
+    }
     // Connect events
     this->Connect(wxEVT_INIT_DIALOG, wxInitDialogEventHandler(CorrectSpellingDlg_base::OnInitDialog), NULL, this);
     m_pSuggestions->Connect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(CorrectSpellingDlg_base::OnSuggestionSelected), NULL, this);
@@ -249,72 +265,4 @@ CorrectSpellingDlg_base::~CorrectSpellingDlg_base()
     m_button4->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CorrectSpellingDlg_base::OnAddClick), NULL, this);
     m_button5->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CorrectSpellingDlg_base::OnSuggestClick), NULL, this);
     
-}
-
-SpellCheckerImages16::SpellCheckerImages16()
-    : wxImageList(16, 16, true)
-{
-    if ( !bBitmapLoaded ) {
-        // We need to initialise the default bitmap handler
-        wxXmlResource::Get()->AddHandler(new wxBitmapXmlHandler);
-        wxC9A94InitBitmapResources();
-        bBitmapLoaded = true;
-    }
-    
-    {
-        wxBitmap bmp;
-        wxIcon icn;
-        bmp = wxXmlResource::Get()->LoadBitmap(wxT("spellChecker16"));
-        icn.CopyFromBitmap( bmp );
-        this->Add( icn );
-        m_bitmaps.insert( std::make_pair(wxT("spellChecker16"), bmp ) );
-    }
-    
-    {
-        wxBitmap bmp;
-        wxIcon icn;
-        bmp = wxXmlResource::Get()->LoadBitmap(wxT("spellChecker16Cont"));
-        icn.CopyFromBitmap( bmp );
-        this->Add( icn );
-        m_bitmaps.insert( std::make_pair(wxT("spellChecker16Cont"), bmp ) );
-    }
-    
-}
-
-SpellCheckerImages16::~SpellCheckerImages16()
-{
-}
-
-SpellCheckerImages24::SpellCheckerImages24()
-    : wxImageList(24, 24, true)
-{
-    if ( !bBitmapLoaded ) {
-        // We need to initialise the default bitmap handler
-        wxXmlResource::Get()->AddHandler(new wxBitmapXmlHandler);
-        wxC9A94InitBitmapResources();
-        bBitmapLoaded = true;
-    }
-    
-    {
-        wxBitmap bmp;
-        wxIcon icn;
-        bmp = wxXmlResource::Get()->LoadBitmap(wxT("spellChecker24"));
-        icn.CopyFromBitmap( bmp );
-        this->Add( icn );
-        m_bitmaps.insert( std::make_pair(wxT("spellChecker24"), bmp ) );
-    }
-    
-    {
-        wxBitmap bmp;
-        wxIcon icn;
-        bmp = wxXmlResource::Get()->LoadBitmap(wxT("spellChecker24Cont"));
-        icn.CopyFromBitmap( bmp );
-        this->Add( icn );
-        m_bitmaps.insert( std::make_pair(wxT("spellChecker24Cont"), bmp ) );
-    }
-    
-}
-
-SpellCheckerImages24::~SpellCheckerImages24()
-{
 }

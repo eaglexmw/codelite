@@ -45,8 +45,7 @@ CscopeTab::CscopeTab( wxWindow* parent, IManager *mgr )
     , m_table(NULL)
     , m_mgr(mgr)
 {
-    BitmapLoader bl;
-    m_bitmaps = bl.MakeStandardMimeMap();
+    m_bitmaps = clGetManager()->GetStdIcons()->MakeStandardMimeMap();
 
     CScopeConfData data;
     m_mgr->GetConfigTool()->ReadObject(wxT("CscopeSettings"), &data);
@@ -147,7 +146,7 @@ void CscopeTab::DoItemActivated(const wxDataViewItem& item )
 {
     CscopeTabClientData *data = dynamic_cast<CscopeTabClientData*>(m_dataviewModel->GetClientObject(item));
     if (data) {
-        wxString wsp_path = WorkspaceST::Get()->GetPrivateFolder();
+        wxString wsp_path = clCxxWorkspaceST::Get()->GetPrivateFolder();
         //a single entry was activated, open the file
         //convert the file path to absolut path. We do it here, to improve performance
         wxFileName fn(data->GetEntry().GetFile());
@@ -199,9 +198,12 @@ void CscopeTab::OnClearResultsUI(wxUpdateUIEvent& e)
 void CscopeTab::OnChangeSearchScope(wxCommandEvent& e)
 {
     CScopeConfData data;
+    m_mgr->GetConfigTool()->ReadObject(wxT("CscopeSettings"), &data);
+    // update the settings
     data.SetScanScope(m_stringManager.GetStringSelection());
     data.SetRebuildDbOption(m_checkBoxUpdateDb->IsChecked());
     data.SetBuildRevertedIndexOption(m_checkBoxRevertedIndex->IsChecked());
+    // store the object
     m_mgr->GetConfigTool()->WriteObject(wxT("CscopeSettings"), &data);
 }
 

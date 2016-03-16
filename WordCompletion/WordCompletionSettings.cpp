@@ -2,8 +2,8 @@
 
 WordCompletionSettings::WordCompletionSettings()
     : clConfigItem("WordCompletionSettings")
-    , m_completeTypes(kCompleteWords)
     , m_comparisonMethod(kComparisonStartsWith)
+    , m_enabled(true)
 {
 }
 
@@ -11,15 +11,15 @@ WordCompletionSettings::~WordCompletionSettings() {}
 
 void WordCompletionSettings::FromJSON(const JSONElement& json)
 {
-    m_completeTypes = json.namedObject("m_completeTypes").toSize_t(m_completeTypes);
     m_comparisonMethod = json.namedObject("m_comparisonMethod").toInt(m_comparisonMethod);
+    m_enabled = json.namedObject("m_enabled").toBool(m_enabled);
 }
 
 JSONElement WordCompletionSettings::ToJSON() const
 {
     JSONElement element = JSONElement::createObject(GetName());
-    element.addProperty("m_completeTypes", m_completeTypes);
     element.addProperty("m_comparisonMethod", m_comparisonMethod);
+    element.addProperty("m_enabled", m_enabled);
     return element;
 }
 

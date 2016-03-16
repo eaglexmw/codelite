@@ -17,7 +17,7 @@
    "border": 5,
    "gbSpan": "1,1",
    "gbPosition": "0,0",
-   "m_styles": ["wxDEFAULT_DIALOG_STYLE"],
+   "m_styles": ["wxSTAY_ON_TOP", "wxRESIZE_BORDER"],
    "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM"],
    "m_properties": [{
      "type": "string",
@@ -71,6 +71,10 @@
      "type": "string",
      "m_label": "Style:",
      "m_value": ""
+    }, {
+     "type": "bool",
+     "m_label": "Enable Window Persistency:",
+     "m_value": true
     }, {
      "type": "string",
      "m_label": "Title:",
@@ -127,6 +131,10 @@
      "m_styles": [],
      "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM", "wxEXPAND"],
      "m_properties": [{
+       "type": "string",
+       "m_label": "Minimum Size:",
+       "m_value": "-1,-1"
+      }, {
        "type": "string",
        "m_label": "Name:",
        "m_value": "boxSizer26"
@@ -217,6 +225,10 @@
          "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM", "wxEXPAND"],
          "m_properties": [{
            "type": "string",
+           "m_label": "Minimum Size:",
+           "m_value": "-1,-1"
+          }, {
+           "type": "string",
            "m_label": "Name:",
            "m_value": "boxSizer6"
           }, {
@@ -236,7 +248,7 @@
            "border": 5,
            "gbSpan": "1,1",
            "gbPosition": "0,0",
-           "m_styles": [],
+           "m_styles": ["wxBORDER_THEME"],
            "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM", "wxEXPAND"],
            "m_properties": [{
              "type": "winid",
@@ -425,6 +437,10 @@
            "m_styles": [],
            "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM", "wxALIGN_RIGHT"],
            "m_properties": [{
+             "type": "string",
+             "m_label": "Minimum Size:",
+             "m_value": "-1,-1"
+            }, {
              "type": "string",
              "m_label": "Name:",
              "m_value": "boxSizer20"

@@ -34,15 +34,27 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 ## Defaults
 #############################################
 project( "CodeLite" )
+if(APPLE)
+  execute_process(COMMAND make type=release os=osx clean WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/PCH)
+  execute_process(COMMAND make type=release os=osx WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/PCH)
+endif()
 
 ## Generate compile_commands.json file for code completion
 set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
-
 set( CL_PREFIX "/usr" )
+
 if (CMAKE_CURRENT_LIST_DIR) # since cmake 2.8.3
     set( CL_SRC_ROOT ${CMAKE_CURRENT_LIST_DIR})
 else()
     set( CL_SRC_ROOT ${CMAKE_CURRENT_SOURCE_DIR}) # which seems to be the same, at least in this situation
+endif()
+
+include(FindLibClang)
+include(FindSqlite3)
+
+if(NOT SQLITE3_FOUND)
+    set(SQLITE3_INCLUDE_DIR ${CL_SRC_ROOT}/sqlite3)
+    set(SQLITE3_LIBRARY "-lsqlite3lib")
 endif()
 
 set( USE_CLANG 1 )
@@ -50,6 +62,17 @@ set( IS_FREEBSD 0 )
 set( BUILD_WXC 0 )
 set( CL_COPY_WX_LIBS 0 )
 set( WITH_SFTP 1 )
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations") # Avoid very multiple warnings spam due to deprecated wx methods
+
+if ( UNIX )
+	# Configure CCache if available
+	find_program(CCACHE_FOUND ccache)
+	if (CCACHE_FOUND)
+		set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+		set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+	endif(CCACHE_FOUND)
+endif(UNIX)
 
 if ( UNIX )
     execute_process(COMMAND pwd OUTPUT_VARIABLE BUILD_DIRECTORY OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -124,6 +147,12 @@ if ( PREFIX )
 else()
     # If the caller hasn't set his own destination, install to a multi-arch lib dir if applicable
     if (CMAKE_VERSION VERSION_GREATER 2.8.7 AND ( UNIX AND NOT APPLE ))
+        if (CMAKE_VERSION VERSION_GREATER 3.0.0)
+            # Prior to this, afaict the GNUInstallDirs module worked whatever the prefix
+            # Since, it looks at CMAKE_INSTALL_PREFIX which is /usr/local by default, and refuses to run the multiarch-setting code unless it's /usr/
+            # So, partly to comply with the default documented above, & partly for packaging, explicitly set it to /usr
+            set (CMAKE_INSTALL_PREFIX "/usr")
+        endif()
         include (GNUInstallDirs) # defines CMAKE_INSTALL_LIBDIR to lib or lib64 or whatever. Available since cmake 2.8.8
         set( CL_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR} )
     endif()
@@ -209,14 +238,21 @@ if (COPY_WX_LIBS MATCHES 1)
 endif()
 unset(COPY_WX_LIBS CACHE)
 
-set( PLUGINS_DIR "${CL_PREFIX}/${CL_INSTALL_LIBDIR}/codelite")
+## Will set PLUGINS_DIR to the proper location on Linux / OSX
+include(OSXInstall)
+
+## Under OSX, create the skeleton bundle directory
+OSX_MAKE_BUNDLE_DIRECTORY()
+
 add_definitions(-DYY_NEVER_INTERACTIVE=1)
+set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11" )
+
 if (NOT MINGW)
-add_definitions(-DINSTALL_DIR=\"${CL_PREFIX}/share/codelite\")
-add_definitions(-DPLUGINS_DIR=\"${PLUGINS_DIR}\")
+    add_definitions(-DINSTALL_DIR=\"${CL_PREFIX}/share/codelite\")
+    add_definitions(-DPLUGINS_DIR=\"${PLUGINS_DIR}\")
 else()
-add_definitions(-DNDEBUG)
-add_definitions(-DUSE_POSIX_LAYOUT)
+    add_definitions(-DNDEBUG)
+    add_definitions(-DUSE_POSIX_LAYOUT)
 endif()
 
 message("-- PLUGINS_DIR is set to ${PLUGINS_DIR}")
@@ -267,6 +303,23 @@ if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DebugFull)
 else ()
     message("-- Building in Release mode")
     set ( DEBUG_BUILD 0 )
+    set(CMAKE_INSTALL_DO_STRIP TRUE)
+    message("-- CMAKE_INSTALL_DO_STRIP is " ${CMAKE_INSTALL_DO_STRIP})
+    if(UNIX AND NOT APPLE)
+        ## Avoid hardening-no-relro wrarning messages from lintian
+        if(EXISTS "/usr/bin/dpkg-buildflags")
+            execute_process(COMMAND /usr/bin/dpkg-buildflags --get CFLAGS OUTPUT_VARIABLE EXTRA_CFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            execute_process(COMMAND /usr/bin/dpkg-buildflags --get CPPFLAGS OUTPUT_VARIABLE EXTRA_CPPFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            execute_process(COMMAND /usr/bin/dpkg-buildflags --get CXXFLAGS OUTPUT_VARIABLE EXTRA_CXXFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            execute_process(COMMAND /usr/bin/dpkg-buildflags --get LDFLAGS OUTPUT_VARIABLE EXTRA_LDFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS}")
+            add_definitions(${EXTRA_CPPFLAGS})
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
+            set(LINKER_OPTIONS "${EXTRA_LDFLAGS}")
+            list(APPEND LINKER_OPTIONS "-s") ## strip binaries
+        endif()
+    endif()
+    
     set( CL_PCH_FILE "${CL_SRC_ROOT}/PCH/precompiled_header_release.h")
     set( CL_PCH_TARGET "precompiled_header_release.h.gch")
     add_custom_target(distclean COMMAND cd ${CL_SRC_ROOT}/PCH && $(MAKE) type=release clean )
@@ -342,13 +395,16 @@ if ( MAKE_DEB )
     endif ()
 
     set(CPACK_GENERATOR                   "DEB")
-    set(CPACK_PACKAGE_NAME                "codelite")
-    set(CPACK_PACKAGE_VERSION             "7.0")
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER   "Eran Ifrah <eran.ifrah@gmail.com>") #required
-    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "codelite IDE for C/C++")
+    set(CPACK_PACKAGE_NAME                "CodeLite")
+    set(CPACK_PACKAGE_VERSION             "9.15")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER   "Eran Ifrah <eran.ifrah@gmail.com>")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "C/C++/PHP and Node.js IDE (Integrated Development Environment)")
     set(CPACK_DEBIAN_PACKAGE_SECTION      "devel")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY     "optional")
-    set(CPACK_DEBIAN_PACKAGE_RECOMMENDS   "build-essential")
+    set(CPACK_DEBIAN_PACKAGE_RECOMMENDS   "build-essential, git, subversion, gdb, xterm, gcc, g++")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS      "libc6, libgtk2.0-dev, libsqlite3-dev, libssh-dev, libedit-dev, libhunspell-dev, libclang-3.5-dev, clang-format-3.5, liblldb-3.5-dev")
+    set(CPACK_PACKAGE_DESCRIPTION_FILE    "${CL_SRC_ROOT}/DESC")
+    set(CPACK_STRIP_FILES TRUE)
     INCLUDE(CPack)
 endif( MAKE_DEB )
 
@@ -360,8 +416,8 @@ if (USE_CLANG)
 
 if (APPLE)
   set( CLANG_INCLUDE "${CL_SRC_ROOT}/sdk/clang/include" )
-  set( CLANG_LIBRARY "-L${CL_SRC_ROOT}/sdk/clang/lib -lclang" )
-  set( CLANG_BINARY "${CL_SRC_ROOT}/sdk/clang/lib/libclang.dylib")
+  set( CLANG_LIBRARY "-L${CL_SRC_ROOT}/sdk/clang/lib -lclang.3.7" )
+  set( CLANG_BINARY "${CL_SRC_ROOT}/sdk/clang/lib/libclang.3.7.dylib")
 
 elseif (MINGW)
   find_package(LLVM)
@@ -374,22 +430,32 @@ elseif (MINGW)
     endif ()
   endif ()
 elseif (UNIX)
-  set( CLANG_INCLUDE "${CL_SRC_ROOT}/sdk/clang/Linux/${ARCH_NAME}/include" )
-  set( CLANG_LIBRARY "-L${CL_SRC_ROOT}/sdk/clang/Linux/${ARCH_NAME}/lib -lclang" )
-  set( CLANG_BINARY "${CL_SRC_ROOT}/sdk/clang/Linux/${ARCH_NAME}/lib/libclang.so")
+    FIND_LIBCLANG_OFFICIAL()
+    if ( LIBCLANG STREQUAL "LIBCLANG-NOTFOUND" )
+        set(USE_CLANG 0)
+    else()
+        set(CLANG_LIBRARY ${LIBCLANG})
+        set(CLANG_INCLUDE ${LIBCLANG_INCLUDE})
+        set( CLANG_BINARY ${CLANG_LIBRARY})
+    endif()
 endif()
 
-message( "-- clang link line ${CLANG_LIBRARY} ")
-message( "-- clang include path ${CLANG_INCLUDE} ")
-message( "-- clang binary ${CLANG_BINARY}" )
-message( "-- CL_SRC_ROOT is set to => " ${CL_SRC_ROOT} )
-message( "-- PREFIX      is set to => " ${CL_PREFIX} )
-message( "-- PREFIX/LIB_DIR is set to => " ${CL_PREFIX}/${CL_INSTALL_LIBDIR} )
-message( "-- PLUGINS_DIR is set to => " ${PLUGINS_DIR} )
-message( "-- wx-config   is set to => " ${WX_TOOL} )
+if (USE_CLANG)
+    message( "-- clang link line ${CLANG_LIBRARY} ")
+    message( "-- clang include path ${CLANG_INCLUDE} ")
+    message( "-- clang binary ${CLANG_BINARY}" )
+    message( "-- CL_SRC_ROOT is set to => " ${CL_SRC_ROOT} )
+    message( "-- PREFIX      is set to => " ${CL_PREFIX} )
+    message( "-- PREFIX/LIB_DIR is set to => " ${CL_PREFIX}/${CL_INSTALL_LIBDIR} )
+    message( "-- PLUGINS_DIR is set to => " ${PLUGINS_DIR} )
+    message( "-- wx-config   is set to => " ${WX_TOOL} )
+else()
+    message( "-- *** NOTICE ***: clang code completion support is disabled" )
+    message( "-- *** NOTICE ***: On Ubuntu / Debian you might want to install libclang-3.4-dev package")
+endif()
 
 else()
-message( "-- *** NOTICE ***: clang support is disabled" )
+    message( "-- *** NOTICE ***: clang code completion support is disabled" )
 endif(USE_CLANG)
 
 ############################################
@@ -408,11 +474,6 @@ else(WITH_SFTP)
 
 endif(WITH_SFTP)
 
-if ( APPLE )
-    execute_process(COMMAND mkdir -p pack)
-    execute_process(COMMAND cp ${CMAKE_SOURCE_DIR}/Runtime/make_mac_bundle.sh pack)
-endif( APPLE )
-
 ###########################################
 ## RPATH settings
 ###########################################
@@ -420,7 +481,7 @@ endif( APPLE )
 if (UNIX AND NOT APPLE)
     SET(CMAKE_INSTALL_RPATH ${PLUGINS_DIR})
     SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-    SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    #SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif(UNIX AND NOT APPLE)
 
 if ( WITH_PCH )
@@ -439,7 +500,11 @@ if ( APPLE )
     add_definitions( -mmacosx-version-min=10.8 )
 endif()
 
-add_subdirectory(sqlite3)
+if(APPLE)
+    # On Linux, we use the distro's libsqlite3
+    add_subdirectory(sqlite3)
+endif()
+
 add_subdirectory(sdk/wxsqlite3)
 add_subdirectory(sdk/wxshapeframework)
 add_subdirectory(sdk/databaselayer)
@@ -464,9 +529,9 @@ if ( UNIX AND NOT APPLE )
     add_subdirectory(MemCheck)
 endif ( UNIX AND NOT APPLE )
 
-    if ( BUILD_WXC )
+    if(IS_DIRECTORY "${CL_SRC_ROOT}/wxcrafter")
         add_subdirectory(wxcrafter)
-    endif( BUILD_WXC )
+    endif()
 
     if ( APPLE )
         message("-- Adding MacBundler...")
@@ -496,7 +561,7 @@ if (WITH_LLDB)
 endif()
 add_subdirectory(codelitephp)
 add_subdirectory(WordCompletion)
-
+add_subdirectory(HelpPlugin)
 ## Executables
 add_subdirectory(LiteEditor)
 add_subdirectory(codelitegcc)
@@ -505,15 +570,18 @@ add_subdirectory(codelite_terminal)
 add_subdirectory(sdk/codelite_indexer)
 add_subdirectory(sdk/codelite_cppcheck)
 add_subdirectory(codelite_echo)
+add_subdirectory(WebTools)
 
 ##
 ## Setup the proper dependencies
 ##
-if ( USE_PCH )
-    add_dependencies(sqlite3lib ${CL_PCH_TARGET})
-endif ( USE_PCH )
+if(APPLE)
+    if ( USE_PCH )
+        add_dependencies(sqlite3lib ${CL_PCH_TARGET})
+    endif ( USE_PCH )
+    add_dependencies(wxsqlite3 sqlite3lib)
+endif()
 
-add_dependencies(wxsqlite3 sqlite3lib)
 add_dependencies(databaselayersqlite wxsqlite3)
 add_dependencies(wxshapeframework wxsqlite3)
 add_dependencies(libcodelite wxshapeframework databaselayersqlite wxsqlite3)

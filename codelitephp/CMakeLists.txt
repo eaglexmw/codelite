@@ -15,10 +15,10 @@ project( ${PLUGIN_NAME} )
 # It was noticed that when using MinGW gcc it is essential that 'core' is mentioned before 'base'.
 if (WITH_WEBVIEW)
     message("-- Internal Web Browser is enabled")
-    find_package(wxWidgets COMPONENTS adv aui base core html xml xrc net stc webview REQUIRED)
+    find_package(wxWidgets COMPONENTS adv aui base core html propgrid xml xrc net stc webview REQUIRED)
 else()
     message("-- Internal Web Browser is disabled")
-    find_package(wxWidgets COMPONENTS adv aui base core html xml xrc net stc REQUIRED)
+    find_package(wxWidgets COMPONENTS adv aui base core html propgrid xml xrc net stc REQUIRED)
 endif()
 
 # wxWidgets include (this will do all the magic to configure everything)
@@ -44,11 +44,6 @@ include_directories("${CL_SRC_ROOT}/Plugin"
 add_definitions(-DWXUSINGDLL_WXSQLITE3)
 add_definitions(-DWXUSINGDLL_CL)
 add_definitions(-DWXUSINGDLL_SDK)
-
-if (UNIX)
-# Add RPATH
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DebugFull)
     ## Debug build of codelite
@@ -88,15 +83,24 @@ endif()
 
 # Remove the "lib" prefix from the plugin name
 set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
-target_link_libraries(${PLUGIN_NAME} ${LINKER_OPTIONS} -L"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" -L"${CL_LIBPATH}" -lPHPParser -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin ${ADDITIONAL_LIBRARIES} ${wxWidgets_LIBRARIES})
-target_link_libraries(PHPUnitTests ${LINKER_OPTIONS} -L"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" -L"${CL_LIBPATH}" -lPHPParser -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin ${ADDITIONAL_LIBRARIES} ${wxWidgets_LIBRARIES})
+target_link_libraries(${PLUGIN_NAME}
+                      ${LINKER_OPTIONS}
+                      ${wxWidgets_LIBRARIES}
+                      PHPParser
+                      libcodelite
+                      plugin
+                      )
+# Installation destination
+CL_INSTALL_PLUGIN(${PLUGIN_NAME})
+CL_INSTALL_FILE_SHARED("${CL_SRC_ROOT}/Runtime/PHP.zip")
 
-# Make sure that the plugin will not start build before 'plugin.so' is ready
-add_dependencies(${PLUGIN_NAME} plugin PHPParser)
-add_dependencies(PHPUnitTests plugin PHPParser)
+target_link_libraries(PHPUnitTests 
+                     ${LINKER_OPTIONS} 
+                     -L"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" 
+                     -L"${CL_LIBPATH}" 
+                     PHPParser 
+                     libcodelite 
+                     plugin 
+                     ${ADDITIONAL_LIBRARIES} 
+                     ${wxWidgets_LIBRARIES})
 
-install(TARGETS ${PLUGIN_NAME} DESTINATION ${PLUGINS_DIR})
-install(FILES "${CL_SRC_ROOT}/Runtime/PHP.zip" DESTINATION ${CL_PREFIX}/share/codelite)
-
-target_link_libraries(${PLUGIN_NAME} PHPParser)
-target_link_libraries(PHPUnitTests PHPParser)

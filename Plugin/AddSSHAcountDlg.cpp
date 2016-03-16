@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : AddSSHAcountDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -33,7 +33,8 @@
 AddSSHAcountDlg::AddSSHAcountDlg(wxWindow* parent)
     : AddSSHAcountDlgBase(parent)
 {
-    WindowAttrManager::Load(this, "AddSSHAcountDlg", NULL);
+    SetName("AddSSHAcountDlg");
+    WindowAttrManager::Load(this);
 }
 
 AddSSHAcountDlg::AddSSHAcountDlg(wxWindow* parent, const SSHAccountInfo& account)
@@ -45,14 +46,19 @@ AddSSHAcountDlg::AddSSHAcountDlg(wxWindow* parent, const SSHAccountInfo& account
     m_textCtrlUsername->ChangeValue(account.GetUsername());
     m_textCtrlName->ChangeValue(account.GetAccountName());
     m_textCtrlHomeFolder->ChangeValue(account.GetDefaultFolder());
-    WindowAttrManager::Load(this, "AddSSHAcountDlg", NULL);
+    SetName("AddSSHAcountDlg");
+    WindowAttrManager::Load(this);
 }
 
-AddSSHAcountDlg::~AddSSHAcountDlg() { WindowAttrManager::Save(this, "AddSSHAcountDlg", NULL); }
+AddSSHAcountDlg::~AddSSHAcountDlg() {}
 
 void AddSSHAcountDlg::OnOKUI(wxUpdateUIEvent& event)
 {
-    event.Enable(!m_textCtrlHost->IsEmpty() && !m_textCtrlPort->IsEmpty() && !m_textCtrlUsername->IsEmpty());
+    wxString homeFolder = m_textCtrlHomeFolder->GetValue();
+    bool homeFolderValid = (homeFolder.IsEmpty() || (homeFolder.StartsWith("/")));
+
+    event.Enable(!m_textCtrlHost->IsEmpty() && !m_textCtrlPort->IsEmpty() && !m_textCtrlUsername->IsEmpty() &&
+                 homeFolderValid);
 }
 
 void AddSSHAcountDlg::GetAccountInfo(SSHAccountInfo& info)
@@ -94,5 +100,13 @@ void AddSSHAcountDlg::OnTestConnection(wxCommandEvent& event)
 void AddSSHAcountDlg::OnTestConnectionUI(wxUpdateUIEvent& event)
 {
     event.Enable(!m_textCtrlHost->IsEmpty() && !m_textCtrlPort->IsEmpty() && !m_textCtrlUsername->IsEmpty());
+}
+void AddSSHAcountDlg::OnHomeFolderUpdated(wxCommandEvent& event)
+{
+    wxString homeFolder = m_textCtrlHomeFolder->GetValue();
+    if(!homeFolder.StartsWith("/")) {
+        m_infobar->ShowMessage(_("Default folder must be set to full path (i.e. it should start with a '/')"),
+                               wxICON_WARNING);
+    }
 }
 #endif

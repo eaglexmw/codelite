@@ -78,6 +78,18 @@ public:
     }
 
     /**
+     * @brief toggle line comment
+     * @param commentSymbol the comment symbol to insert (e.g. "//")
+     * @param commentStyle the wxSTC line comment style (e.g. wxSTC_C_COMMENTLINE)
+     */
+    virtual void ToggleLineComment(const wxString& commentSymbol, int commentStyle) = 0;
+
+    /**
+     * @brief block comment the selection
+     */
+    virtual void CommentBlockSelection(const wxString& commentBlockStart, const wxString& commentBlockEnd) = 0;
+
+    /**
      * @brief return true if the editor is modified
      */
     virtual bool IsModified() = 0;
@@ -124,6 +136,16 @@ public:
     virtual void ReloadFile() = 0;
 
     /**
+     * @brief save the editor
+     */
+    virtual bool Save() = 0;
+    
+    /**
+     * @brief save the current editor with a different name
+     */
+    virtual bool SaveAs(const wxString& defaultName = wxEmptyString, const wxString& savePath = wxEmptyString) = 0;
+    
+    /**
      * \brief return the current position of the caret
      */
     virtual long GetCurrentPosition() = 0;
@@ -148,7 +170,7 @@ public:
      * @brief return the word under the mouse pointer.
      * If a selection exists, return it instead
      */
-    virtual wxString GetWordAtMousePointer() = 0;
+    virtual void GetWordAtMousePointer(wxString& word, wxRect& wordRect) = 0;
 
     /**
      * @brief return the EOL mode of the editor.
@@ -246,18 +268,6 @@ public:
     virtual int GetLexerId() = 0;
 
     /**
-    * @brief displays teh code completion box. Unlike the previous metho, this method accepts owner and sends an event
-    * once selection is made
-    * @param tags list if tags to display
-    * @param word part of the word
-    * @param owner event handler to be notified once a selection is made
-    */
-    virtual void ShowCompletionBox(const std::vector<TagEntryPtr>& tags,
-                                   const wxString& word,
-                                   bool autoRefreshList,
-                                   wxEvtHandler* owner) = 0;
-
-    /**
      * @brief display codelite calltip at the current position
      * @param tip tip to display
      */
@@ -268,24 +278,12 @@ public:
      * @param tip tip text
      * @param pos position for the tip. If wxNOT_FOUND the tip is positioned at the mouse
      */
-    virtual void ShowRichTooltip(const wxString& tip, int pos = wxNOT_FOUND) = 0;
-
-    /**
-     * @brief register new user image fot TagEntry kind
-     * @param kind the kind string that will be associated with the bitmap (TagEntry::GetKind())
-     * @param bmp 16x16 bitmap
-     */
-    virtual void RegisterImageForKind(const wxString& kind, const wxBitmap& bmp) = 0;
+    virtual void ShowRichTooltip(const wxString& tip, const wxString& title, int pos = wxNOT_FOUND) = 0;
 
     /**
      * @brief return true if the completion box is visible
      */
     virtual bool IsCompletionBoxShown() = 0;
-
-    /**
-     * @brief hide the completion box if it is active.
-     */
-    virtual void HideCompletionBox() = 0;
 
     /**
      * @brief Get position of start of word.
@@ -327,8 +325,7 @@ public:
     /**
      * @brief Similar to the above but returns void, and is implemented asynchronously
      */
-    virtual void
-    FindAndSelectV(const wxString& pattern, const wxString& what, int from_pos = 0, NavMgr* navmgr = NULL) = 0;
+    virtual void FindAndSelectV(const wxString& pattern, const wxString& what, int pos = 0, NavMgr* navmgr = NULL) = 0;
 
     /**
      * @brief set a lexer to the editor
@@ -387,9 +384,19 @@ public:
     virtual int GetCharAtPos(int pos) = 0;
 
     /**
+     * @brief center the editor around line and optionally a column
+     */
+    virtual void CenterLine(int line, int col = wxNOT_FOUND) = 0;
+
+    /**
+     * @brief center the editor around line, keeping any selection
+     */
+    virtual void CenterLinePreserveSelection(int line) = 0;
+
+    /**
      * @brief return a pointer to the underlying scintilla control
      */
-    virtual wxStyledTextCtrl* GetSTC() = 0;
+    virtual wxStyledTextCtrl* GetCtrl() = 0;
 
     /**
      * @brief set the focus to the current editor
@@ -413,6 +420,14 @@ public:
      * @brief set a warning marker in the editor with a given text
      */
     virtual void SetErrorMarker(int lineno, const wxString& annotationText) = 0;
+
+    /**
+     * @brief set a code completion annotation at the given line. code completion
+     * annotations are automatically cleared on the next char added
+     * @param text
+     * @param lineno
+     */
+    virtual void SetCodeCompletionAnnotation(const wxString& text, int lineno) = 0;
     /**
      * @brief delete all compiler markers (warnings/errors)
      */
@@ -436,6 +451,11 @@ public:
         }
         m_data.insert(std::make_pair(key, data));
     }
+
+    /**
+     * @brief force a syntax highlight of 'langname' to the editor
+     */
+    virtual void SetSyntaxHighlight(const wxString& langname) = 0;
 
     /**
      * @brief return the client data associated with this editor and identified by key
@@ -464,6 +484,15 @@ public:
             m_data.erase(iter);
         }
     }
+
+    /**
+     * @brief return a string representing all the classes coloured by this editor
+     */
+    virtual const wxString& GetKeywordClasses() const = 0;
+    /**
+     * @brief return a string representing all the local variables coloured by this editor
+     */
+    virtual const wxString& GetKeywordLocals() const = 0;
 };
 
 #endif // IEDITOR_H

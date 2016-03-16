@@ -202,6 +202,15 @@ ParsedToken* Language::ParseTokens(const wxString& scopeName)
         delim.Clear();
         subscript = false;
     }
+    
+    if(header && header->GetNext() && header->GetName().IsEmpty() && header->GetOperator() == "::") {
+        // a chain with more than one token and the first token is simple "::"
+        // Delete the first token from the list
+        ParsedToken *newHeader = header->GetNext();
+        newHeader->SetPrev(NULL);
+        wxDELETE(header);
+        header = newHeader;
+    }
     return header;
 }
 
@@ -845,6 +854,8 @@ bool Language::ProcessToken(TokenContainer* tokeContainer)
         // examine the local scope
 
         CL_DEBUG(wxT("Parsing for local variables..."));
+        CL_DEBUG1("Current scrope:\n%s\n", GetVisibleScope());
+        
         const wxCharBuffer buf = _C(GetVisibleScope());
         const wxCharBuffer buf2 = _C(GetLastFunctionSignature() + wxT(";"));
         get_variables(buf.data(), li, ignoreTokens, false);
@@ -853,6 +864,8 @@ bool Language::ProcessToken(TokenContainer* tokeContainer)
 
         // Search for a full match in the returned list
         for(VariableList::iterator iter = li.begin(); iter != li.end(); iter++) {
+            // Print the locals found
+            CL_DEBUG1("%s", iter->m_name.c_str());
             Variable var = (*iter);
             wxString var_name = _U(var.m_name.c_str());
             if(var_name == token->GetName()) {
@@ -909,7 +922,7 @@ bool Language::ProcessToken(TokenContainer* tokeContainer)
         }
     }
 
-    if(hasMatch && tags.size()) {
+    if(hasMatch && !tags.empty()) {
         if(token->GetPrev() == NULL) {
 
             // we are first in the chain, but still we exists in the database

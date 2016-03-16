@@ -40,6 +40,11 @@
 #include "workspacetab.h"
 #include "event_notifier.h"
 #include "plugin.h"
+#include <algorithm>
+#include "clWorkspaceView.h"
+#include "DefaultWorkspacePage.h"
+#include "clFileOrFolderDropTarget.h"
+#include "clTreeCtrlPanel.h"
 
 #define OPEN_CONFIG_MGR_STR _("<Open Configuration Manager...>")
 
@@ -48,17 +53,20 @@ WorkspaceTab::WorkspaceTab(wxWindow* parent, const wxString& caption)
     , m_caption(caption)
     , m_isLinkedToEditor(true)
     , m_dlg(NULL)
+    , m_view(NULL)
 {
     long link = EditorConfigST::Get()->GetInteger(wxT("LinkWorkspaceViewToEditor"), 1);
     m_isLinkedToEditor = link ? true : false;
 
     CreateGUIControls();
     ConnectEvents();
-    m_themeHelper = NULL;//new ThemeHandlerHelper(this);
-    int sashPos = clConfig::Get().Read("WorkspaceTabSashPosition", wxNOT_FOUND);
+    m_themeHelper = NULL; // new ThemeHandlerHelper(this);
+    int sashPos = clConfig::Get().Read(kConfigWorkspaceTabSashPosition, wxNOT_FOUND);
     if(sashPos != wxNOT_FOUND) {
         m_splitter->SetSashPosition(sashPos);
     }
+    SetDropTarget(new clFileOrFolderDropTarget(this));
+    Bind(wxEVT_DND_FOLDER_DROPPED, &WorkspaceTab::OnFolderDropped, this);
 }
 
 WorkspaceTab::~WorkspaceTab()
@@ -98,19 +106,25 @@ WorkspaceTab::~WorkspaceTab()
                          wxUpdateUIEventHandler(WorkspaceTab::OnProjectSettingsUI),
                          NULL,
                          this);
-    clConfig::Get().Write("WorkspaceTabSashPosition", m_splitter->GetSashPosition());
+    clConfig::Get().Write(kConfigWorkspaceTabSashPosition, m_splitter->GetSashPosition());
 }
 
 void WorkspaceTab::CreateGUIControls()
 {
-    wxSizer* sz = GetSizer();
 #ifdef __WXMAC__
     m_workspaceConfig->SetWindowVariant(wxWINDOW_VARIANT_SMALL);
     m_choiceActiveProject->SetWindowVariant(wxWINDOW_VARIANT_SMALL);
 #endif
-    // Construct the tree
-    m_fileView = new FileViewTree(this, wxID_ANY);
-    sz->Add(m_fileView, 1, wxEXPAND | wxALL, 2);
+    //// Construct the tree
+    int index = m_simpleBook->FindPage(m_panelCxx);
+    if(index != wxNOT_FOUND) {
+        // set the C++ workspace view name to fit its workspace type
+        m_simpleBook->SetPageText(index, clCxxWorkspaceST::Get()->GetWorkspaceType());
+    }
+    m_view = new clWorkspaceView(m_simpleBook);
+    m_view->AddPage(new DefaultWorkspacePage(m_simpleBook), _("Default"));
+    m_view->SelectPage(_("Default"));
+    m_view->SetDefaultPage(_("Default"));
 }
 
 void WorkspaceTab::FreezeThaw(bool freeze /*=true*/)
@@ -201,10 +215,7 @@ void WorkspaceTab::OnCollapseAll(wxCommandEvent& e)
     }
 }
 
-void WorkspaceTab::OnCollapseAllUI(wxUpdateUIEvent& e)
-{
-    e.Enable(ManagerST::Get()->IsWorkspaceOpen());
-}
+void WorkspaceTab::OnCollapseAllUI(wxUpdateUIEvent& e) { e.Enable(ManagerST::Get()->IsWorkspaceOpen()); }
 
 void WorkspaceTab::OnGoHome(wxCommandEvent& e)
 {
@@ -223,15 +234,13 @@ void WorkspaceTab::OnGoHome(wxCommandEvent& e)
     ManagerST::Get()->ShowWorkspacePane(m_caption);
 }
 
-void WorkspaceTab::OnGoHomeUI(wxUpdateUIEvent& e)
-{
-    e.Enable(!ManagerST::Get()->GetActiveProjectName().IsEmpty());
-}
+void WorkspaceTab::OnGoHomeUI(wxUpdateUIEvent& e) { e.Enable(!ManagerST::Get()->GetActiveProjectName().IsEmpty()); }
 
 void WorkspaceTab::OnProjectSettings(wxCommandEvent& e)
 {
     wxUnusedVar(e);
-    OpenProjectSettings();
+    ProjectPtr proj = m_fileView->GetSelectedProject();
+    OpenProjectSettings(proj ? proj->GetName() : "");
 }
 
 void WorkspaceTab::OnProjectSettingsUI(wxUpdateUIEvent& e)
@@ -239,10 +248,7 @@ void WorkspaceTab::OnProjectSettingsUI(wxUpdateUIEvent& e)
     e.Enable(!ManagerST::Get()->GetActiveProjectName().IsEmpty());
 }
 
-static int wxStringCmpFunc(const wxString& item1, const wxString& item2)
-{
-    return item1.CmpNoCase(item2);
-}
+static int wxStringCmpFunc(const wxString& item1, const wxString& item2) { return item1.CmpNoCase(item2); }
 
 void WorkspaceTab::OnShowFile(wxCommandEvent& e)
 {
@@ -294,10 +300,7 @@ void WorkspaceTab::OnWorkspaceLoaded(wxCommandEvent& e)
     }
 }
 
-void WorkspaceTab::OnEditorClosing(wxCommandEvent& e)
-{
-    e.Skip();
-}
+void WorkspaceTab::OnEditorClosing(wxCommandEvent& e) { e.Skip(); }
 
 void WorkspaceTab::OnWorkspaceClosed(wxCommandEvent& e)
 {
@@ -330,15 +333,25 @@ void WorkspaceTab::OnProjectRemoved(clCommandEvent& e)
     SendCmdEvent(wxEVT_FILE_VIEW_REFRESHED);
 }
 
+struct wxStringSorter {
+    bool operator()(WorkspaceConfigurationPtr one, WorkspaceConfigurationPtr two) const
+    {
+        return one->GetName().Lower().CmpNoCase(two->GetName().Lower()) < 0;
+    }
+};
+
 void WorkspaceTab::DoWorkspaceConfig()
 {
     // Update the workspace configuration
-    BuildMatrixPtr matrix = WorkspaceST::Get()->GetBuildMatrix();
+    BuildMatrixPtr matrix = clCxxWorkspaceST::Get()->GetBuildMatrix();
     std::list<WorkspaceConfigurationPtr> confs = matrix->GetConfigurations();
 
     m_workspaceConfig->Freeze();
     m_workspaceConfig->Enable(true);
     m_workspaceConfig->Clear();
+
+    confs.sort(wxStringSorter());
+
     for(std::list<WorkspaceConfigurationPtr>::iterator iter = confs.begin(); iter != confs.end(); iter++) {
         m_workspaceConfig->Append((*iter)->GetName());
     }
@@ -359,23 +372,17 @@ void WorkspaceTab::OnWorkspaceConfig(wxCommandEvent& e)
 
 void WorkspaceTab::OnConfigurationManagerChoice(wxCommandEvent& e)
 {
+    e.Skip();
     wxString selection = m_workspaceConfig->GetStringSelection();
     if(selection == OPEN_CONFIG_MGR_STR) {
+        e.Skip(false);
         wxCommandEvent e(wxEVT_COMMAND_MENU_SELECTED, XRCID("configuration_manager"));
         e.SetEventObject(this);
         ProcessEvent(e);
         return;
     }
 
-    BuildMatrixPtr matrix = ManagerST::Get()->GetWorkspaceBuildMatrix();
-    matrix->SetSelectedConfigurationName(selection);
-    ManagerST::Get()->SetWorkspaceBuildMatrix(matrix);
-
-    // Set the focus to the active editor if any
-    LEditor* editor = clMainFrame::Get()->GetMainBook()->GetActiveEditor();
-    if(editor) editor->SetActive();
-
-    ManagerST::Get()->UpdateParserPaths(true);
+    CallAfter(&WorkspaceTab::DoConfigChanged);
 }
 
 void WorkspaceTab::OnConfigurationManager(wxCommandEvent& e)
@@ -413,7 +420,7 @@ void WorkspaceTab::DoUpdateChoiceWithProjects()
 
     wxWindowUpdateLocker locker(m_choiceActiveProject);
     m_choiceActiveProject->Clear();
-    if(WorkspaceST::Get()->IsOpen()) {
+    if(clCxxWorkspaceST::Get()->IsOpen()) {
         m_choiceActiveProject->Append(projects);
         m_choiceActiveProject->SetStringSelection(ManagerST::Get()->GetActiveProjectName());
     }
@@ -424,10 +431,7 @@ void WorkspaceTab::OnConfigurationManagerChoiceUI(wxUpdateUIEvent& event)
     event.Enable(ManagerST::Get()->IsWorkspaceOpen());
 }
 
-void WorkspaceTab::OnWorkspaceOpenUI(wxUpdateUIEvent& event)
-{
-    event.Enable(ManagerST::Get()->IsWorkspaceOpen());
-}
+void WorkspaceTab::OnWorkspaceOpenUI(wxUpdateUIEvent& event) { event.Enable(ManagerST::Get()->IsWorkspaceOpen()); }
 
 void WorkspaceTab::OpenProjectSettings(const wxString& project)
 {
@@ -479,10 +483,7 @@ void WorkspaceTab::OpenProjectSettings(const wxString& project)
     }
 }
 
-void WorkspaceTab::ProjectSettingsDlgClosed()
-{
-    m_dlg = NULL;
-}
+void WorkspaceTab::ProjectSettingsDlgClosed() { m_dlg = NULL; }
 
 void WorkspaceTab::OnActiveProjectChanged(clProjectSettingsEvent& e)
 {
@@ -505,6 +506,26 @@ void WorkspaceTab::DoGoHome()
         wxTreeItemId sel = arr.Item(0);
         if(sel.IsOk() && m_fileView->ItemHasChildren(sel)) m_fileView->Expand(sel);
     }
-    ManagerST::Get()->ShowWorkspacePane(m_caption);
+    //ManagerST::Get()->ShowWorkspacePane(m_caption);
 }
 
+void WorkspaceTab::DoConfigChanged()
+{
+    wxBusyCursor bc;
+    wxString selection = m_workspaceConfig->GetStringSelection();
+    BuildMatrixPtr matrix = ManagerST::Get()->GetWorkspaceBuildMatrix();
+    matrix->SetSelectedConfigurationName(selection);
+    ManagerST::Get()->SetWorkspaceBuildMatrix(matrix);
+
+    // Set the focus to the active editor if any
+    LEditor* editor = clMainFrame::Get()->GetMainBook()->GetActiveEditor();
+    if(editor) editor->SetActive();
+
+    ManagerST::Get()->UpdateParserPaths(true);
+}
+
+void WorkspaceTab::OnFolderDropped(clCommandEvent& event)
+{
+    // pass it on to the tree view
+    m_fileView->CallAfter(&FileViewTree::FolderDropped, event.GetStrings());
+}

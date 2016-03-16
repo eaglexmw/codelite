@@ -74,11 +74,23 @@ CompilerOptionDlgBase::CompilerOptionDlgBase(wxWindow* parent, wxWindowID id, co
     
     bSizer24->Add(m_buttonCancel, 0, wxALL, 5);
     
+    SetName(wxT("CompilerOptionDlgBase"));
     SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre();
+    if(GetParent()) {
+        CentreOnParent();
+    } else {
+        CentreOnScreen();
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
 }
 
 CompilerOptionDlgBase::~CompilerOptionDlgBase()
@@ -167,11 +179,23 @@ CompilerPatternDlgBase::CompilerPatternDlgBase(wxWindow* parent, wxWindowID id, 
     m_stdBtnSizer229->AddButton(m_button233);
     m_stdBtnSizer229->Realize();
     
+    SetName(wxT("CompilerPatternDlgBase"));
     SetSizeHints(500,-1);
-    if ( GetSizer() ) {
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre();
+    if(GetParent()) {
+        CentreOnParent();
+    } else {
+        CentreOnScreen();
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_button231->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CompilerPatternDlgBase::OnSubmit), NULL, this);
     
@@ -236,11 +260,23 @@ NewCompilerDlgBase::NewCompilerDlgBase(wxWindow* parent, wxWindowID id, const wx
     m_stdBtnSizer75->AddButton(m_buttonOK);
     m_stdBtnSizer75->Realize();
     
+    SetName(wxT("NewCompilerDlgBase"));
     SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    if(GetParent()) {
+        CentreOnParent(wxBOTH);
+    } else {
+        CentreOnScreen(wxBOTH);
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_buttonOK->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(NewCompilerDlgBase::OnOkUI), NULL, this);
     
@@ -275,14 +311,15 @@ CompilerMainPageBase::CompilerMainPageBase(wxWindow* parent, wxWindowID id, cons
     
     wxBoxSizer* boxSizer220 = new wxBoxSizer(wxHORIZONTAL);
     
-    boxSizer114->Add(boxSizer220, 0, wxEXPAND, 5);
+    boxSizer114->Add(boxSizer220, 1, wxEXPAND, 5);
     
     wxArrayString m_listBoxCompilersArr;
     m_listBoxCompilers = new wxListBox(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_listBoxCompilersArr, wxLB_SORT|wxLB_SINGLE);
     
     boxSizer220->Add(m_listBoxCompilers, 0, wxALL|wxEXPAND, 5);
     
-    m_auiBook = new wxAuiNotebook(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxAUI_NB_TOP|wxAUI_NB_WINDOWLIST_BUTTON|wxBK_DEFAULT);
+    m_auiBook = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxBK_DEFAULT);
+    m_auiBook->SetName(wxT("m_auiBook"));
     
     boxSizer220->Add(m_auiBook, 1, wxALL|wxEXPAND, 5);
     
@@ -336,11 +373,11 @@ CompilerMainPageBase::CompilerMainPageBase(wxWindow* parent, wxWindowID id, cons
     m_pgPropMAKE->SetEditor( wxT("TextCtrlAndButton") );
     
     m_pgPropMkdir = m_pgMgrTools->AppendIn( m_pgProp94,  new wxStringProperty( _("mkdir"), wxPG_LABEL, wxT("")) );
-    m_pgPropMkdir->SetHelpString(_("Set the 'mkdir' for your OS.\nLeave it empty to use the defualt for your OS"));
+    m_pgPropMkdir->SetHelpString(_("Set the 'mkdir' for your OS.\nLeave it empty to use the default for your OS"));
     m_pgPropMkdir->SetEditor( wxT("TextCtrlAndButton") );
     
     m_pgPropDebugger = m_pgMgrTools->AppendIn( m_pgProp94,  new wxStringProperty( _("Gdb"), wxPG_LABEL, wxT("")) );
-    m_pgPropDebugger->SetHelpString(_("On various platform (e.g. Cygwin) it is recommended to use their own sepcial gdb executable rather than the global one\nYou can specify one here, or leave this empty to use the default"));
+    m_pgPropDebugger->SetHelpString(_("On various platform (e.g. Cygwin) it is recommended to use their own special gdb executable rather than the global one\nYou can specify one here, or leave this empty to use the default"));
     m_pgPropDebugger->SetEditor( wxT("TextCtrlAndButton") );
     m_pgMgrTools->GetGrid()->SetSplitterPosition(150, 0);
     m_panelPatterns = new wxPanel(m_auiBook, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
@@ -661,13 +698,12 @@ CompilerMainPageBase::CompilerMainPageBase(wxWindow* parent, wxWindowID id, cons
     m_checkBoxReadObjectsFromFile->SetValue(false);
     
     fgSizer3->Add(m_checkBoxReadObjectsFromFile, 0, wxALL, 5);
-    m_auiBook->SetMinSize(wxSize(500,500));
     
+    SetName(wxT("CompilerMainPageBase"));
     SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
     // Connect events
     m_button222->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CompilerMainPageBase::OnAddCompilers), NULL, this);
     m_listBoxCompilers->Connect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(CompilerMainPageBase::OnCompilerSelected), NULL, this);

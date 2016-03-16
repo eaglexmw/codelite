@@ -34,7 +34,7 @@
 #include "json_node.h"
 #include <wx/event.h>
 #include <cl_command_event.h>
-//#include "ctags_manager.h"
+#include "IWorkspace.h"
 #include "configuration_mapping.h"
 #include "optionsconfig.h"
 #include "localworkspace.h"
@@ -46,10 +46,18 @@
  *
  */
 class CompileCommandsCreateor;
-class WXDLLIMPEXP_SDK Workspace
+class WXDLLIMPEXP_SDK clCxxWorkspace : public IWorkspace
 {
-    friend class WorkspaceST;
+    friend class clCxxWorkspaceST;
     friend class CompileCommandsCreateor;
+
+public:
+    virtual void GetProjectFiles(const wxString& projectName, wxArrayString& files) const;
+    virtual void GetWorkspaceFiles(wxArrayString& files) const;
+    virtual wxString GetFilesMask() const;
+    virtual bool IsBuildSupported() const;
+    virtual bool IsProjectSupported() const;
+    virtual wxString GetProjectFromFile(const wxFileName& filename) const;
 
 public:
     typedef std::map<wxString, ProjectPtr> ProjectMap_t;
@@ -57,19 +65,20 @@ public:
 protected:
     wxXmlDocument m_doc;
     wxFileName m_fileName;
-    Workspace::ProjectMap_t m_projects;
+    clCxxWorkspace::ProjectMap_t m_projects;
     wxString m_startupDir;
     time_t m_modifyTime;
     bool m_saveOnExit;
     BuildMatrixPtr m_buildMatrix;
 
-private:
+public:
     /// Constructor
-    Workspace();
+    clCxxWorkspace();
 
     /// Destructor
-    virtual ~Workspace();
+    virtual ~clCxxWorkspace();
 
+private:
     void DoUpdateBuildMatrix();
 
 public:
@@ -77,7 +86,7 @@ public:
      * @brief createa 'compile_commands' json object for the workspace projects (only the enabled ones)
      */
     void CreateCompileCommandsJSON(JSONElement& compile_commands) const;
-
+    wxFileName GetFileName() const { return GetWorkspaceFileName(); }
     void SetStartupDir(const wxString& startupDir) { this->m_startupDir = startupDir; }
     const wxString& GetStartupDir() const { return m_startupDir; }
 
@@ -159,11 +168,8 @@ public:
      * \returns
      * true on success false otherwise
      */
-    bool CreateProject(const wxString& name,
-                       const wxString& path,
-                       const wxString& type,
-                       bool addToBuildMatrix,
-                       wxString& errMsg);
+    bool CreateProject(
+        const wxString& name, const wxString& path, const wxString& type, bool addToBuildMatrix, wxString& errMsg);
 
     /**
      * @brief rename a project
@@ -189,7 +195,7 @@ public:
     /**
      * Return all project names under this workspace
      */
-    void GetProjectList(wxArrayString& list);
+    void GetProjectList(wxArrayString& list) const;
 
     /**
      * Add an existing project to the workspace. If no workspace is open,
@@ -313,6 +319,14 @@ public:
     void AddProjectToBuildMatrix(ProjectPtr prj);
 
     //----------------------------------
+    // Workspace Parser Macros
+    //----------------------------------
+    /**
+     * @brief return the workspace environment variables
+     */
+    wxString GetParserMacros();
+
+    //----------------------------------
     // Workspace environment variables
     //----------------------------------
     /**
@@ -325,6 +339,11 @@ public:
      * will be kept in the workspace file (i.e. they are portable)
      */
     void SetEnvironmentVariabels(const wxString& envvars);
+
+    /**
+     * @brief return the selected workspace configuration
+     */
+    WorkspaceConfigurationPtr GetSelectedConfig() const;
 
     //----------------------------------
     // File modifications
@@ -379,12 +398,17 @@ private:
     void RemoveProjectFromBuildMatrix(ProjectPtr prj);
 
     bool SaveXmlFile();
+
+    void SyncToLocalWorkspaceSTParserPaths();
+    void SyncFromLocalWorkspaceSTParserPaths();
+    void SyncToLocalWorkspaceSTParserMacros();
+    void SyncFromLocalWorkspaceSTParserMacros();
 };
 
-class WXDLLIMPEXP_SDK WorkspaceST
+class WXDLLIMPEXP_SDK clCxxWorkspaceST
 {
 public:
-    static Workspace* Get();
+    static clCxxWorkspace* Get();
     static void Free();
 };
 

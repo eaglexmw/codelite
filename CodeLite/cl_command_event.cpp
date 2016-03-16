@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cl_command_event.cpp
 //
 // -------------------------------------------------------------------------
@@ -49,7 +49,9 @@ clCommandEvent& clCommandEvent::operator=(const clCommandEvent& src)
     m_answer = src.m_answer;
     m_allowed = src.m_allowed;
     m_oldName = src.m_oldName;
-    
+    m_lineNumber = src.m_lineNumber;
+    m_selected = src.m_selected;
+
     // Copy wxCommandEvent members here
     m_eventType = src.m_eventType;
     m_id = src.m_id;
@@ -84,17 +86,19 @@ clCodeCompletionEvent::clCodeCompletionEvent(const clCodeCompletionEvent& event)
     : clCommandEvent(event)
     , m_editor(NULL)
     , m_insideCommentOrString(false)
-    , m_tagEntry(NULL)
 {
     *this = event;
+    m_position = wxNOT_FOUND;
+    m_entry.reset(NULL);
 }
 
 clCodeCompletionEvent::clCodeCompletionEvent(wxEventType commandType, int winid)
     : clCommandEvent(commandType, winid)
     , m_editor(NULL)
     , m_insideCommentOrString(false)
-    , m_tagEntry(NULL)
 {
+    m_position = wxNOT_FOUND;
+    m_entry.reset(NULL);
 }
 
 clCodeCompletionEvent::~clCodeCompletionEvent() {}
@@ -110,7 +114,7 @@ clCodeCompletionEvent& clCodeCompletionEvent::operator=(const clCodeCompletionEv
     m_position = src.m_position;
     m_tooltip = src.m_tooltip;
     m_insideCommentOrString = src.m_insideCommentOrString;
-    m_tagEntry = src.m_tagEntry;
+    m_entry = src.m_entry;
     m_definitions = src.m_definitions;
     return *this;
 }
@@ -151,6 +155,8 @@ clBuildEvent::clBuildEvent(const clBuildEvent& event) { *this = event; }
 clBuildEvent::clBuildEvent(wxEventType commandType, int winid)
     : clCommandEvent(commandType, winid)
     , m_projectOnly(false)
+    , m_warningCount(0)
+    , m_errorCount(0)
 {
 }
 
@@ -164,6 +170,8 @@ clBuildEvent& clBuildEvent::operator=(const clBuildEvent& src)
     m_configurationName = src.m_configurationName;
     m_command = src.m_command;
     m_projectOnly = src.m_projectOnly;
+    m_errorCount = src.m_errorCount;
+    m_warningCount = src.m_warningCount;
     return *this;
 }
 
@@ -264,6 +272,7 @@ clSourceFormatEvent& clSourceFormatEvent::operator=(const clSourceFormatEvent& s
 
 clContextMenuEvent::clContextMenuEvent(wxEventType commandType, int winid)
     : clCommandEvent(commandType, winid)
+    , m_editor(NULL)
 {
 }
 clContextMenuEvent::clContextMenuEvent(const clContextMenuEvent& event) { *this = event; }
@@ -336,5 +345,27 @@ clParseEvent& clParseEvent::operator=(const clParseEvent& src)
     clCommandEvent::operator=(src);
     m_curfileIndex = src.m_curfileIndex;
     m_totalFiles = src.m_totalFiles;
+    return *this;
+}
+
+//-------------------------------------------------------------------
+// clProcessEvent
+//-------------------------------------------------------------------
+
+clProcessEvent::clProcessEvent(const clProcessEvent& event) { *this = event; }
+
+clProcessEvent::clProcessEvent(wxEventType commandType, int winid)
+    : clCommandEvent(commandType, winid)
+    , m_process(NULL)
+{
+}
+
+clProcessEvent::~clProcessEvent() {}
+
+clProcessEvent& clProcessEvent::operator=(const clProcessEvent& src)
+{
+    clCommandEvent::operator=(src);
+    m_process = src.m_process;
+    m_output = src.m_output;
     return *this;
 }

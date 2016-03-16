@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : git.h
 //
 // -------------------------------------------------------------------------
@@ -47,7 +47,11 @@
 #include "cl_command_event.h"
 #include "gitentry.h"
 #include "cl_command_event.h"
+#include "gitui.h"
+#include <vector>
+#include "clTabTogglerHelper.h"
 
+class clCommandProcessor;
 class gitAction
 {
 public:
@@ -69,11 +73,31 @@ public:
     }
     ~gitAction() {}
 };
+
 class GitConsole;
 class GitCommitListDlg;
 
+struct GitCmd {
+    wxString baseCommand;
+    size_t processFlags;
+
+    GitCmd(const wxString& cmd, size_t console)
+        : baseCommand(cmd)
+        , processFlags(console)
+    {
+    }
+    GitCmd()
+        : processFlags(IProcessCreateDefault)
+    {
+    }
+    typedef std::vector<GitCmd> Vec_t;
+};
+
 class GitPlugin : public IPlugin
 {
+    friend class GitConsole;
+    friend class GitCommitListDlg;
+    
     typedef std::map<int, int> IntMap_t;
     enum {
         gitNone = 0,
@@ -122,7 +146,7 @@ class GitPlugin : public IPlugin
     wxString m_pathGITKExecutable;
     wxString m_repositoryDirectory;
     wxString m_currentBranch;
-    std::queue<gitAction> m_gitActionQueue;
+    std::list<gitAction> m_gitActionQueue;
     wxTimer m_progressTimer;
     wxString m_progressMessage;
     wxString m_commandOutput;
@@ -139,10 +163,15 @@ class GitPlugin : public IPlugin
     wxFileName m_workspaceFilename;
     GitCommitListDlg* m_commitListDlg;
     wxArrayString m_filesSelected;
+    wxString m_selectedFolder;
+    clCommandProcessor* m_commandProcessor;
+    clTabTogglerHelper::Ptr_t m_tabToggler;
 
 private:
     void DoCreateTreeImages();
     void DoShowDiffViewer(const wxString& headFile, const wxString& fileName);
+    void DoExecuteCommands(const GitCmd::Vec_t& commands, const wxString& workingDir);
+    bool DoExecuteCommandSync(const wxString& command, const wxString& workingDir, wxString& commandOutput);
 
     void DoSetTreeItemImage(wxTreeCtrl* ctrl, const wxTreeItemId& item, OverlayTool::BmpType bmpType) const;
     void InitDefaults();
@@ -151,6 +180,7 @@ private:
     void ProcessGitActionQueue();
     void ColourFileTree(wxTreeCtrl* tree, const wxStringSet_t& files, OverlayTool::BmpType bmpType) const;
     void CreateFilesTreeIDsMap(std::map<wxString, wxTreeItemId>& IDs, bool ifmodified = false) const;
+    void DoShowCommitDialog(const wxString& diff, wxString& commitArgs);
 
     /// Workspace management
     bool IsWorkspaceOpened() const;
@@ -168,7 +198,7 @@ private:
     void DoAddFiles(const wxArrayString& files);
     void DoResetFiles(const wxArrayString& files);
     void DoGetFileViewSelectedFiles(wxArrayString& files, bool relativeToRepo);
-    void DoShowDiffsForFiles(const wxArrayString& files);
+    void DoShowDiffsForFiles(const wxArrayString& files, bool useFileAsBase = false);
     void DoSetRepoPath(const wxString& repoPath = "", bool promptUser = true);
     void DoRecoverFromGitCommandError();
 
@@ -177,9 +207,10 @@ private:
     // Event handlers
     void OnInitDone(wxCommandEvent& e);
     void OnProgressTimer(wxTimerEvent& Event);
-    void OnProcessTerminated(wxCommandEvent& event);
-    void OnProcessOutput(wxCommandEvent& event);
+    void OnProcessTerminated(clProcessEvent& event);
+    void OnProcessOutput(clProcessEvent& event);
     void OnFileMenu(clContextMenuEvent& event);
+    void OnFolderMenu(clContextMenuEvent& event);
 
     void OnFileSaved(clCommandEvent& e);
     void OnFilesAddedToProject(clCommandEvent& e);
@@ -211,6 +242,7 @@ private:
     void OnRefresh(wxCommandEvent& e);
     void OnGarbageColletion(wxCommandEvent& e);
     void OnOpenMSYSGit(wxCommandEvent& e);
+    void OnActiveProjectChanged(clProjectSettingsEvent& event);
 
 #if 0
     void OnBisectStart(wxCommandEvent& e);
@@ -221,12 +253,32 @@ private:
     void OnEnableGitRepoExists(wxUpdateUIEvent& e);
     void OnClone(wxCommandEvent& e);
 
+    // Event handlers from folder context menu
+    void OnFolderPullRebase(wxCommandEvent& event);
+    void OnFolderCommit(wxCommandEvent& event);
+    void OnFolderPush(wxCommandEvent& event);
+    void OnFolderStash(wxCommandEvent& event);
+    void OnFolderStashPop(wxCommandEvent& event);
+    void OnFolderGitBash(wxCommandEvent& event);
+
 public:
     GitPlugin(IManager* manager);
     ~GitPlugin();
-
+    
+    void StoreWorkspaceRepoDetails();
+    void WorkspaceClosed();
+    
+    /**
+     * @brief fetch the next 100 commits (skip 'skip' first commits)
+     * and show them in the commit list dialog
+     * @param skip number of first commits to skip
+     */
+    void FetchNextCommits(int skip);
+    
+    GitConsole* GetConsole() { return m_console; }
     const wxString& GetRepositoryDirectory() const { return m_repositoryDirectory; }
     IProcess* GetProcess() { return m_process; }
+    clCommandProcessor* GetFolderProcess() { return m_commandProcessor; }
 
     IManager* GetManager() { return m_mgr; }
 
@@ -242,6 +294,12 @@ public:
     void UndoAddFiles(const wxArrayString& files);
 
     void RefreshFileListView();
+
+    /**
+     * @brief simple git command executioin completed. Display its output etc
+     */
+    void OnCommandOutput(clCommandEvent& event);
+    void OnCommandEnded(clCommandEvent& event);
 
     //--------------------------------------------
     // Abstract methods

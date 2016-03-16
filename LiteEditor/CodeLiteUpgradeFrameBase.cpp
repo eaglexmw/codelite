@@ -33,7 +33,7 @@ clInitializeDialogBase::clInitializeDialogBase(wxWindow* parent, wxWindowID id, 
     wxBoxSizer* boxSizer6 = new wxBoxSizer(wxVERTICAL);
     m_panel4->SetSizer(boxSizer6);
     
-    m_banner = new wxBannerWindow(m_panel4, wxID_ANY, wxTOP, wxDefaultPosition, wxSize(-1,-1), 0);
+    m_banner = new wxBannerWindow(m_panel4, wxID_ANY, wxTOP, wxDefaultPosition, wxSize(-1,-1), wxBORDER_THEME);
     m_banner->SetBitmap(wxNullBitmap);
     m_banner->SetText(_("Initializing CodeLite"), wxT(""));
     m_banner->SetGradient(wxSystemSettings::GetColour(wxSYS_COLOUR_ACTIVECAPTION), wxSystemSettings::GetColour(wxSYS_COLOUR_ACTIVECAPTION));
@@ -53,11 +53,19 @@ clInitializeDialogBase::clInitializeDialogBase(wxWindow* parent, wxWindowID id, 
     boxSizer6->Add(boxSizer20, 0, wxALL|wxALIGN_RIGHT, 5);
     m_panel4->SetMinSize(wxSize(500,-1));
     
+    SetName(wxT("clInitializeDialogBase"));
     SetSizeHints(500,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
 }
 
 clInitializeDialogBase::~clInitializeDialogBase()

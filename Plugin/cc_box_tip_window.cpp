@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cc_box_tip_window.cpp
 //
 // -------------------------------------------------------------------------
@@ -37,6 +37,9 @@
 #include "editor_config.h"
 #include <wx/stc/stc.h>
 #include "file_logger.h"
+#include "globals.h"
+#include <wx/stc/stc.h>
+#include "drawingutils.h"
 
 const wxEventType wxEVT_TIP_BTN_CLICKED_UP = wxNewEventType();
 const wxEventType wxEVT_TIP_BTN_CLICKED_DOWN = wxNewEventType();
@@ -62,14 +65,16 @@ static void CCBoxTipWindow_ShrinkTip(wxString& str)
     }
     str.swap(tip);
     str.Trim().Trim(false);
-    
+
     // strip double empty lines
-    while(str.Replace("\n\n", "\n")) {}
+    while(str.Replace("\n\n", "\n")) {
+    }
 }
 
 CCBoxTipWindow::CCBoxTipWindow(wxWindow* parent, const wxString& tip)
     : wxPopupWindow(parent)
     , m_tip(tip)
+    , m_useLightColours(false)
 {
     CCBoxTipWindow_ShrinkTip(m_tip);
     DoInitialize(m_tip, 1, true);
@@ -78,6 +83,7 @@ CCBoxTipWindow::CCBoxTipWindow(wxWindow* parent, const wxString& tip)
 CCBoxTipWindow::CCBoxTipWindow(wxWindow* parent, const wxString& tip, size_t numOfTips, bool simpleTip)
     : wxPopupWindow(parent)
     , m_tip(tip)
+    , m_useLightColours(false)
 {
     CCBoxTipWindow_ShrinkTip(m_tip);
     DoInitialize(m_tip, numOfTips, simpleTip);
@@ -87,6 +93,15 @@ CCBoxTipWindow::~CCBoxTipWindow() {}
 
 void CCBoxTipWindow::DoInitialize(const wxString& tip, size_t numOfTips, bool simpleTip)
 {
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
+    IEditor* editor = ::clGetManager()->GetActiveEditor();
+    if(editor) {
+        wxColour bgColour = editor->GetCtrl()->StyleGetBackground(0);
+        if(!DrawingUtils::IsDark(bgColour)) {
+            m_useLightColours = true;
+        }
+    }
+
     m_tip = tip;
     m_numOfTips = numOfTips;
 
@@ -103,15 +118,7 @@ void CCBoxTipWindow::DoInitialize(const wxString& tip, size_t numOfTips, bool si
 
     wxSize size;
 
-    LexerConf::Ptr_t cppLex = EditorConfigST::Get()->GetLexer("C++");
-    if(cppLex) {
-        // use the lexer default font
-        m_codeFont = cppLex->GetFontForSyle(0);
-
-    } else {
-        m_codeFont = wxFont(10, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
-    }
-
+    m_codeFont = DrawingUtils::GetDefaultFixedFont();
     m_commentFont = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
 
     wxString codePart, commentPart;
@@ -139,8 +146,8 @@ void CCBoxTipWindow::DoInitialize(const wxString& tip, size_t numOfTips, bool si
     int codeWidth = 0;
 
     // Use bold font for measurements
-    m_codeFont.SetWeight(wxFONTWEIGHT_BOLD);
-    m_commentFont.SetWeight(wxFONTWEIGHT_BOLD);
+    // m_codeFont.SetWeight(wxFONTWEIGHT_BOLD);
+    // m_commentFont.SetWeight(wxFONTWEIGHT_BOLD);
 
     if(!simpleTip) {
         dc.GetMultiLineTextExtent(codePart, &codeWidth, NULL, NULL, &m_codeFont);
@@ -167,6 +174,12 @@ void CCBoxTipWindow::DoInitialize(const wxString& tip, size_t numOfTips, bool si
     size.y = nLineCount * m_lineHeight;
     size.y += (hr_count * 10) + 10; // each <hr> uses 10 pixels height
     size.x += 40;
+    
+    size_t maxWidth(0);
+    
+    // Calc the width
+    DoDrawTip(dc, maxWidth);
+    size.x = maxWidth;
     SetSize(size);
 
     Connect(wxEVT_PAINT, wxPaintEventHandler(CCBoxTipWindow::OnPaint), NULL, this);
@@ -214,7 +227,7 @@ void CCBoxTipWindow::PositionRelativeTo(wxWindow* win, wxPoint caretPos, IEditor
     if(focusEdior) {
         // Check that the tip Y coord is inside the editor
         // this is to prevent some zombie tips appearing floating in no-man-land
-        wxRect editorRect = focusEdior->GetSTC()->GetScreenRect();
+        wxRect editorRect = focusEdior->GetCtrl()->GetScreenRect();
         if(editorRect.GetTopLeft().y > pt.y) {
             return;
         }
@@ -233,158 +246,20 @@ void CCBoxTipWindow::OnEraseBG(wxEraseEvent& e) { wxUnusedVar(e); }
 void CCBoxTipWindow::OnPaint(wxPaintEvent& e)
 {
     m_links.clear();
-    wxBufferedPaintDC dc(this);
-
-    wxColour penColour = DrawingUtils::GetThemeBorderColour();
-    wxColour brushColour = DrawingUtils::GetThemeTipBgColour();
-
-    dc.SetBrush(brushColour);
-    dc.SetPen(penColour);
-
-    wxRect rr = GetClientRect();
-    dc.DrawRectangle(rr);
-
-    // Draw left-right arrows
-    m_leftTipRect = wxRect();
-    m_rightTipRect = wxRect();
-
-    dc.SetFont(m_commentFont);
-    dc.SetTextForeground(DrawingUtils::GetThemeTextColour());
-
-    wxString curtext;
-    MarkupParser parser(m_tip);
-    wxPoint pt(5, 5);
-    while(parser.Next()) {
-        int type = parser.GetType();
-        switch(type) {
-        case LINK_URL: {
-            // Found URL
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-
-            curtext = parser.GetToken();
-            wxString link_url = curtext;
-
-            wxFont f = dc.GetFont();
-            f.SetWeight(wxFONTWEIGHT_NORMAL);
-            f.SetUnderlined(true);
-            dc.SetFont(f);
-            dc.SetTextForeground(DrawingUtils::GetThemeLinkColour());
-            wxRect url_rect = DoPrintText(dc, curtext, pt);
-
-            // keep info about this URL
-            CCBoxTipWindow::Links link_info;
-            link_info.m_rect = url_rect;
-            link_info.m_url = link_url;
-            m_links.push_back(link_info);
-
-            // Restore font and colour
-            f.SetUnderlined(false);
-            dc.SetFont(f);
-            dc.SetTextForeground(DrawingUtils::GetThemeTextColour());
-
-            break;
-        }
-        case BOLD_START: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-            wxFont f = dc.GetFont();
-            f.SetWeight(wxFONTWEIGHT_BOLD);
-            dc.SetFont(f);
-            break;
-        }
-        case BOLD_END: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-
-            wxFont f = dc.GetFont();
-            f.SetWeight(wxFONTWEIGHT_NORMAL);
-            dc.SetFont(f);
-            break;
-        }
-        case ITALIC_START: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-            wxFont f = dc.GetFont();
-            f.SetStyle(wxFONTSTYLE_ITALIC);
-            dc.SetFont(f);
-            break;
-        }
-        case ITALIC_END: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-
-            wxFont f = dc.GetFont();
-            f.SetStyle(wxFONTSTYLE_NORMAL);
-            dc.SetFont(f);
-            break;
-        }
-        case CODE_START: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-            dc.SetFont(m_codeFont);
-            break;
-        }
-        case CODE_END: {
-            // Before we change the font, draw the buffer
-            DoPrintText(dc, curtext, pt);
-            dc.SetFont(m_commentFont);
-            break;
-        }
-
-        case NEW_LINE: {
-            // New line, print the content
-            DoPrintText(dc, curtext, pt);
-            pt.y += m_lineHeight;
-
-            // reset the drawing point to the start of the next line
-            pt.x = 5;
-            break;
-        }
-        case HORIZONTAL_LINE: {
-            // Draw the buffer
-            curtext.Clear();
-            pt.y += 5;
-            dc.DrawLine(wxPoint(0, pt.y), wxPoint(rr.GetWidth(), pt.y));
-            pt.y += 5;
-            pt.x = 5;
-            break;
-        }
-        case COLOR_START: {
-            DoPrintText(dc, curtext, pt);
-            wxString colorname = parser.GetToken();
-            colorname = colorname.AfterFirst(wxT('"'));
-            colorname = colorname.BeforeLast(wxT('"'));
-            dc.SetTextForeground(wxColour(colorname));
-            break;
-        }
-        case COLOR_END: {
-            DoPrintText(dc, curtext, pt);
-            // restore default colour
-            dc.SetTextForeground(DrawingUtils::GetThemeTextColour());
-            break;
-        }
-        case MARKUP_VOID:
-            // do nothing
-            break;
-        default:
-            curtext << parser.GetToken();
-            break;
-        }
-    }
-
-    if(curtext.IsEmpty() == false) {
-        DoPrintText(dc, curtext, pt);
-    }
+    wxAutoBufferedPaintDC dc(this);
+    PrepareDC(dc);
+    size_t maxWidth(0);
+    DoDrawTip(dc, maxWidth);
 }
 
-wxRect CCBoxTipWindow::DoPrintText(wxDC& dc, wxString& text, wxPoint& pt)
+wxRect CCBoxTipWindow::DoPrintText(wxDC& dc, wxString& text, wxPoint& pt, size_t& maxWidth)
 {
     if(text.IsEmpty() == false) {
         wxSize sz = dc.GetTextExtent(text);
         wxRect rect(pt, sz);
         dc.DrawText(text, pt);
         pt.x += sz.x;
+        maxWidth = wxMax(maxWidth, pt.x);
         text.Clear();
         return rect;
     }
@@ -460,4 +335,171 @@ void CCBoxTipWindow::PositionLeftTo(wxWindow* win, IEditor* focusEditor)
     if(focusEditor) {
         focusEditor->SetActive();
     }
+}
+
+void CCBoxTipWindow::DoDrawTip(wxDC& dc, size_t& max_width)
+{
+    clColourPalette colors = DrawingUtils::GetColourPalette();
+
+    wxColour penColour = colors.penColour;
+    wxColour brushColour = colors.bgColour;
+    wxColour textColour = colors.textColour;
+    wxColour linkColour("rgb(204, 153, 255)");
+
+    if(m_useLightColours) {
+        // Use different colours to match the editor theme
+        linkColour = wxColour("rgb(51, 153, 255)");
+    }
+
+    dc.SetBrush(brushColour);
+    dc.SetPen(wxPen(penColour, 1));
+
+    wxRect rr = GetClientRect();
+#ifdef __WXOSX__
+    rr.Inflate(1, 1);
+#endif
+    dc.DrawRectangle(rr);
+
+    // Draw left-right arrows
+    m_leftTipRect = wxRect();
+    m_rightTipRect = wxRect();
+
+    dc.SetFont(m_commentFont);
+    dc.SetTextForeground(textColour);
+
+    wxString curtext;
+    MarkupParser parser(m_tip);
+    wxPoint pt(5, 5);
+    while(parser.Next()) {
+        int type = parser.GetType();
+        switch(type) {
+        case LINK_URL: {
+            // Found URL
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            curtext = parser.GetToken();
+            wxString link_url = curtext;
+
+            wxFont f = dc.GetFont();
+            f.SetWeight(wxFONTWEIGHT_NORMAL);
+            f.SetUnderlined(true);
+            dc.SetFont(f);
+            dc.SetTextForeground(linkColour);
+            wxRect url_rect = DoPrintText(dc, curtext, pt, max_width);
+
+            // keep info about this URL
+            CCBoxTipWindow::Links link_info;
+            link_info.m_rect = url_rect;
+            link_info.m_url = link_url;
+            m_links.push_back(link_info);
+
+            // Restore font and colour
+            f.SetUnderlined(false);
+            dc.SetFont(f);
+            dc.SetTextForeground(textColour);
+
+            break;
+        }
+        case BOLD_START: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            wxFont f = dc.GetFont();
+            f.SetWeight(wxFONTWEIGHT_BOLD);
+            dc.SetFont(f);
+            dc.SetTextBackground(*wxWHITE);
+            break;
+        }
+        case BOLD_END: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            wxFont f = dc.GetFont();
+            f.SetWeight(wxFONTWEIGHT_NORMAL);
+            dc.SetFont(f);
+            dc.SetTextBackground(textColour);
+            break;
+        }
+        case ITALIC_START: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            wxFont f = dc.GetFont();
+            f.SetStyle(wxFONTSTYLE_ITALIC);
+            dc.SetFont(f);
+            break;
+        }
+        case ITALIC_END: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            wxFont f = dc.GetFont();
+            f.SetStyle(wxFONTSTYLE_NORMAL);
+            dc.SetFont(f);
+            break;
+        }
+        case CODE_START: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            dc.SetFont(m_codeFont);
+            break;
+        }
+        case CODE_END: {
+            // Before we change the font, draw the buffer
+            DoPrintText(dc, curtext, pt, max_width);
+
+            dc.SetFont(m_commentFont);
+            break;
+        }
+
+        case NEW_LINE: {
+            // New line, print the content
+            DoPrintText(dc, curtext, pt, max_width);
+
+            pt.y += m_lineHeight;
+
+            // reset the drawing point to the start of the next line
+            pt.x = 5;
+            break;
+        }
+        case HORIZONTAL_LINE: {
+            // Draw the buffer
+            curtext.Clear();
+            pt.y += 5;
+            dc.DrawLine(wxPoint(0, pt.y), wxPoint(rr.GetWidth(), pt.y));
+            pt.y += 5;
+            pt.x = 5;
+            break;
+        }
+        case COLOR_START: {
+            DoPrintText(dc, curtext, pt, max_width);
+
+            wxString colorname = parser.GetToken();
+            colorname = colorname.AfterFirst(wxT('"'));
+            colorname = colorname.BeforeLast(wxT('"'));
+            dc.SetTextForeground(wxColour(colorname));
+            break;
+        }
+        case COLOR_END: {
+            DoPrintText(dc, curtext, pt, max_width);
+
+            // restore default colour
+            dc.SetTextForeground(textColour);
+            break;
+        }
+        case MARKUP_VOID:
+            // do nothing
+            break;
+        default:
+            curtext << parser.GetToken();
+            break;
+        }
+    }
+
+    if(curtext.IsEmpty() == false) {
+        DoPrintText(dc, curtext, pt, max_width);
+    }
+    max_width += 5; // right side margin
 }

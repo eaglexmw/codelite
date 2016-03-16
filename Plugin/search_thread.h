@@ -50,6 +50,7 @@ class WXDLLIMPEXP_SDK SearchData : public ThreadRequest
 {
     wxArrayString m_rootDirs;
     wxString m_findString;
+    wxString m_replaceWith;
     size_t m_flags;
     wxString m_validExt;
     wxArrayString m_files;
@@ -98,7 +99,7 @@ public:
         m_newTab = rhs.m_newTab;
         m_owner = rhs.m_owner;
         m_encoding = rhs.m_encoding.c_str();
-
+        m_replaceWith = rhs.m_replaceWith;
         m_files.clear();
 
         for(size_t i = 0; i < rhs.m_files.GetCount(); i++) {
@@ -113,64 +114,42 @@ public:
     // Setters / Getters
     //------------------------------------------
     bool IsMatchCase() const { return m_flags & wxSD_MATCHCASE ? true : false; }
-
+    bool IsEnablePipeSupport() const { return m_flags & wxSD_ENABLE_PIPE_SUPPORT; }
+    void SetEnablePipeSupport(bool b) { SetOption(wxSD_ENABLE_PIPE_SUPPORT, b); }
     bool IsMatchWholeWord() const { return m_flags & wxSD_MATCHWHOLEWORD ? true : false; }
-
     bool IsRegularExpression() const { return m_flags & wxSD_REGULAREXPRESSION ? true : false; }
-
     const wxArrayString& GetRootDirs() const { return m_rootDirs; }
-
     void SetMatchCase(bool matchCase) { SetOption(wxSD_MATCHCASE, matchCase); }
-
     void SetMatchWholeWord(bool matchWholeWord) { SetOption(wxSD_MATCHWHOLEWORD, matchWholeWord); }
-
     void SetRegularExpression(bool re) { SetOption(wxSD_REGULAREXPRESSION, re); }
-
     void SetExtensions(const wxString& exts) { m_validExt = exts; }
-
     void SetRootDirs(const wxArrayString& rootDirs) { m_rootDirs = rootDirs; }
-
     const wxString& GetExtensions() const;
-
     const wxString& GetFindString() const { return m_findString; }
-
     void SetFindString(const wxString& findString) { m_findString = findString; }
-
     void SetFiles(const wxArrayString& files) { m_files = files; }
-
     const wxArrayString& GetFiles() const { return m_files; }
-
     void UseNewTab(bool useNewTab) { m_newTab = useNewTab; }
-
     bool UseNewTab() const { return m_newTab; }
-
     void SetEncoding(const wxString& encoding) { this->m_encoding = encoding.c_str(); }
-
     const wxString& GetEncoding() const { return this->m_encoding; }
-
     bool GetDisplayScope() const { return m_flags & wxSD_PRINT_SCOPE ? true : false; }
-
     void SetDisplayScope(bool d) { SetOption(wxSD_PRINT_SCOPE, d); }
-
     void SetOwner(wxEvtHandler* owner) { this->m_owner = owner; }
     wxEvtHandler* GetOwner() const { return m_owner; }
-
     bool HasCppOptions() const
     {
         return (m_flags & wxSD_SKIP_COMMENTS) || (m_flags & wxSD_SKIP_STRINGS) || (m_flags & wxSD_COLOUR_COMMENTS);
     }
 
     void SetSkipComments(bool d) { SetOption(wxSD_SKIP_COMMENTS, d); }
-
     void SetSkipStrings(bool d) { SetOption(wxSD_SKIP_STRINGS, d); }
-
     void SetColourComments(bool d) { SetOption(wxSD_COLOUR_COMMENTS, d); }
-
     bool GetSkipComments() const { return (m_flags & wxSD_SKIP_COMMENTS); }
-
     bool GetSkipStrings() const { return (m_flags & wxSD_SKIP_STRINGS); }
-
     bool GetColourComments() const { return (m_flags & wxSD_COLOUR_COMMENTS); }
+    const wxString& GetReplaceWith() const { return m_replaceWith; }
+    void SetReplaceWith(const wxString& replaceWith) { this->m_replaceWith = replaceWith; }
 };
 
 //------------------------------------------
@@ -272,6 +251,9 @@ class WXDLLIMPEXP_SDK SearchSummary : public wxObject
     int m_fileScanned;
     int m_matchesFound;
     int m_elapsed;
+    wxArrayString m_failedFiles;
+    wxString m_findWhat;
+    wxString m_replaceWith;
 
 public:
     SearchSummary()
@@ -292,8 +274,18 @@ public:
         m_fileScanned = rhs.m_fileScanned;
         m_matchesFound = rhs.m_matchesFound;
         m_elapsed = rhs.m_elapsed;
+        m_failedFiles = rhs.m_failedFiles;
+        m_findWhat = rhs.m_findWhat;
+        m_replaceWith = rhs.m_replaceWith;
         return *this;
     }
+
+    void SetFindWhat(const wxString& findWhat) { this->m_findWhat = findWhat; }
+    void SetReplaceWith(const wxString& replaceWith) { this->m_replaceWith = replaceWith; }
+    const wxString& GetFindWhat() const { return m_findWhat; }
+    const wxString& GetReplaceWith() const { return m_replaceWith; }
+    const wxArrayString& GetFailedFiles() const { return m_failedFiles; }
+    wxArrayString& GetFailedFiles() { return m_failedFiles; }
 
     int GetNumFileScanned() const { return m_fileScanned; }
     int GetNumMatchesFound() const { return m_matchesFound; }
@@ -311,6 +303,13 @@ public:
         int msecs = m_elapsed % 1000;
 
         msg << _(", elapsed time: ") << secs << wxT(":") << msecs << _(" seconds") << wxT(" ======");
+        if(!m_failedFiles.IsEmpty()) {
+            msg << "\n";
+            msg << "====== " << _("Failed to open the following files for scan:") << "\n";
+            for(size_t i = 0; i < m_failedFiles.size(); ++i) {
+                msg << m_failedFiles.Item(i) << "\n";
+            }
+        }
         return msg;
     }
 };
@@ -401,6 +400,8 @@ private:
                       const int lineOffset,
                       const wxString& fileName,
                       const SearchData* data,
+                      const wxString& findWhat,
+                      const wxArrayString& filters,
                       TextStatesPtr statesPtr);
 
     // Perform search on a line using regular expression
@@ -418,7 +419,7 @@ private:
     wxRegEx& GetRegex(const wxString& expr, bool matchCase);
 
     // Internal function
-    bool AdjustLine(wxString& line, int& pos, wxString& findString);
+    bool AdjustLine(wxString& line, int& pos, const wxString& findString);
 
     // filter 'files' according to the files spec
     void FilterFiles(wxArrayString& files, const SearchData* data);

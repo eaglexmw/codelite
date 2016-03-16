@@ -40,32 +40,35 @@ WXDLLIMPEXP_SDK extern const wxEventType wxEVT_TIP_BTN_CLICKED_DOWN;
 class WXDLLIMPEXP_SDK CCBoxTipWindow : public wxPopupWindow
 {
 protected:
-    class Links {
+    class Links
+    {
     public:
         wxString m_url;
-        wxRect   m_rect;
+        wxRect m_rect;
     };
-    
+
     wxString m_tip;
-    int      m_lineHeight;
-    wxFont   m_codeFont;
-    wxFont   m_commentFont;
-    size_t   m_numOfTips;
-    wxRect   m_leftTipRect;
-    wxRect   m_rightTipRect;
+    int m_lineHeight;
+    wxFont m_codeFont;
+    wxFont m_commentFont;
+    size_t m_numOfTips;
+    wxRect m_leftTipRect;
+    wxRect m_rightTipRect;
     std::vector<Links> m_links;
+    bool m_useLightColours;
     
 protected:
-    void OnPaint(wxPaintEvent &e);
-    void OnEraseBG(wxEraseEvent &e);
-    void OnMouseLeft(wxMouseEvent &e);
-    wxRect DoPrintText(wxDC& dc, wxString &text, wxPoint& pt);
+    void OnPaint(wxPaintEvent& e);
+    void OnEraseBG(wxEraseEvent& e);
+    void OnMouseLeft(wxMouseEvent& e);
+    wxRect DoPrintText(wxDC& dc, wxString& text, wxPoint& pt, size_t &maxWidth);
     wxString DoStripMarkups();
-    void DoInitialize( const wxString &tip, size_t numOfTips, bool simpleTip);
+    void DoInitialize(const wxString& tip, size_t numOfTips, bool simpleTip);
+    void DoDrawTip(wxDC& dc, size_t &max_width);
     
 public:
-    CCBoxTipWindow(wxWindow* parent, const wxString &tip, size_t numOfTips, bool simpleTip = false);
-    CCBoxTipWindow(wxWindow* parent, const wxString &tip); 
+    CCBoxTipWindow(wxWindow* parent, const wxString& tip, size_t numOfTips, bool simpleTip = false);
+    CCBoxTipWindow(wxWindow* parent, const wxString& tip);
     virtual ~CCBoxTipWindow();
 
     /**
@@ -74,13 +77,13 @@ public:
      * the tip is shown
      */
     void PositionRelativeTo(wxWindow* win, wxPoint caretPos, IEditor* focusEdior = NULL);
-    
+
     /**
      * @brief position this window to the left of 'win'
      * if focusEditor is NOT null, the editor will gain the focus once
      * the tip is shown
      */
-    void PositionLeftTo(wxWindow* win, IEditor *focusEditor = NULL);
+    void PositionLeftTo(wxWindow* win, IEditor* focusEditor = NULL);
     /**
      * @brief position and show the tip at a given location
      */

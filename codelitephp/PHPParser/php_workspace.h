@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php_workspace.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPWORKSPACE_H
 #define PHPWORKSPACE_H
 
@@ -15,6 +40,7 @@
 #include <wx/event.h>
 #include "XDebugBreakpoint.h"
 #include "imanager.h"
+#include "IWorkspace.h"
 
 // ------------------------------------------------------------------
 // ------------------------------------------------------------------
@@ -30,7 +56,7 @@
 // ------------------------------------------------------------------
 
 class wxProgressDialog;
-class PHPWorkspace : public wxEvtHandler
+class PHPWorkspace : public IWorkspace
 {
     static PHPWorkspace* ms_instance;
 
@@ -40,6 +66,15 @@ protected:
     PHPExecutor m_executor;
     IManager* m_manager;
 
+    // IWorkspace API
+public:
+    virtual void GetProjectFiles(const wxString& projectName, wxArrayString& files) const;
+    virtual void GetWorkspaceFiles(wxArrayString& files) const;
+    virtual wxString GetProjectFromFile(const wxFileName& filename) const;
+    virtual wxString GetFilesMask() const;
+    virtual bool IsBuildSupported() const;
+    virtual bool IsProjectSupported() const;
+
 public:
     static PHPWorkspace* Get();
     static void Release();
@@ -47,7 +82,7 @@ public:
     JSONElement ToJSON(JSONElement& e) const;
     void FromJSON(const JSONElement& e);
 
-private:
+public:
     PHPWorkspace();
     virtual ~PHPWorkspace();
 
@@ -59,17 +94,25 @@ public:
     PHPProject::Ptr_t GetProject(const wxString& project) const;
     PHPProject::Ptr_t GetActiveProject() const;
     wxString GetPrivateFolder() const;
-    
+
+    /**
+     * @brief check if we can create a project with the given file name
+     * This function checks that the project's path is not already included
+     * in any other projects and vise versa. i.e. the new project path does
+     * not include any of the other project path
+     */
+    bool CanCreateProjectAtPath(const wxFileName& projectFileName, bool prompt) const;
+
     /**
      * @brief sync the workspace with the file system
      */
     void SyncWithFileSystem();
-    
+
     /**
      * @brief return the project that owns filename
      */
     PHPProject::Ptr_t GetProjectForFile(const wxFileName& filename) const;
-    
+
     /**
      * @brief restore the session for this workspace
      */
@@ -93,7 +136,7 @@ public:
     /**
      * @brief close the currently opened workspace
      */
-    bool Close(bool saveBeforeClose = false);
+    bool Close(bool saveBeforeClose, bool saveSession);
 
     /**
      * @brief open a workspace
@@ -113,6 +156,11 @@ public:
      * @brief return the currently opened workspace filename
      */
     const wxFileName& GetFilename() const { return m_workspaceFile; }
+    /**
+     * @brief as defined in IWorkspace
+     */
+    wxFileName GetFileName() const { return GetFilename(); }
+
     /**
      * @brief return the workspace name
      */
@@ -137,6 +185,13 @@ public:
     /////////////////////////////////////
     void CreateProject(const PHPProject::CreateData& createData);
     void DeleteProject(const wxString& project);
+
+    /**
+     * @brief add an existing project file to the workspace
+     * @param projectFile
+     */
+    bool AddProject(const wxFileName& projectFile, wxString& errmsg);
+
     void SetProjectActive(const wxString& project);
     /**
      * @brief delete a file from a project/folder
@@ -160,7 +215,7 @@ public:
     /**
      * @brief same as above, but return the files in the form of an array
      */
-    void GetWorkspaceFiles(wxArrayString& workspaceFiles, wxProgressDialog* progress = NULL) const;
+    void GetWorkspaceFiles(wxArrayString& workspaceFiles, wxProgressDialog* progress) const;
     /**
      * @brief return the active project name
      */
@@ -174,9 +229,9 @@ public:
     // Project execution
     ////////////////////////////////////////////
     bool RunProject(bool debugging,
-                    const wxString& urlOrFilePath,
-                    const wxString& projectName = wxEmptyString,
-                    const wxString& xdebugSessionName = wxEmptyString);
+        const wxString& urlOrFilePath,
+        const wxString& projectName = wxEmptyString,
+        const wxString& xdebugSessionName = wxEmptyString);
     bool IsProjectRunning() const { return m_executor.IsRunning(); }
     void StopExecutedProgram() { m_executor.Stop(); }
 };

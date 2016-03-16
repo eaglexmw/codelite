@@ -57,10 +57,17 @@ protected:
     
     double m_tabRadius;
     
+    wxBitmap m_bmpClose;
+    wxBitmap m_bmpCloseHover;
+    wxBitmap m_bmpClosePressed;
+
 protected:
     virtual void DoSetColours();
     virtual void DoInitializeColoursFromTheme();
-
+    
+    void SetDarkColours();
+    void SetLightColours();
+    
 public:
     clAuiMainNotebookTabArt(IManager* manager);
     virtual ~clAuiMainNotebookTabArt();
@@ -82,6 +89,8 @@ public:
                               bool active,
                               int closeButtonState,
                               int* xExtent);
+                              
+    int GetAdditionalBorderSpace(wxWindow* wnd) { return 0; }
 };
 
 #endif // CLAUIMAINNOTEBOOKTABART_H

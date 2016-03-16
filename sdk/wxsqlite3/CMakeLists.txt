@@ -21,12 +21,17 @@ if ( USE_PCH )
     add_definitions(-Winvalid-pch)
 endif ( USE_PCH )
 
-include_directories(./include ../../sqlite3)
+include_directories(./include ${SQLITE3_INCLUDE_DIR})
 
-# Add RPATH
-if (UNIX)
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif (UNIX)
+if (UNIX AND NOT APPLE)
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+endif()
+
+if ( APPLE )
+    add_definitions(-fPIC)
+endif()
+
 
 # For convenience we define the sources as a variable. You can add 
 # header files and cpp/c files and CMake will sort them out
@@ -34,10 +39,15 @@ set(SRCS src/wxsqlite3.cpp)
 
 # Define the output
 add_library(wxsqlite3 SHARED ${SRCS})
-target_link_libraries(wxsqlite3 ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lsqlite3lib)
+target_link_libraries(wxsqlite3 ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" ${SQLITE3_LIBRARY})
 
 if (NOT MINGW)
-install(TARGETS wxsqlite3 DESTINATION ${PLUGINS_DIR})
+    if(APPLE)
+        install(TARGETS wxsqlite3 DESTINATION ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/)
+        CL_INSTALL_NAME_TOOL_STD(${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/libwxsqlite3.dylib)
+    else()
+        install(TARGETS wxsqlite3 DESTINATION ${PLUGINS_DIR})
+    endif()
 else ()
-install(TARGETS wxsqlite3 RUNTIME DESTINATION ${CL_PREFIX}/bin LIBRARY DESTINATION ${CL_PREFIX}/lib ARCHIVE DESTINATION ${CL_PREFIX}/lib)
+    install(TARGETS wxsqlite3 RUNTIME DESTINATION ${CL_PREFIX}/bin LIBRARY DESTINATION ${CL_PREFIX}/lib ARCHIVE DESTINATION ${CL_PREFIX}/lib)
 endif()

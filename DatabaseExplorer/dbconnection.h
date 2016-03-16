@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : dbconnection.h
 //
 // -------------------------------------------------------------------------
@@ -30,7 +30,7 @@
 #include <wx/dblayer/include/DatabaseResultSet.h>
 #include <wx/wxxmlserializer/XmlSerializer.h>
 #include "IDbAdapter.h"
-/*! \brief Class representing one db conneciton */
+/*! \brief Class representing one db connection */
 class DbConnection : public xsSerializable {
 
 public:

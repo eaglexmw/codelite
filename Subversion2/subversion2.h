@@ -33,6 +33,7 @@
 #include "svnsettingsdata.h"
 #include "project.h"
 #include "cl_command_event.h"
+#include "clTabTogglerHelper.h"
 
 class SubversionView;
 class SvnConsole;
@@ -53,7 +54,11 @@ private:
     CommitMessagesCache m_commitMessagesCache;
     bool m_skipRemoveFilesDlg;
     int m_clientVersion;
-
+    wxString m_selectedFolder; // In the explorer view
+    wxFileName m_selectedFile; // In the explorer view
+    wxBitmap m_svnBitmap;
+    clTabTogglerHelper::Ptr_t m_tabToggler;
+    
 protected:
     void OnSettings(wxCommandEvent& event);
 
@@ -66,19 +71,18 @@ public:
      * @brief ensure that the Subversion Page is view
      */
     void EnsureVisible();
-    
+
 protected:
     ///////////////////////////////////////////////////////////
     // File Explorer event handlers
     ///////////////////////////////////////////////////////////
     void OnCommit(wxCommandEvent& event);
     void OnUpdate(wxCommandEvent& event);
-    void OnAdd(wxCommandEvent& event);
-    void OnDelete(wxCommandEvent& event);
-    void OnRevert(wxCommandEvent& event);
+    void OnFolderAdd(wxCommandEvent& event);
+    void OnDeleteFolder(wxCommandEvent& event);
+    void OnFileExplorerRevertItem(wxCommandEvent& event);
     void OnRevertToRevision(wxCommandEvent& event);
-    void OnDiff(wxCommandEvent& event);
-    void OnPatch(wxCommandEvent& event);
+    void OnFileExplorerDiff(wxCommandEvent& event);
     void OnLog(wxCommandEvent& event);
     void OnBlame(wxCommandEvent& event);
     void OnIgnoreFile(wxCommandEvent& event);
@@ -87,7 +91,7 @@ protected:
     void OnSwitchURL(wxCommandEvent& event);
     void OnLockFile(wxCommandEvent& event);
     void OnUnLockFile(wxCommandEvent& event);
-    void OnRename(wxCommandEvent& event);
+    void OnFileExplorerRenameItem(wxCommandEvent& event);
     void OnSync(wxCommandEvent& event);
 
     ///////////////////////////////////////////////////////////
@@ -96,8 +100,10 @@ protected:
     void OnGetCompileLine(clBuildEvent& event);
     void OnWorkspaceConfigChanged(wxCommandEvent& event);
     void OnFileRemoved(clCommandEvent& event);
-
-    wxMenu* CreateFileExplorerPopMenu();
+    void OnFolderContextMenu(clContextMenuEvent& event);
+    void OnFileContextMenu(clContextMenuEvent& event);
+        
+    wxMenu* CreateFileExplorerPopMenu(bool isFile);
     bool IsSubversionViewDetached();
     wxMenu* CreateProjectPopMenu();
 
@@ -109,7 +115,7 @@ public:
     void
     DoRename(const wxString& workingDirectory, const wxString& oldname, const wxString& newname, wxCommandEvent& event);
     void DoCommit(const wxArrayString& files, const wxString& workingDirectory, wxCommandEvent& event);
-    
+
 public:
     Subversion2(IManager* manager);
     ~Subversion2();
@@ -152,9 +158,9 @@ public:
                            bool excludeBin,
                            const wxString& excludeExtensions,
                            const wxString& output);
-    
-    void AddCommandLineOption(wxString &command, Subversion2::eCommandLineOption opt);
-    
+
+    void AddCommandLineOption(wxString& command, Subversion2::eCommandLineOption opt);
+
 protected:
     void DoInitialize();
     void DoSetSSH();

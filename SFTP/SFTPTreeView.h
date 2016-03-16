@@ -33,7 +33,6 @@
 #include <vector>
 #include "cl_command_event.h"
 
-class SSHTerminal;
 class MyClientData;
 class SFTP;
 
@@ -42,26 +41,26 @@ typedef std::vector<MyClientData*> MyClientDataVect_t;
 class SFTPTreeView : public SFTPTreeViewBase
 {
     clSFTP::Ptr_t m_sftp;
-    BitmapLoader m_bmpLoader;
+    BitmapLoader* m_bmpLoader;
     SSHAccountInfo m_account;
     SFTP* m_plugin;
     wxString m_commandOutput;
-    SSHTerminal* m_terminal;
-    
+
 public:
     enum {
         ID_SFTP_BOOKMARK_FIRST = 13000,
         ID_SFTP_BOOKMARK_LAST = 13100,
         ID_SFTP_BOOKMARK_SETTINGS = 13101,
     };
-    
+
 public:
     SFTPTreeView(wxWindow* parent, SFTP* plugin);
     virtual ~SFTPTreeView();
     bool IsConnected() const { return m_sftp && m_sftp->IsConnected(); }
 
 protected:
-    virtual void OnOpenTerminal(wxCommandEvent& event);
+    virtual void OnSftpSettings(wxCommandEvent& event);
+    virtual void OnOpenTerminal(wxAuiToolBarEvent& event);
     virtual void OnOpenTerminalUI(wxUpdateUIEvent& event);
     virtual void OnConnection(wxCommandEvent& event);
     virtual void OnSelectionChanged(wxTreeListEvent& event);
@@ -81,8 +80,11 @@ protected:
     virtual void OnMenuDelete(wxCommandEvent& event);
     virtual void OnMenuRename(wxCommandEvent& event);
     virtual void OnMenuNewFile(wxCommandEvent& event);
+    virtual void OnMenuOpenWithDefaultApplication(wxCommandEvent& event);
+    virtual void OnMenuOpenContainingFolder(wxCommandEvent& event);
     virtual void OnMenuRefreshFolder(wxCommandEvent& event);
-    virtual void OnTerminalClosed(clCommandEvent& event);
+    void OnFileDropped(clCommandEvent& event);
+
     // Edit events
     void OnCopy(wxCommandEvent& event);
     void OnCut(wxCommandEvent& event);
@@ -103,7 +105,8 @@ protected:
     MyClientData* GetItemData(const wxTreeListItem& item);
     MyClientDataVect_t GetSelectionsItemData();
     bool DoOpenFile(const wxTreeListItem& item);
-    
+    void DoDeleteColumn(int colIdx);
+
 protected:
     virtual void OnItemActivated(wxTreeListEvent& event);
     virtual void OnItemExpanding(wxTreeListEvent& event);

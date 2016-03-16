@@ -6,6 +6,7 @@
 #include "PHPEntityFunction.h"
 #include "PHPEntityVariable.h"
 #include "PHPSourceFile.h"
+#include "fileutils.h"
 
 #ifndef __WXMSW__
 #include <wx/imaglist.h>
@@ -21,6 +22,7 @@ PHPFileLayoutTree::PHPFileLayoutTree(wxWindow* parent, IEditor* editor, IManager
     , m_manager(manager)
 {
     MSWSetNativeTheme(this);
+    m_keyboard.reset(new clTreeKeyboardInput(this));
 }
 
 PHPFileLayoutTree::PHPFileLayoutTree(wxWindow* parent)
@@ -33,9 +35,10 @@ PHPFileLayoutTree::PHPFileLayoutTree(wxWindow* parent)
     , m_manager(NULL)
 {
     MSWSetNativeTheme(this);
+    m_keyboard.reset(new clTreeKeyboardInput(this));
 }
 
-PHPFileLayoutTree::~PHPFileLayoutTree() {}
+PHPFileLayoutTree::~PHPFileLayoutTree() { m_keyboard.reset(nullptr); }
 
 void PHPFileLayoutTree::Construct()
 {
@@ -149,10 +152,7 @@ wxTreeItemId PHPFileLayoutTree::RecurseSearch(const wxTreeItemId& item, const wx
     if(!item.IsOk()) return wxTreeItemId();
 
     if(item != GetRootItem()) {
-        wxString curtext = GetItemText(item);
-        curtext.MakeLower();
-
-        if(curtext.StartsWith(word)) {
+        if(FileUtils::FuzzyMatch(word, GetItemText(item))) {
             return item;
         }
     }

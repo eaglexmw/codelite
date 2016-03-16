@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : PHPScannerTokens.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPScannerTokens_H
 #define PHPScannerTokens_H
 
@@ -109,6 +134,7 @@ enum {
     kPHP_T_EXTENDS,
     kPHP_T_IMPLEMENTS,
     kPHP_T_OBJECT_OPERATOR,
+    kPHP_T_SPACE_SHIP_OPERATPR,
     kPHP_T_DOUBLE_ARROW,
     kPHP_T_LIST,
     kPHP_T_ARRAY,

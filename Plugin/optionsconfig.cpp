@@ -109,12 +109,13 @@ OptionsConfig::OptionsConfig(wxXmlNode* node)
     , m_hideOutputPaneNotIfDebug(true)
     , m_hideOutputPaneNotIfMemCheck(true)
     , m_findBarAtBottom(true)
+    , m_showReplaceBar(true)
     , m_TrimLine(true)
     , m_AppendLF(true)
     , m_disableSmartIndent(false)
     , m_disableSemicolonShift(false)
-    , m_caretLineAlpha(50)
-    , m_dontAutoFoldResults(false)
+    , m_caretLineAlpha(30)
+    , m_dontAutoFoldResults(true)
     , m_showDebugOnRun(true)
     , m_caretUseCamelCase(true)
     , m_wordWrap(false)
@@ -122,11 +123,12 @@ OptionsConfig::OptionsConfig(wxXmlNode* node)
     , m_preferredLocale(wxT("en_US"))
     , m_useLocale(0)
     , m_trimOnlyModifiedLines(true)
-    , m_options(TabClassic | Opt_AutoCompleteCurlyBraces | Opt_AutoCompleteNormalBraces | Opt_NavKey_Shift |
-                Opt_WrapBrackets |
-                Opt_WrapQuotes |
-                Opt_AutoCompleteDoubleQuotes |
-                Opt_WrapCmdWithDoubleQuotes)
+    , m_options(Opt_AutoCompleteCurlyBraces | Opt_AutoCompleteNormalBraces | Opt_NavKey_Shift | Opt_WrapBrackets |
+          Opt_WrapQuotes | Opt_AutoCompleteDoubleQuotes | Opt_FoldHighlightActiveBlock | Opt_WrapCmdWithDoubleQuotes |
+          Opt_TabStyleMinimal)
+    , m_workspaceTabsDirection(wxUP)
+    , m_outputTabsDirection(wxUP)
+    , m_indentedComments(false)
 {
     m_debuggerMarkerLine = DrawingUtils::LightColour("LIME GREEN", 8.0);
     m_mswTheme = false;
@@ -197,6 +199,7 @@ OptionsConfig::OptionsConfig(wxXmlNode* node)
         m_hideOutputPaneNotIfDebug = XmlUtils::ReadBool(node, wxT("HideOutputPaneNotIfDebug"));
         m_hideOutputPaneNotIfMemCheck = XmlUtils::ReadBool(node, wxT("HideOutputPaneNotIfMemCheck"));
         m_findBarAtBottom = XmlUtils::ReadBool(node, wxT("FindBarAtBottom"), m_findBarAtBottom);
+        m_showReplaceBar = XmlUtils::ReadBool(node, wxT("ShowReplaceBar"), m_showReplaceBar);
         m_disableSmartIndent = XmlUtils::ReadBool(node, wxT("DisableSmartIndent"), m_disableSmartIndent);
         m_disableSemicolonShift = XmlUtils::ReadBool(node, wxT("DisableSemicolonShift"), m_disableSemicolonShift);
         m_caretLineAlpha = XmlUtils::ReadLong(node, wxT("CaretLineAlpha"), m_caretLineAlpha);
@@ -212,6 +215,7 @@ OptionsConfig::OptionsConfig(wxXmlNode* node)
         m_options = XmlUtils::ReadLong(node, wxT("m_options"), m_options);
         m_debuggerMarkerLine = XmlUtils::ReadString(
             node, wxT("m_debuggerMarkerLine"), m_debuggerMarkerLine.GetAsString(wxC2S_HTML_SYNTAX));
+        m_indentedComments = XmlUtils::ReadBool(node, wxT("IndentedComments"), m_indentedComments);
 
         // These hacks will likely be changed in the future. If so, we'll be able to remove the #include
         // "editor_config.h" too
@@ -223,6 +227,11 @@ OptionsConfig::OptionsConfig(wxXmlNode* node)
 
         long dontTrimCaretLine = EditorConfigST::Get()->GetInteger(wxT("DontTrimCaretLine"), 0);
         m_dontTrimCaretLine = (dontTrimCaretLine > 0);
+
+        m_outputTabsDirection =
+            (wxDirection)XmlUtils::ReadLong(node, "OutputTabsDirection", (int)m_outputTabsDirection);
+        m_workspaceTabsDirection =
+            (wxDirection)XmlUtils::ReadLong(node, "WorkspaceTabsDirection", (int)m_workspaceTabsDirection);
     }
 #ifdef __WXMSW__
     if(!(wxUxThemeEngine::GetIfActive() && major >= 6 /* Win 7 and up */)) {
@@ -287,6 +296,7 @@ wxXmlNode* OptionsConfig::ToXml() const
     n->AddProperty(wxT("HideOutputPaneNotIfDebug"), BoolToString(m_hideOutputPaneNotIfDebug));
     n->AddProperty(wxT("HideOutputPaneNotIfMemCheck"), BoolToString(m_hideOutputPaneNotIfMemCheck));
     n->AddProperty(wxT("FindBarAtBottom"), BoolToString(m_findBarAtBottom));
+    n->AddProperty(wxT("ShowReplaceBar"), BoolToString(m_showReplaceBar));
     n->AddProperty(wxT("DisableSmartIndent"), BoolToString(m_disableSmartIndent));
     n->AddProperty(wxT("DisableSemicolonShift"), BoolToString(m_disableSemicolonShift));
     n->AddProperty(wxT("DontAutoFoldResults"), BoolToString(m_dontAutoFoldResults));
@@ -301,6 +311,9 @@ wxXmlNode* OptionsConfig::ToXml() const
     n->AddProperty(wxT("m_useLocale"), BoolToString(m_useLocale));
     n->AddProperty(wxT("m_trimOnlyModifiedLines"), BoolToString(m_trimOnlyModifiedLines));
     n->AddProperty(wxT("m_debuggerMarkerLine"), m_debuggerMarkerLine.GetAsString(wxC2S_HTML_SYNTAX));
+    n->AddProperty(wxT("OutputTabsDirection"), wxString() << (int)m_outputTabsDirection);
+    n->AddProperty(wxT("WorkspaceTabsDirection"), wxString() << (int)m_workspaceTabsDirection);
+    n->AddProperty(wxT("IndentedComments"), BoolToString(m_indentedComments));
 
     wxString tmp;
     tmp << m_indentWidth;

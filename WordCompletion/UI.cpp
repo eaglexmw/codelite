@@ -31,20 +31,12 @@ WordCompletionSettingsBaseDlg::WordCompletionSettingsBaseDlg(wxWindow* parent, w
     wxUnusedVar(m_pgMgrArr);
     wxArrayInt m_pgMgrIntArr;
     wxUnusedVar(m_pgMgrIntArr);
-    m_pgMgr = new wxPropertyGridManager(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxPG_DESCRIPTION|wxPG_SPLITTER_AUTO_CENTER|wxPG_BOLD_MODIFIED);
+    m_pgMgr = new wxPropertyGridManager(this, wxID_ANY, wxDefaultPosition, wxSize(300,300), wxPG_DESCRIPTION|wxPG_SPLITTER_AUTO_CENTER|wxPG_BOLD_MODIFIED);
     
     boxSizer2->Add(m_pgMgr, 1, wxALL|wxEXPAND, 5);
     
-    m_pgMgrArr.Clear();
-    m_pgMgrIntArr.Clear();
-    m_pgMgrArr.Add(_("Words"));
-    m_pgMgrArr.Add(_("Strings"));
-    m_pgMgrArr.Add(_("Numbers"));
-    m_pgMgrIntArr.Add(WordCompletionSettings::kCompleteWords);
-    m_pgMgrIntArr.Add(WordCompletionSettings::kCompleteStrings);
-    m_pgMgrIntArr.Add(WordCompletionSettings::kCompleteNumbers);
-    m_pgPropTypes = m_pgMgr->Append(  new wxFlagsProperty( _("Tokens Type"), wxPG_LABEL, m_pgMgrArr, m_pgMgrIntArr, 0) );
-    m_pgPropTypes->SetHelpString(_("CodeLite will suggest word completion for the selected tokens types"));
+    m_pgPropEnabled = m_pgMgr->Append(  new wxBoolProperty( _("Enabled"), wxPG_LABEL, 1) );
+    m_pgPropEnabled->SetHelpString(_("Enable Word Completion plugin?"));
     
     m_pgMgrArr.Clear();
     m_pgMgrIntArr.Clear();
@@ -65,19 +57,32 @@ WordCompletionSettingsBaseDlg::WordCompletionSettingsBaseDlg(wxWindow* parent, w
     m_stdBtnSizer4->AddButton(m_button8);
     m_stdBtnSizer4->Realize();
     
+    SetName(wxT("WordCompletionSettingsBaseDlg"));
+    SetMinSize( wxSize(300,300) );
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_pgMgr->Connect(wxEVT_PG_CHANGED, wxPropertyGridEventHandler(WordCompletionSettingsBaseDlg::OnValueChanged), NULL, this);
+    m_button6->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(WordCompletionSettingsBaseDlg::OnOk), NULL, this);
+    m_button6->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(WordCompletionSettingsBaseDlg::OnOkUI), NULL, this);
     
 }
 
 WordCompletionSettingsBaseDlg::~WordCompletionSettingsBaseDlg()
 {
     m_pgMgr->Disconnect(wxEVT_PG_CHANGED, wxPropertyGridEventHandler(WordCompletionSettingsBaseDlg::OnValueChanged), NULL, this);
+    m_button6->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(WordCompletionSettingsBaseDlg::OnOk), NULL, this);
+    m_button6->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(WordCompletionSettingsBaseDlg::OnOkUI), NULL, this);
     
 }
 

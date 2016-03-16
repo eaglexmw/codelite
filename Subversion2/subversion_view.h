@@ -89,6 +89,7 @@ public:
     void FinishDiff(wxString output, wxFileName fileBeingDiffed);
 
 protected:
+    virtual void OnSciStcChange(wxStyledTextEvent& event);
     virtual void OnCharAdded(wxStyledTextEvent& event);
     virtual void OnKeyDown(wxKeyEvent& event);
     virtual void OnUpdateUI(wxStyledTextEvent& event);
@@ -102,7 +103,6 @@ protected:
     void DoChangeRootPathUI(const wxString& path);
     void DoRootDirChanged(const wxString& path);
     wxString DoGetCurRepoPath() const;
-    void DoCreateFileExplorerImages();
 
 protected:
     // Menu management
@@ -116,6 +116,7 @@ protected:
 protected:
     // Handlers for SubversionPageBase events.
     void OnChangeRootDir(wxCommandEvent& event);
+    void OnCloseView(wxCommandEvent& event);
     void OnTreeMenu(wxTreeEvent& event);
     void OnItemActivated(wxTreeEvent& event);
 
@@ -191,4 +192,3 @@ public:
 };
 
 #endif // __subversion_page__
-

@@ -26,16 +26,17 @@
 #ifndef CONTEXTPHP_H
 #define CONTEXTPHP_H
 
-#include "context_base.h" // Base class: ContextBase
+#include "generic_context.h"
 
-class ContextPhp : public ContextBase
+class ContextPhp : public ContextGeneric
 {
 public:
     ContextPhp();
     ContextPhp(LEditor *Editor);
     virtual ~ContextPhp();
-
+    
 public:
+    bool IsStringTriggerCodeComplete(const wxString& str) const;
     virtual int GetActiveKeywordSet() const;
     virtual int  DoGetCalltipParamterIndex();
     virtual wxMenu* GetMenu();
@@ -70,6 +71,7 @@ public:
     virtual void SetActive();
     virtual bool IsAtBlockComment() const;
     virtual bool IsAtLineComment() const;
+    void ProcessIdleActions();
     
 };
 

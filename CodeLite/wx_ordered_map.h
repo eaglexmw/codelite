@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : wx_ordered_map.h
 //
 // -------------------------------------------------------------------------
@@ -128,6 +128,11 @@ public:
         m_list.erase(iter->second);
         m_map.erase(iter);
     }
+    
+    /**
+     * @brief is empty?
+     */
+    bool IsEmpty() const { return m_list.empty(); }
     
     // end()
     ConstIterator End() const {

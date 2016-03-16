@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : wordcompletion.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef __WordCompletion__
 #define __WordCompletion__
 
@@ -5,22 +30,17 @@
 #include "WordCompletionRequestReply.h"
 #include "UI.h"
 #include "cl_command_event.h"
+#include "macros.h"
 
-class WordCompletionThread;
+class WordCompletionDictionary;
 class WordCompletionPlugin : public IPlugin
 {
-    WordCompletionThread* m_thread;
-    WordCompletionImages m_images;
-    
+    WordCompletionDictionary* m_dictionary;
+
 public:
-    /**
-     * @brief this function is called by the word completion thread when parsing phase is done
-     * @param reply
-     */
-    void OnSuggestThread(const WordCompletionThreadReply& reply);
     void OnWordComplete(wxCommandEvent& event);
     void OnSettings(wxCommandEvent& event);
-    void OnEditorHandler(clCommandEvent &event);
+
 public:
     WordCompletionPlugin(IManager* manager);
     ~WordCompletionPlugin();
@@ -30,8 +50,6 @@ public:
     //--------------------------------------------
     virtual clToolBar* CreateToolBar(wxWindow* parent);
     virtual void CreatePluginMenu(wxMenu* pluginsMenu);
-    virtual void HookPopupMenu(wxMenu* menu, MenuType type);
-    virtual void UnHookPopupMenu(wxMenu* menu, MenuType type);
     virtual void UnPlug();
 };
 

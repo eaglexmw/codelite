@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : GitApplyPatchDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -30,10 +30,11 @@
 GitApplyPatchDlg::GitApplyPatchDlg(wxWindow* parent)
     : GitApplyPatchDlgBase(parent)
 {
-    WindowAttrManager::Load(this, "GitPatchDlg", NULL);
+    SetName("GitApplyPatchDlg");
+    WindowAttrManager::Load(this);
 }
 
-GitApplyPatchDlg::~GitApplyPatchDlg() { WindowAttrManager::Save(this, "GitPatchDlg", NULL); }
+GitApplyPatchDlg::~GitApplyPatchDlg() {  }
 
 void GitApplyPatchDlg::OnApplyGitPatchUI(wxUpdateUIEvent& event)
 {

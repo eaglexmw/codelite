@@ -978,6 +978,7 @@ bool DbgCmdSetConditionHandler::ProcessOutput(const wxString& line)
 bool DbgCmdBreakList::ProcessOutput(const wxString& line)
 {
     wxString dbg_output(line);
+    dbg_output.Replace("bkpt=", "");
     std::vector<BreakpointInfo> li;
     GdbChildrenInfo info;
     gdbParseListChildren(dbg_output.mb_str(wxConvUTF8).data(), info);
@@ -1052,7 +1053,7 @@ bool DbgCmdBreakList::ProcessOutput(const wxString& line)
             if(iter->second.empty() == false) {
                 wxString bpId(iter->second.c_str(), wxConvUTF8);
                 wxRemoveQuotes(bpId);
-                breakpoint.debugger_id = wxAtoi(bpId);
+                bpId.ToCDouble(&breakpoint.debugger_id);
             }
         }
         li.push_back(breakpoint);
@@ -1144,7 +1145,7 @@ bool DbgCmdWatchMemory::ProcessOutput(const wxString& line)
                     //	char ch = (char)v;
                     if(wxIsprint((wxChar)v) || (wxChar)v == ' ') {
                         if(v == 9) { // TAB
-                            v = 32; // SPACE
+                            v = 32;  // SPACE
                         }
 
                         hex << (wxChar)v;
@@ -1198,7 +1199,7 @@ bool DbgCmdCreateVarObj::ProcessOutput(const wxString& line)
     GdbChildrenInfo info;
     gdbParseListChildren(line.mb_str(wxConvUTF8).data(), info);
 
-    if(info.children.size()) {
+    if(info.children.empty() == false) {
         std::map<std::string, std::string> attr = info.children.at(0);
         VariableObject vo;
         std::map<std::string, std::string>::const_iterator iter;
@@ -1276,15 +1277,15 @@ static VariableObjChild FromParserOutput(const std::map<std::string, std::string
     child.gdbId = ExtractGdbChild(attr, wxT("name"));
     wxString numChilds = ExtractGdbChild(attr, wxT("numchild"));
     wxString dynamic = ExtractGdbChild(attr, wxT("dynamic"));
-    
+
     if(numChilds.IsEmpty() == false) {
         child.numChilds = wxAtoi(numChilds);
     }
-    
+
     if(child.numChilds == 0 && dynamic == "1") {
         child.numChilds = 1;
     }
-    
+
     child.varName = ExtractGdbChild(attr, wxT("exp"));
     if(child.varName.IsEmpty() || child.type == child.varName ||
        (child.varName == wxT("public") || child.varName == wxT("private") || child.varName == wxT("protected")) ||
@@ -1515,7 +1516,7 @@ bool DbgCmdHandlerDisassebleCurLine::ProcessOutput(const wxString& line)
     ::gdbParseListChildren(line.mb_str(wxConvUTF8).data(), info);
 
     DebuggerEventData* evtData = new DebuggerEventData();
-    if(info.children.size()) {
+    if(info.children.empty() == false) {
 
         DisassembleEntry entry;
         GdbStringMap_t& attrs = info.children.at(0);
@@ -1678,5 +1679,16 @@ bool DbgCmdHandlerRegisterValues::ProcessOutput(const wxString& line)
         EventNotifier::Get()->AddPendingEvent(event);
     }
     gdb_result_lex_clean();
+    return true;
+}
+
+bool DbgCmdRecordHandler::ProcessOutput(const wxString& line)
+{
+    // parse the line, in case we have an error, keep this breakpoint in the queue
+    if(line.StartsWith(wxT("^done"))) {
+        m_gdb->SetIsRecording(true);
+    } else if(line.StartsWith(wxT("^error"))) {
+        m_gdb->SetIsRecording(false);
+    }
     return true;
 }

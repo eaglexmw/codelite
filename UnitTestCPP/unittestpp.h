@@ -31,6 +31,7 @@
 #include "project.h"
 #include <vector>
 #include "cl_command_event.h"
+#include "clTabTogglerHelper.h"
 
 class wxMenuItem;
 class IProcess;
@@ -42,7 +43,8 @@ class UnitTestPP : public IPlugin
     IProcess* m_proc;
     wxString m_output;
     UnitTestsPage* m_outputPage;
-
+    clTabTogglerHelper::Ptr_t m_tabHelper;
+    
 public:
     UnitTestPP(IManager* manager);
     ~UnitTestPP();
@@ -52,7 +54,6 @@ public:
     //--------------------------------------------
     virtual clToolBar* CreateToolBar(wxWindow* parent);
     virtual void CreatePluginMenu(wxMenu* pluginsMenu);
-    virtual void HookPopupMenu(wxMenu* menu, MenuType type);
     virtual void UnPlug();
     bool IsUnitTestProject(ProjectPtr p);
     /**
@@ -60,22 +61,22 @@ public:
      * @return
      */
     std::vector<ProjectPtr> GetUnitTestProjects();
-    
+
     /**
      * @brief execute a project for unit tests
      */
     void DoRunProject(ProjectPtr project);
-    
+
 protected:
-    DECLARE_EVENT_TABLE()
     void OnNewSimpleTest(wxCommandEvent& e);
     void OnNewClassTest(wxCommandEvent& e);
     void OnRunUnitTests(wxCommandEvent& e);
     void OnRunProject(clExecuteEvent& e);
     void OnMarkProjectAsUT(wxCommandEvent& e);
     void OnRunUnitTestsUI(wxUpdateUIEvent& e);
-    void OnProcessTerminated(wxCommandEvent& e);
-    void OnProcessRead(wxCommandEvent& e);
+    void OnProcessTerminated(clProcessEvent& e);
+    void OnProcessRead(clProcessEvent& e);
+    void OnEditorContextMenu(clContextMenuEvent& e);
     void DoCreateSimpleTest(const wxString& name, const wxString& projectName, const wxString& filename);
     void DoCreateFixtureTest(const wxString& name,
                              const wxString& fixture,

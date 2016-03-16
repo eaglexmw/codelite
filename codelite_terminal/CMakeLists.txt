@@ -11,11 +11,6 @@ else ( UNIX AND NOT APPLE )
     find_package(wxWidgets REQUIRED)
 endif ( UNIX OR MINGW AND NOT APPLE )
 
-# Add RPATH
-if ( UNIX )
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif ( UNIX )
-
 # we need wxWidgets flags to be set only for the c++ files, so we do it like this
 # by setting the CMAKE_CXX_FLAGS
 if ( NOT MINGW )
@@ -44,5 +39,14 @@ endif ( UNIX )
 
 target_link_libraries(codelite-terminal ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} ${UTIL_LIB} )
 
-install(TARGETS codelite-terminal DESTINATION ${CL_PREFIX}/bin)
+if(APPLE)
+    install(TARGETS codelite-terminal 
+            DESTINATION 
+            ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/codelite-terminal.app/Contents/MacOS)
+    # @executable_path/../../../
+    CL_INSTALL_NAME_TOOL_EX("libwx_" "@executable_path/../../../" 
+                ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/codelite-terminal.app/Contents/MacOS/codelite-terminal)
+else()
+    install(TARGETS codelite-terminal DESTINATION ${CL_PREFIX}/bin)
+endif()
 add_dependencies(codelite-terminal plugin)

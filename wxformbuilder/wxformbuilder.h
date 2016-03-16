@@ -43,7 +43,6 @@ public:
     ~wxFormBuilder();
 
 protected:
-    DECLARE_EVENT_TABLE()
 
     void OnSettings(wxCommandEvent& e);
     void OnNewDialog(wxCommandEvent& e);
@@ -51,8 +50,8 @@ protected:
     void OnNewFrame(wxCommandEvent& e);
     void OnNewPanel(wxCommandEvent& e);
     void OpenWithWxFb(wxCommandEvent& e);
-    void OnOpenFile(wxCommandEvent& e);
-    void OnWxFBTerminated(wxCommandEvent& e);
+    void OnOpenFile(clCommandEvent& e);
+    void OnWxFBTerminated(clProcessEvent& e);
     void OnShowFileContextMenu(clContextMenuEvent &event);
     
     wxMenu* CreatePopupMenu();

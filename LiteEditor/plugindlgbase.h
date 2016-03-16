@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : plugindlgbase.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : plugindlgbase.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef PLUGINDLGBASE_BASE_CLASSES_H
-#define PLUGINDLGBASE_BASE_CLASSES_H
+#ifndef CODELITE_LITEEDITOR_PLUGINDLGBASE_BASE_CLASSES_H
+#define CODELITE_LITEEDITOR_PLUGINDLGBASE_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -39,33 +39,26 @@
 #include <wx/iconbndl.h>
 #include <wx/artprov.h>
 #include <wx/sizer.h>
-#include <wx/splitter.h>
-#include <wx/panel.h>
-#include <wx/stattext.h>
 #include <wx/checklst.h>
 #include <wx/html/htmlwin.h>
 #include <wx/button.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class PluginMgrDlgBase : public wxDialog
 {
 protected:
-    wxBoxSizer* bSizer1;
-    wxBoxSizer* boxSizer16;
-    wxSplitterWindow* m_splitter2;
-    wxPanel* m_splitterPage6;
-    wxBoxSizer* boxSizer12;
-    wxStaticText* m_staticText1;
     wxCheckListBox* m_checkListPluginsList;
-    wxPanel* m_splitterPage10;
-    wxBoxSizer* boxSizer14;
-    wxStaticText* m_staticText2;
     wxHtmlWindow* m_htmlWinDesc;
-    wxBoxSizer* boxSizer18;
     wxButton* m_button20;
     wxButton* m_button22;
-    wxBoxSizer* bSizer2;
-    wxButton* m_buttonOk;
-    wxButton* m_buttonCancel;
+    wxStdDialogButtonSizer* m_stdBtnSizer26;
+    wxButton* m_buttonOK;
+    wxButton* m_button30;
 
 protected:
     virtual void OnItemSelected(wxCommandEvent& event) { event.Skip(); }
@@ -76,7 +69,11 @@ protected:
     virtual void OnButtonOK(wxCommandEvent& event) { event.Skip(); }
 
 public:
-    PluginMgrDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Manage Plugins:"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
+    wxCheckListBox* GetCheckListPluginsList() { return m_checkListPluginsList; }
+    wxHtmlWindow* GetHtmlWinDesc() { return m_htmlWinDesc; }
+    wxButton* GetButton20() { return m_button20; }
+    wxButton* GetButton22() { return m_button22; }
+    PluginMgrDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Manage Plugins"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
     virtual ~PluginMgrDlgBase();
 };
 

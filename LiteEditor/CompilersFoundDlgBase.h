@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : CompilersFoundDlgBase.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : CompilersFoundDlgBase.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef COMPILERSFOUNDDLG_BASE_CLASSES_H
-#define COMPILERSFOUNDDLG_BASE_CLASSES_H
+#ifndef CODELITE_LITEEDITOR_COMPILERSFOUNDDLG_BASE_CLASSES_H
+#define CODELITE_LITEEDITOR_COMPILERSFOUNDDLG_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -48,6 +48,12 @@
 #include <wx/propgrid/manager.h>
 #include <wx/propgrid/property.h>
 #include <wx/propgrid/advprops.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class CompilersFoundDlgBase : public wxDialog
 {
@@ -66,6 +72,10 @@ protected:
     virtual void OnItemActivated(wxDataViewEvent& event) { event.Skip(); }
 
 public:
+    wxBannerWindow* GetBanner10() { return m_banner10; }
+    wxDataViewCtrl* GetDataview() { return m_dataview; }
+    wxStaticBitmap* GetStaticBitmap35() { return m_staticBitmap35; }
+    wxStaticText* GetStaticText29() { return m_staticText29; }
     CompilersFoundDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Find Installed Compilers"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
     virtual ~CompilersFoundDlgBase();
 };
@@ -86,6 +96,8 @@ protected:
     virtual void OnOKUI(wxUpdateUIEvent& event) { event.Skip(); }
 
 public:
+    wxStaticText* GetStaticText27() { return m_staticText27; }
+    wxPropertyGridManager* GetPgMgrCompilers() { return m_pgMgrCompilers; }
     CompilersModifiedDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Could not find selected compiler..."), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
     virtual ~CompilersModifiedDlgBase();
 };

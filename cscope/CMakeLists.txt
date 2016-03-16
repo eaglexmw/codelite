@@ -26,10 +26,14 @@ if ( USE_PCH )
     add_definitions(-Winvalid-pch)
 endif ( USE_PCH )
 
-# Add RPATH
-if (UNIX)
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif (UNIX)
+if (UNIX AND NOT APPLE)
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+endif()
+
+if ( APPLE )
+    add_definitions(-fPIC)
+endif()
 
 FILE(GLOB SRCS "*.cpp")
 
@@ -38,7 +42,10 @@ add_library(${PLUGIN_NAME} SHARED ${SRCS})
 
 # Remove the "lib" prefix from the plugin name
 set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
-target_link_libraries(${PLUGIN_NAME} ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin)
-# Make sure that the plugin will not start build before 'plugin.so' is ready
-add_dependencies(${PLUGIN_NAME} plugin)
-install(TARGETS ${PLUGIN_NAME} DESTINATION ${PLUGINS_DIR})
+target_link_libraries(${PLUGIN_NAME}
+                      ${LINKER_OPTIONS}
+                      ${wxWidgets_LIBRARIES}
+                      libcodelite
+                      plugin
+                      )
+CL_INSTALL_PLUGIN(${PLUGIN_NAME})

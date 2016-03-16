@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php_configuration_data.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPCONFIGURATIONDATA_H
 #define PHPCONFIGURATIONDATA_H
 
@@ -18,6 +43,7 @@ protected:
     wxString m_xdebugHost;
     wxString m_findInFilesMask;
     int m_workspaceType;
+    size_t m_settersGettersFlags;
 
 public:
     enum {
@@ -40,7 +66,7 @@ public:
         this->m_workspaceType = workspaceType;
         return *this;
     }
-    
+
     int GetWorkspaceType() const { return m_workspaceType; }
     PHPConfigurationData& EnableFlag(size_t flag, bool b)
     {
@@ -118,8 +144,18 @@ public:
 
     size_t GetFlags() const { return m_flags; }
     const wxString& GetXdebugIdeKey() const { return m_xdebugIdeKey; }
-    void SetXdebugHost(const wxString& xdebugHost) { this->m_xdebugHost = xdebugHost; }
+    PHPConfigurationData& SetXdebugHost(const wxString& xdebugHost)
+    {
+        this->m_xdebugHost = xdebugHost;
+        return *this;
+    }
     const wxString& GetXdebugHost() const { return m_xdebugHost; }
+    PHPConfigurationData& SetSettersGettersFlags(size_t settersGettersFlags)
+    {
+        this->m_settersGettersFlags = settersGettersFlags;
+        return *this;
+    }
+    size_t GetSettersGettersFlags() const { return m_settersGettersFlags; }
 };
 
 #endif // PHPCONFIGURATIONDATA_H

@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CodeLiteLLDBApp.cpp
 //
 // -------------------------------------------------------------------------
@@ -715,7 +715,7 @@ void CodeLiteLLDBApp::AcceptNewConnection() throw(clSocketException)
         m_networkThread->Start();
 
     } catch(clSocketException& e) {
-        wxPrintf("codelite-lldb: an error occured while waiting for connection. %s\n", e.what().c_str());
+        wxPrintf("codelite-lldb: an error occurred while waiting for connection. %s\n", e.what().c_str());
         Cleanup();
 
         // exit
@@ -870,7 +870,7 @@ void CodeLiteLLDBApp::MainLoop()
 
     } catch(clSocketException& e) {
         wxPrintf(
-            "codelite-lldb: an error occured during MainLoop(). %s. strerror=%s\n", e.what().c_str(), strerror(errno));
+            "codelite-lldb: an error occurred during MainLoop(). %s. strerror=%s\n", e.what().c_str(), strerror(errno));
         // exit now
         exit(0);
     }

@@ -32,6 +32,8 @@
 #include "tokenizer.h"
 #include "language.h"
 #include "code_completion_api.h"
+#include "comment_parser.h"
+#include <wx/regex.h>
 
 wxString TagEntry::KIND_CLASS = "class";
 wxString TagEntry::KIND_ENUM = "enum";
@@ -49,8 +51,8 @@ wxString TagEntry::KIND_FILE = "file";
 
 TagEntry::TagEntry(const tagEntry& entry)
     : m_isClangTag(false)
-    , m_userData(NULL)
     , m_flags(0)
+    , m_isCommentForamtted(false)
 {
     Create(entry);
 }
@@ -67,8 +69,8 @@ TagEntry::TagEntry()
     , m_scope(wxEmptyString)
     , m_differOnByLineNumber(false)
     , m_isClangTag(false)
-    , m_userData(NULL)
     , m_flags(0)
+    , m_isCommentForamtted(false)
 {
 }
 
@@ -90,8 +92,10 @@ TagEntry& TagEntry::operator=(const TagEntry& rhs)
     m_scope = rhs.m_scope.c_str();
     m_isClangTag = rhs.m_isClangTag;
     m_differOnByLineNumber = rhs.m_differOnByLineNumber;
-    m_userData = rhs.m_userData;
     m_flags = rhs.m_flags;
+    m_formattedComment = rhs.m_formattedComment;
+    m_isCommentForamtted = rhs.m_isCommentForamtted;
+    
     // loop over the map and copy item by item
     // we use the c_str() method to force our own copy of the string and to avoid
     // ref counting which may cause crash when sharing wxString among threads
@@ -132,7 +136,7 @@ void TagEntry::Create(const wxString& fileName,
                       const wxString& kind,
                       std::map<wxString, wxString>& extFields)
 {
-    m_userData = NULL;
+    m_isCommentForamtted = false;
     m_flags = 0;
     m_isClangTag = false;
     SetName(name);
@@ -202,6 +206,7 @@ void TagEntry::Create(const wxString& fileName,
 
 void TagEntry::Create(const tagEntry& entry)
 {
+    m_isCommentForamtted = false;
     m_isClangTag = false;
     // Get other information from the string data and store it into map
     for(int i = 0; i < entry.fields.count; ++i) {
@@ -757,4 +762,153 @@ wxString TagEntry::GetPatternClean() const
         p.Replace(wxT("$/"), wxT(""));
     }
     return p;
+}
+
+wxString TagEntry::FormatComment()
+{
+    if(m_isCommentForamtted) return m_formattedComment;
+    m_isCommentForamtted = true;
+    m_formattedComment.Clear();
+    
+    // Send the plugins an event requesting tooltip for this tag
+    if(IsMethod()) {
+
+        if(IsConstructor())
+            m_formattedComment << wxT("<b>[Constructor]</b>\n");
+
+        else if(IsDestructor())
+            m_formattedComment << wxT("<b>[Destructor]</b>\n");
+
+        TagEntryPtr p(new TagEntry(*this));
+        m_formattedComment << wxT("<code>")
+               << TagsManagerST::Get()->FormatFunction(p, FunctionFormat_WithVirtual | FunctionFormat_Arg_Per_Line)
+               << wxT("</code>\n");
+        m_formattedComment.Replace(GetName(), wxT("<b>") + GetName() + wxT("</b>"));
+    } else if(IsClass()) {
+
+        m_formattedComment << wxT("<b>Kind:</b> ");
+        m_formattedComment << GetKind() << "\n";
+
+        if(GetInheritsAsString().IsEmpty() == false) {
+            m_formattedComment << wxT("<b>Inherits:</b> ");
+            m_formattedComment << GetInheritsAsString() << wxT("\n");
+        }
+
+    } else if(IsMacro() || IsTypedef() || IsContainer() || GetKind() == wxT("member") ||
+              GetKind() == wxT("variable")) {
+
+        m_formattedComment << wxT("<b>Kind:</b> ");
+        m_formattedComment << GetKind() << "\n";
+
+        m_formattedComment << wxT("<b>Match Pattern:</b> ");
+
+        // Prettify the match pattern
+        wxString matchPattern(GetPattern());
+        matchPattern.Trim().Trim(false);
+
+        if(matchPattern.StartsWith(wxT("/^"))) {
+            matchPattern.Replace(wxT("/^"), wxT(""));
+        }
+
+        if(matchPattern.EndsWith(wxT("$/"))) {
+            matchPattern.Replace(wxT("$/"), wxT(""));
+        }
+
+        matchPattern.Replace(wxT("\t"), wxT(" "));
+        while(matchPattern.Replace(wxT("  "), wxT(" "))) {
+        }
+
+        matchPattern.Trim().Trim(false);
+
+        // BUG#3082954: limit the size of the 'match pattern' to a reasonable size (200 chars)
+        matchPattern = TagsManagerST::Get()->WrapLines(matchPattern);
+        matchPattern.Replace(GetName(), wxT("<b>") + GetName() + wxT("</b>"));
+        m_formattedComment << wxT("<code>") << matchPattern << wxT("</code>\n");
+
+    }
+
+    // Add comment section
+    wxString tagComment;
+    if(!GetFile().IsEmpty()) {
+        
+        CommentParseResult comments;
+        ::ParseComments(GetFile().mb_str(wxConvUTF8).data(), comments);
+    
+        // search for comment in the current line, the line above it and 2 above it
+        // use the first match we got
+        for(size_t i = 0; i < 3; i++) {
+            wxString comment = comments.getCommentForLine(GetLine()-i);
+            if(!comment.IsEmpty()) {
+                SetComment(comment);
+                break;
+            }
+        }
+    }
+    
+    if(!GetComment().IsEmpty()) {
+        wxString theComment;
+        theComment = GetComment();
+
+        theComment = TagsManagerST::Get()->WrapLines(theComment);
+        theComment.Trim(false);
+        wxString tagComment = wxString::Format(wxT("%s\n"), theComment.c_str());
+        if(m_formattedComment.IsEmpty() == false) {
+            m_formattedComment.Trim().Trim(false);
+            m_formattedComment << wxT("\n<hr>");
+        }
+        m_formattedComment << tagComment;
+    }
+
+    // Update all "doxy" comments and surround them with <green> tags
+    static wxRegEx reDoxyParam("([@\\\\]{1}param)[ \\t]+([_a-z][a-z0-9_]*)?", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDoxyBrief("([@\\\\]{1}(brief|details))[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDoxyThrow("([@\\\\]{1}(throw|throws))[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDoxyReturn("([@\\\\]{1}(return|retval|returns))[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDoxyToDo("([@\\\\]{1}todo)[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDoxyRemark("([@\\\\]{1}(remarks|remark))[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reDate("([@\\\\]{1}date)[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+    static wxRegEx reFN("([@\\\\]{1}fn)[ \\t]*", wxRE_DEFAULT | wxRE_ICASE);
+
+    if(reDoxyParam.IsValid() && reDoxyParam.Matches(m_formattedComment)) {
+        reDoxyParam.ReplaceAll(&m_formattedComment, "\n<b>Parameter</b>\n<i>\\2</i>");
+    }
+
+    if(reDoxyBrief.IsValid() && reDoxyBrief.Matches(m_formattedComment)) {
+        reDoxyBrief.ReplaceAll(&m_formattedComment, "");
+    }
+
+    if(reDoxyThrow.IsValid() && reDoxyThrow.Matches(m_formattedComment)) {
+        reDoxyThrow.ReplaceAll(&m_formattedComment, "\n<b>Throws</b>\n");
+    }
+
+    if(reDoxyReturn.IsValid() && reDoxyReturn.Matches(m_formattedComment)) {
+        reDoxyReturn.ReplaceAll(&m_formattedComment, "\n<b>Returns</b>\n");
+    }
+
+    if(reDoxyToDo.IsValid() && reDoxyToDo.Matches(m_formattedComment)) {
+        reDoxyToDo.ReplaceAll(&m_formattedComment, "\n<b>TODO</b>\n");
+    }
+
+    if(reDoxyRemark.IsValid() && reDoxyRemark.Matches(m_formattedComment)) {
+        reDoxyRemark.ReplaceAll(&m_formattedComment, "\n  ");
+    }
+
+    if(reDate.IsValid() && reDate.Matches(m_formattedComment)) {
+        reDate.ReplaceAll(&m_formattedComment, "<b>Date</b> ");
+    }
+
+    if(reFN.IsValid() && reFN.Matches(m_formattedComment)) {
+        size_t fnStart, fnLen, fnEnd;
+        if(reFN.GetMatch(&fnStart, &fnLen)) {
+            fnEnd = m_formattedComment.find('\n', fnStart);
+            if(fnEnd != wxString::npos) {
+                // remove the string from fnStart -> fnEnd (including ther terminating \n)
+                m_formattedComment.Remove(fnStart, (fnEnd - fnStart) + 1);
+            }
+        }
+    }
+
+    // if nothing to display skip this
+    m_formattedComment.Trim().Trim(false);
+    return m_formattedComment;
 }

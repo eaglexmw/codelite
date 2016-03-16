@@ -64,12 +64,13 @@ AddIncludeFileDlg::AddIncludeFileDlg(wxWindow* parent, const wxString& fullpath,
     SetAndMarkLine();
     m_textCtrlPreview->EmptyUndoBuffer();
     m_textCtrlPreview->SetFocus();
-    WindowAttrManager::Load(this, "AddIncludeFileDlg", NULL);
-    Centre();
+    SetName("AddIncludeFileDlg");
+    WindowAttrManager::Load(this);
+    CentreOnParent();
 
     // Only call OnModified when text was deleted or added
     Bind(wxEVT_IDLE, &AddIncludeFileDlg::OnIdle, this);
-    
+
     int numOfLinesVisible = m_textCtrlPreview->LinesOnScreen();
     int firstVisibleLine = m_line - (numOfLinesVisible / 2);
     if(firstVisibleLine < 0) {
@@ -78,7 +79,7 @@ AddIncludeFileDlg::AddIncludeFileDlg(wxWindow* parent, const wxString& fullpath,
     m_textCtrlPreview->SetFirstVisibleLine(firstVisibleLine);
 }
 
-AddIncludeFileDlg::~AddIncludeFileDlg() { WindowAttrManager::Save(this, "AddIncludeFileDlg", NULL); }
+AddIncludeFileDlg::~AddIncludeFileDlg() {}
 
 void AddIncludeFileDlg::UpdateLineToAdd()
 {
@@ -103,7 +104,7 @@ void AddIncludeFileDlg::UpdateLineToAdd()
 
     wxString errMsg;
     wxString projectName = clMainFrame::Get()->GetMainBook()->GetActiveEditor()->GetProject();
-    ProjectPtr proj = WorkspaceST::Get()->FindProjectByName(projectName, errMsg);
+    ProjectPtr proj = clCxxWorkspaceST::Get()->FindProjectByName(projectName, errMsg);
     if(proj) {
         wxArrayString incls = proj->GetIncludePaths();
         std::sort(incls.begin(), incls.end(), SAscendingSort());
@@ -136,20 +137,20 @@ void AddIncludeFileDlg::UpdateLineToAdd()
 
 void AddIncludeFileDlg::SetAndMarkLine()
 {
-    // restore the initial text
+// restore the initial text
 #ifdef __WXMSW__
     wxWindowUpdateLocker locker(m_textCtrlPreview);
 #endif
 
     m_textCtrlPreview->SetReadOnly(false);
-    
+
     // Make the line to add at the center of the display
     int numOfLinesVisible = m_textCtrlPreview->LinesOnScreen();
     int firstVisibleLine = m_line - (numOfLinesVisible / 2);
     if(firstVisibleLine < 0) {
         firstVisibleLine = 0;
     }
-    
+
     m_textCtrlPreview->MarkerDeleteAll(0x7);
     m_textCtrlPreview->SetText(m_text);
     long pos = m_textCtrlPreview->PositionFromLine(m_line);
@@ -253,7 +254,7 @@ void AddIncludeFileDlg::OnIdle(wxIdleEvent& event)
         // we have a marker
         m_lineToAdd = m_textCtrlPreview->GetLine(m_line);
         m_lineToAdd.Trim();
-        
+
         if(m_staticTextPreview->GetLabel() != m_lineToAdd) {
             m_staticTextPreview->CallAfter(&wxStaticText::SetLabel, m_lineToAdd);
         }

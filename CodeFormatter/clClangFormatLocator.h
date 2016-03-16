@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : clClangFormatLocator.h
 //
 // -------------------------------------------------------------------------
@@ -39,6 +39,11 @@ public:
      * @return
      */
     bool Locate(wxString& clangFormat);
+    
+    /**
+     * @brief return the clang format version installed
+     */
+    double GetVersion(const wxString& clangFormat) const;
 };
 
 #endif // CLCLANGFORMATLOCATOR_H

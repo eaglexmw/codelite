@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : code_completion_manager.cpp
 //
 // -------------------------------------------------------------------------
@@ -52,13 +52,15 @@ struct EditorDimmerDisabler {
     {
         if(m_editor) {
             m_editor->SetPreProcessorsWords("");
-            m_editor->GetSTC()->SetProperty(wxT("lexer.cpp.track.preprocessor"), wxT("0"));
-            m_editor->GetSTC()->SetProperty(wxT("lexer.cpp.update.preprocessor"), wxT("0"));
-            m_editor->GetSTC()->Colourise(0, wxSTC_INVALID_POSITION);
+            m_editor->GetCtrl()->SetProperty(wxT("lexer.cpp.track.preprocessor"), wxT("0"));
+            m_editor->GetCtrl()->SetProperty(wxT("lexer.cpp.update.preprocessor"), wxT("0"));
+            m_editor->GetCtrl()->Colourise(0, wxSTC_INVALID_POSITION);
         }
     }
 
-    ~EditorDimmerDisabler() {}
+    ~EditorDimmerDisabler()
+    {
+    }
 };
 
 CodeCompletionManager::CodeCompletionManager()
@@ -85,6 +87,8 @@ CodeCompletionManager::CodeCompletionManager()
 
     EventNotifier::Get()->Connect(
         wxEVT_WORKSPACE_CLOSED, wxCommandEventHandler(CodeCompletionManager::OnWorkspaceClosed), NULL, this);
+    EventNotifier::Get()->Bind(
+        wxEVT_ENVIRONMENT_VARIABLES_MODIFIED, &CodeCompletionManager::OnEnvironmentVariablesModified, this);
     // Start the worker threads
     m_preProcessorThread.Start();
     m_usingNamespaceThread.Start();
@@ -111,6 +115,8 @@ CodeCompletionManager::~CodeCompletionManager()
     EventNotifier::Get()->Disconnect(
         wxEVT_WORKSPACE_CLOSED, wxCommandEventHandler(CodeCompletionManager::OnWorkspaceClosed), NULL, this);
     wxTheApp->Unbind(wxEVT_ACTIVATE_APP, &CodeCompletionManager::OnAppActivated, this);
+    EventNotifier::Get()->Unbind(
+        wxEVT_ENVIRONMENT_VARIABLES_MODIFIED, &CodeCompletionManager::OnEnvironmentVariablesModified, this);
 }
 
 void CodeCompletionManager::WordCompletion(LEditor* editor, const wxString& expr, const wxString& word)
@@ -167,7 +173,8 @@ void CodeCompletionManager::DoClangWordCompletion(LEditor* editor)
 {
 #if HAS_LIBCLANG
     DoUpdateOptions();
-    if(GetOptions() & CC_CLANG_ENABLED) ClangCodeCompletion::Instance()->WordComplete(editor);
+    if(GetOptions() & CC_CLANG_ENABLED)
+        ClangCodeCompletion::Instance()->WordComplete(editor);
 #else
     wxUnusedVar(editor);
 #endif
@@ -193,7 +200,8 @@ void CodeCompletionManager::DoClangCalltip(LEditor* editor)
 {
 #if HAS_LIBCLANG
     DoUpdateOptions();
-    if(GetOptions() & CC_CLANG_ENABLED) ClangCodeCompletion::Instance()->Calltip(editor);
+    if(GetOptions() & CC_CLANG_ENABLED)
+        ClangCodeCompletion::Instance()->Calltip(editor);
 #else
     wxUnusedVar(editor);
 #endif
@@ -208,7 +216,8 @@ void CodeCompletionManager::Calltip(LEditor* editor,
     bool res(false);
     DoUpdateOptions();
 
-    if(::IsCppKeyword(word)) return;
+    if(::IsCppKeyword(word))
+        return;
 
     if(GetOptions() & CC_CTAGS_ENABLED) {
         res = DoCtagsCalltip(editor, line, expr, text, word);
@@ -276,7 +285,8 @@ void CodeCompletionManager::ProcessMacros(LEditor* editor)
 
     wxArrayString macros;
     wxArrayString includePaths;
-    if(!GetDefinitionsAndSearchPaths(editor, includePaths, macros)) return;
+    if(!GetDefinitionsAndSearchPaths(editor, includePaths, macros))
+        return;
 
     // Queue this request in the worker thread
     m_preProcessorThread.QueueFile(editor->GetFileName().GetFullPath(), macros, includePaths);
@@ -373,9 +383,15 @@ void CodeCompletionManager::DoUpdateCompilationDatabase()
     ClangCompilationDbThreadST::Get()->AddFile(db.GetFileName().GetFullPath());
 }
 
-void CodeCompletionManager::OnAppActivated(wxActivateEvent& e) { e.Skip(); }
+void CodeCompletionManager::OnAppActivated(wxActivateEvent& e)
+{
+    e.Skip();
+}
 
-void CodeCompletionManager::Release() { wxDELETE(ms_CodeCompletionManager); }
+void CodeCompletionManager::Release()
+{
+    wxDELETE(ms_CodeCompletionManager);
+}
 
 void CodeCompletionManager::OnBuildStarted(clBuildEvent& e)
 {
@@ -408,10 +424,10 @@ void CodeCompletionManager::OnParseThreadCollectedMacros(const wxArrayString& de
         // its the same file that triggered the request, update its pre processor colouring
         // turn off the macro colouring (until new set is arrived)
         editor->SetPreProcessorsWords(macrosAsString);
-        editor->GetSTC()->SetProperty(wxT("lexer.cpp.track.preprocessor"), wxT("1"));
-        editor->GetSTC()->SetProperty(wxT("lexer.cpp.update.preprocessor"), wxT("1"));
-        editor->GetSTC()->SetKeyWords(4, macrosAsString);
-        editor->GetSTC()->Colourise(0, wxSTC_INVALID_POSITION);
+        editor->GetCtrl()->SetProperty(wxT("lexer.cpp.track.preprocessor"), wxT("1"));
+        editor->GetCtrl()->SetProperty(wxT("lexer.cpp.update.preprocessor"), wxT("1"));
+        editor->GetCtrl()->SetKeyWords(4, macrosAsString);
+        editor->GetCtrl()->Colourise(0, wxSTC_INVALID_POSITION);
         CL_DEBUG("Updating editor colours...done");
     }
 }
@@ -471,6 +487,7 @@ void CodeCompletionManager::RefreshPreProcessorColouring()
 void CodeCompletionManager::OnWorkspaceConfig(wxCommandEvent& event)
 {
     event.Skip();
+    Project::ClearBacktickCache();
     RefreshPreProcessorColouring();
 }
 
@@ -499,7 +516,8 @@ void CodeCompletionManager::ProcessUsingNamespace(LEditor* editor)
 
     wxArrayString macros;
     wxArrayString includePaths;
-    if(!GetDefinitionsAndSearchPaths(editor, includePaths, macros)) return;
+    if(!GetDefinitionsAndSearchPaths(editor, includePaths, macros))
+        return;
 
     wxUnusedVar(macros);
     // Queue this request in the worker thread
@@ -513,15 +531,18 @@ bool CodeCompletionManager::GetDefinitionsAndSearchPaths(LEditor* editor,
     // Sanity
     CHECK_PTR_RET_FALSE(editor);
 
-    if(editor->GetProjectName().IsEmpty()) return false;
-    if(!WorkspaceST::Get()->IsOpen()) return false;
+    if(editor->GetProjectName().IsEmpty())
+        return false;
+    if(!clCxxWorkspaceST::Get()->IsOpen())
+        return false;
 
     // Support only C/C++ files
-    if(!FileExtManager::IsCxxFile(editor->GetFileName().GetFullName())) return false;
+    if(!FileExtManager::IsCxxFile(editor->GetFileName().GetFullName()))
+        return false;
 
     // Get the file's project and get the build configuration settings
     // for it
-    ProjectPtr proj = WorkspaceST::Get()->GetProject(editor->GetProjectName());
+    ProjectPtr proj = clCxxWorkspaceST::Get()->GetProject(editor->GetProjectName());
     CHECK_PTR_RET_FALSE(proj);
 
     BuildConfigPtr buildConf = proj->GetBuildConfiguration();
@@ -530,7 +551,11 @@ bool CodeCompletionManager::GetDefinitionsAndSearchPaths(LEditor* editor,
     CompilerPtr compiler = buildConf->GetCompiler();
     CHECK_PTR_RET_FALSE(compiler);
 
+#if 0
     if(buildConf->IsCustomBuild()) {
+        definitions = proj->GetPreProcessors();
+        CL_DEBUG("CxxPreProcessor will use the following macros:");
+        CL_DEBUG_ARR(definitions);
         // Custom builds are handled differently
         CompilationDatabase compileDb;
         compileDb.Open();
@@ -544,25 +569,29 @@ bool CodeCompletionManager::GetDefinitionsAndSearchPaths(LEditor* editor,
             searchPaths = cclp.GetIncludes();
 
             // get the mcros
-            definitions = cclp.GetMacros();
-        } else {
-            // we will probably will fail...
-            return false;
+            definitions << cclp.GetMacros();
         }
-    } else {
-        // get the include paths based on the project settings (this is per build configuration)
-        searchPaths = proj->GetIncludePaths();
-        CL_DEBUG("CxxPreProcessor will use the following include paths:");
-        CL_DEBUG_ARR(searchPaths);
-
-        // get the compiler include paths
-        // wxArrayString compileIncludePaths = compiler->GetDefaultIncludePaths();
-
-        // includePaths.insert(includePaths.end(), compileIncludePaths.begin(), compileIncludePaths.end());
-        definitions = proj->GetPreProcessors();
-        CL_DEBUG("CxxPreProcessor will use the following macros:");
-        CL_DEBUG_ARR(definitions);
     }
+#endif
+    // get the include paths based on the project settings (this is per build configuration)
+    searchPaths = proj->GetIncludePaths();
+    CL_DEBUG("CxxPreProcessor will use the following include paths:");
+    CL_DEBUG_ARR(searchPaths);
+
+    // get the compiler include paths
+    // wxArrayString compileIncludePaths = compiler->GetDefaultIncludePaths();
+
+    // includePaths.insert(includePaths.end(), compileIncludePaths.begin(), compileIncludePaths.end());
+    definitions = proj->GetPreProcessors();
+
+    // get macros out of workspace
+    wxString strWorkspaceMacros = clCxxWorkspaceST::Get()->GetParserMacros();
+    wxArrayString workspaceMacros = wxStringTokenize(strWorkspaceMacros, wxT("\n\r"), wxTOKEN_STRTOK);
+    for(size_t i = 0; i < workspaceMacros.GetCount(); i++)
+        definitions.Add(workspaceMacros.Item(i).Trim().Trim(false).c_str());
+
+    CL_DEBUG("CxxPreProcessor will use the following macros:");
+    CL_DEBUG_ARR(definitions);
 
     // Append the compiler builtin macros
     wxArrayString builtinMacros = compiler->GetBuiltinMacros();
@@ -575,4 +604,12 @@ void CodeCompletionManager::OnWorkspaceClosed(wxCommandEvent& event)
 {
     event.Skip();
     LanguageST::Get()->ClearAdditionalScopesCache();
+    Project::ClearBacktickCache();
+}
+
+void CodeCompletionManager::OnEnvironmentVariablesModified(clCommandEvent& event)
+{
+    event.Skip();
+    Project::ClearBacktickCache();
+    RefreshPreProcessorColouring();
 }

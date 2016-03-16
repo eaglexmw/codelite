@@ -1,11 +1,11 @@
 #include "WordCompletionThread.h"
 #include "wordcompletion.h"
-#include "WordsTokens.h"
 #include "macros.h"
 #include "WordCompletionSettings.h"
+#include "WordCompletionDictionary.h"
 
-WordCompletionThread::WordCompletionThread(WordCompletionPlugin* plugin)
-    : m_plugin(plugin)
+WordCompletionThread::WordCompletionThread(WordCompletionDictionary* dict)
+    : m_dict(dict)
 {
 }
 
@@ -16,58 +16,25 @@ void WordCompletionThread::ProcessRequest(ThreadRequest* request)
     CHECK_PTR_RET(req);
 
     wxStringSet_t suggestsions;
-    void* scanner = ::wordsLexerNew(req->buffer);
-    CHECK_PTR_RET(scanner);
-
-    WordToken token;
-
-    WordCompletionSettings settings;
-    size_t flags = settings.Load().GetCompleteTypes();
+    ParseBuffer(req->buffer, suggestsions);
 
     // Parse and send back the reply
     WordCompletionThreadReply reply;
     reply.filename = req->filename;
     reply.filter = req->filter;
-    while(::wordsLexerNext(scanner, token)) {
-        switch(token.type) {
-        case kWORD_T_NUMBER:
-            if(flags & WordCompletionSettings::kCompleteNumbers) {
-                reply.suggest.insert(token.word);
-            }
-            break;
-        case kWORD_T_WORD:
-            if(flags & WordCompletionSettings::kCompleteWords) {
-                reply.suggest.insert(token.word);
-            }
-            break;
-        case kWORD_T_STRING:
-            if(flags & WordCompletionSettings::kCompleteStrings) {
-                reply.suggest.insert(token.word);
-            }
-            break;
-        default:
-            break;
-        }
-    }
-    ::wordsLexerDestroy(&scanner);
+    reply.insertSingleMatch = req->insertSingleMatch;
+    reply.suggest.swap(suggestsions);
+    m_dict->CallAfter(&WordCompletionDictionary::OnSuggestThread, reply);
+}
 
-    // Remove non matched words
-    wxStringSet_t::iterator iter = reply.suggest.begin();
-    wxStringSet_t filterdSet;
-    for(; iter != reply.suggest.end(); ++iter) {
-        wxString lcFilter = req->filter.Lower();
-        wxString lcKey = iter->Lower();
-        if(settings.GetComparisonMethod() == WordCompletionSettings::kComparisonStartsWith) {
-            if(lcKey.StartsWith(lcFilter) && req->filter != (*iter)) {
-                filterdSet.insert(*iter);
-            }
-        } else {
-            if(lcKey.Contains(lcFilter) && req->filter != (*iter)) {
-                filterdSet.insert(*iter);
-            }
+void WordCompletionThread::ParseBuffer(const wxString& buffer, wxStringSet_t& suggest)
+{
+    wxArrayString filteredWords;
+    wxArrayString words = ::wxStringTokenize(buffer, "\r\n \t->./\\'\"[]()<>*&^%#!@+=:,;{}|/", wxTOKEN_STRTOK);
+    for(size_t i=0; i<words.size(); ++i) {
+        if(!wxIsdigit(words.Item(i).at(0))) {
+            filteredWords.Add(words.Item(i));
         }
     }
-    
-    reply.suggest.swap(filterdSet);
-    m_plugin->CallAfter(&WordCompletionPlugin::OnSuggestThread, reply);
+    suggest.insert(filteredWords.begin(), filteredWords.end());
 }

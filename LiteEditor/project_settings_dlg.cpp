@@ -90,8 +90,9 @@ ProjectSettingsDlg::ProjectSettingsDlg(wxWindow* parent,
     GetSizer()->Fit(this);
 
     wxSize sz = GetSize();
-    Centre();
-    WindowAttrManager::Load(this, wxT("ProjectSettingsDlg"), NULL);
+    CentreOnParent();
+    SetName("ProjectSettingsDlg");
+    WindowAttrManager::Load(this);
 
     // Make sure that all the controls are visible
     wxSize newSize = GetSize();
@@ -125,14 +126,13 @@ void ProjectSettingsDlg::BuildTree()
     }
 
     PSGeneralPage* gp = new PSGeneralPage(m_treebook, m_projectName, m_choiceConfig->GetStringSelection(), this);
-    m_treebook->AddPage(0, _("Common Settings"));
-    m_treebook->AddSubPage(gp, _("General"), selectedPage == _("General"));
-    m_treebook->AddSubPage(
+    m_treebook->AddPage(gp, _("General"), selectedPage == _("General"));
+    m_treebook->AddPage(
         new PSCompilerPage(m_treebook, m_projectName, this, gp), _("Compiler"), selectedPage == _("Compiler"));
-    m_treebook->AddSubPage(new PSLinkerPage(m_treebook, this, gp), _("Linker"), selectedPage == _("Linker"));
-    m_treebook->AddSubPage(new PSEnvironmentPage(m_treebook, this), _("Environment"), selectedPage == _("Environment"));
-    m_treebook->AddSubPage(new PSDebuggerPage(m_treebook, this), _("Debugger"), selectedPage == _("Debugger"));
-    m_treebook->AddSubPage(new PSResourcesPage(m_treebook, this), _("Resources"), selectedPage == _("Resources"));
+    m_treebook->AddPage(new PSLinkerPage(m_treebook, this, gp), _("Linker"), selectedPage == _("Linker"));
+    m_treebook->AddPage(new PSEnvironmentPage(m_treebook, this), _("Environment"), selectedPage == _("Environment"));
+    m_treebook->AddPage(new PSDebuggerPage(m_treebook, this), _("Debugger"), selectedPage == _("Debugger"));
+    m_treebook->AddPage(new PSResourcesPage(m_treebook, this), _("Resources"), selectedPage == _("Resources"));
 
     m_treebook->AddPage(0, _("Pre / Post Build Commands"));
     m_treebook->AddSubPage(
@@ -165,7 +165,6 @@ ProjectSettingsDlg::~ProjectSettingsDlg()
 
     PluginManager::Get()->UnHookProjectSettingsTab(m_treebook, m_projectName, wxEmptyString /* all tabs */);
     EditorConfigST::Get()->SetString(wxT("PSSelectedPage"), m_treebook->GetPageText(m_treebook->GetSelection()));
-    WindowAttrManager::Save(this, wxT("ProjectSettingsDlg"), NULL);
 }
 
 void ProjectSettingsDlg::OnButtonOK(wxCommandEvent& event)
@@ -188,7 +187,6 @@ void ProjectSettingsDlg::OnButtonApply(wxCommandEvent& event)
 
 void ProjectSettingsDlg::SaveValues()
 {
-
     ProjectSettingsPtr projSettingsPtr = ManagerST::Get()->GetProjectSettings(m_projectName);
     BuildConfigPtr buildConf = projSettingsPtr->GetBuildConfiguration(m_configName);
     if(!buildConf) {
@@ -237,6 +235,11 @@ void ProjectSettingsDlg::LoadValues(const wxString& configName)
         if(!page) continue; // NULL page ...
         IProjectSettingsPage* p = dynamic_cast<IProjectSettingsPage*>(page);
         if(p) {
+            GlobalSettingsPanel* globalPage = dynamic_cast<GlobalSettingsPanel*>(page);
+            if(globalPage) {
+                // update the project name
+                // globalPage->SetProjectName(m_projectName);
+            }
             p->Load(buildConf);
         }
     }
@@ -275,10 +278,7 @@ void ProjectSettingsDlg::OnButtonHelp(wxCommandEvent& e)
 #endif
 }
 
-void ProjectSettingsDlg::OnButtonApplyUI(wxUpdateUIEvent& event)
-{
-    event.Enable(GetIsDirty());
-}
+void ProjectSettingsDlg::OnButtonApplyUI(wxUpdateUIEvent& event) { event.Enable(GetIsDirty()); }
 
 void ProjectSettingsDlg::OnConfigurationChanged(wxCommandEvent& event)
 {
@@ -307,7 +307,7 @@ void ProjectSettingsDlg::OnProjectSelected(wxCommandEvent& e)
 
     // Make sure we know which configuration to load for the new project
 
-    BuildConfigPtr bldConf = WorkspaceST::Get()->GetProjBuildConf(e.GetString(), "");
+    BuildConfigPtr bldConf = clCxxWorkspaceST::Get()->GetProjBuildConf(e.GetString(), "");
     CHECK_PTR_RET(bldConf);
 
     if(m_isDirty) {
@@ -395,13 +395,12 @@ void ProjectSettingsDlg::ShowHideDisabledMessage()
 void ProjectSettingsDlg::ShowCustomProjectMessage(bool show)
 {
     if(show) {
-        m_infobar->ShowMessage(
-            _("Settings on this page are disabled because this project is setup as \"Custom Build\" project"),
-            wxICON_INFORMATION);
+        m_infobar->ShowMessage(_("The settings on this page are ignored during build"), wxICON_INFORMATION);
     } else {
         m_infobar->Dismiss();
     }
 }
+
 void ProjectSettingsDlg::OnPageChanged(wxTreebookEvent& event)
 {
     event.Skip();
@@ -527,10 +526,7 @@ void GlobalSettingsPanel::OnCustomEditorClicked(wxCommandEvent& event)
     }
 }
 
-void GlobalSettingsPanel::OnValueChanged(wxPropertyGridEvent& event)
-{
-    m_dlg->SetIsDirty(true);
-}
+void GlobalSettingsPanel::OnValueChanged(wxPropertyGridEvent& event) { m_dlg->SetIsDirty(true); }
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////

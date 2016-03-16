@@ -14,6 +14,16 @@ find_package(wxWidgets COMPONENTS ${WX_COMPONENTS} REQUIRED)
 # wxWidgets include (this will do all the magic to configure everything)
 include( "${wxWidgets_USE_FILE}" )
 
+if (UNIX AND NOT APPLE)
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+endif()
+
+if ( APPLE )
+    add_definitions(-fPIC)
+endif()
+
+
 if ( WITH_MYSQL )
     find_library(LIBMYSQLCLIENT NAMES libmysqlclient.so)
     if (  ${LIBMYSQLCLIENT} STREQUAL "LIBMYSQLCLIENT-NOTFOUND") 
@@ -65,10 +75,6 @@ add_definitions(-DWXUSINGDLL_WXSQLITE3)
 add_definitions(-DWXUSINGDLL_CL)
 add_definitions(-DWXUSINGDLL_SDK)
 add_definitions(-DDBL_USE_SQLITE)
-# Add RPATH
-if (UNIX)
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif (UNIX)
 
 FILE(GLOB SRCS "*.cpp")
 
@@ -77,11 +83,20 @@ add_library(${PLUGIN_NAME} SHARED ${SRCS})
 
 # Remove the "lib" prefix from the plugin name
 set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
+
 if (GTK3_FOUND)
-    target_link_libraries(${PLUGIN_NAME} ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} ${GTK3_LIBRARIES} ${LIBMYSQLCLIENT} -L"${CL_LIBPATH}" -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin -ldatabaselayersqlite -lwxshapeframework)
+    set(GTK_LIBS ${GTK3_LIBRARIES})
 else()
-    target_link_libraries(${PLUGIN_NAME} ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} ${GTK2_LIBRARIES} ${LIBMYSQLCLIENT} -L"${CL_LIBPATH}" -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin -ldatabaselayersqlite -lwxshapeframework)
+    set(GTK_LIBS ${GTK2_LIBRARIES})
 endif()
-# Make sure that the plugin will not start build before 'plugin.so' is ready
-add_dependencies(${PLUGIN_NAME} plugin)
-install(TARGETS ${PLUGIN_NAME} DESTINATION ${PLUGINS_DIR})
+
+target_link_libraries(${PLUGIN_NAME}
+                      ${LINKER_OPTIONS}
+                      ${wxWidgets_LIBRARIES}
+                      ${GTK_LIBS}
+                      libcodelite
+                      plugin
+                      wxshapeframework
+                      databaselayersqlite
+                      )
+CL_INSTALL_PLUGIN(${PLUGIN_NAME})

@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitCommitDlg.h
 //
 // -------------------------------------------------------------------------
@@ -39,10 +39,10 @@
 class GitCommitDlg : public GitCommitDlgBase
 {
     std::map<wxString, wxString> m_diffMap;
-    wxString m_workingDir;
-
+    bool m_toggleChecks;
+    
 public:
-    GitCommitDlg(wxWindow* parent, const wxString& repoDir);
+    GitCommitDlg(wxWindow* parent);
     ~GitCommitDlg();
 
     void AppendDiff(const wxString& diff);
@@ -55,6 +55,10 @@ private:
     void OnChangeFile(wxCommandEvent& e);
 
 protected:
+    virtual void OnCommitHistory(wxCommandEvent& event);
+    virtual void OnCommitHistoryUI(wxUpdateUIEvent& event);
+    virtual void OnClearGitCommitHistory(wxCommandEvent& event);
+    virtual void OnToggleCheckAll(wxCommandEvent& event);
     virtual void OnCommitOK(wxCommandEvent& event);
 };
 

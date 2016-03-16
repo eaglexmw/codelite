@@ -83,7 +83,7 @@ CppCheckReportBasePage::CppCheckReportBasePage(wxWindow* parent, wxWindowID id, 
     
     m_buttonStop = new wxButton(this, wxID_STOP, _("&Stop"), wxDefaultPosition, wxSize(-1, -1), 0);
     m_buttonStop->SetDefault();
-    m_buttonStop->SetToolTip(_("Stop the curreny analysis"));
+    m_buttonStop->SetToolTip(_("Stop the current analysis"));
     
     bSizer4->Add(m_buttonStop, 0, wxALL|wxEXPAND, 5);
     
@@ -101,11 +101,12 @@ CppCheckReportBasePage::CppCheckReportBasePage(wxWindow* parent, wxWindowID id, 
     
     bSizer4->Add(m_buttonDown, 0, wxALL|wxEXPAND, 5);
     
+    SetName(wxT("CppCheckReportBasePage"));
     SetSizeHints(482,238);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     m_stc->Connect(wxEVT_STC_STYLENEEDED, wxStyledTextEventHandler(CppCheckReportBasePage::OnStyleNeeded), NULL, this);
     m_stc->Connect(wxEVT_STC_DOUBLECLICK, wxStyledTextEventHandler(CppCheckReportBasePage::OnOpenFile), NULL, this);

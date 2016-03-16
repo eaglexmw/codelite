@@ -10,11 +10,6 @@ include_directories("${CL_SRC_ROOT}/sdk/codelite_cppcheck/lib" "${CL_SRC_ROOT}/s
 
 set( ADDITIONAL_LIBRARIES "" )
 
-# Add RPATH
-if(UNIX)
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif (UNIX)
-
 if(WIN32)
 set(ADDITIONAL_LIBRARIES "-lshlwapi")
 endif(WIN32)
@@ -35,13 +30,14 @@ endif()
 add_executable(codelite_cppcheck ${SRCS})
 target_link_libraries(codelite_cppcheck ${LINKER_OPTIONS} ${ADDITIONAL_LIBRARIES})
 
-install(TARGETS codelite_cppcheck DESTINATION ${CL_PREFIX}/bin)
+CL_INSTALL_EXECUTABLE(codelite_cppcheck)
 
-install(
-  DIRECTORY ${CL_SRC_ROOT}/sdk/codelite_cppcheck/cfg
-  DESTINATION ${CL_PREFIX}/share/codelite/config
-  USE_SOURCE_PERMISSIONS
-  PATTERN ".svn" EXCLUDE
-  PATTERN ".git" EXCLUDE
-) 
-
+if(NOT APPLE)
+    install(
+          DIRECTORY ${CL_SRC_ROOT}/sdk/codelite_cppcheck/cfg
+          DESTINATION ${CL_PREFIX}/share/codelite/config
+          USE_SOURCE_PERMISSIONS
+          PATTERN ".svn" EXCLUDE
+          PATTERN ".git" EXCLUDE
+    ) 
+endif()

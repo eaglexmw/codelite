@@ -10,7 +10,8 @@ CxxPreProcessorScanner::CxxPreProcessorScanner(const wxFileName& filename, size_
     , m_filename(filename)
     , m_options(options)
 {
-    m_scanner = ::LexerNew(m_filename.GetFullPath(), m_options);
+    m_scanner = ::LexerNew(m_filename, m_options);
+    wxASSERT(m_scanner);
 }
 
 CxxPreProcessorScanner::~CxxPreProcessorScanner()
@@ -27,7 +28,7 @@ void CxxPreProcessorScanner::GetRestOfPPLine(wxString& rest, bool collectNumberO
     while(::LexerNext(m_scanner, token) && token.type != T_PP_STATE_EXIT) {
         if(!numberFound && collectNumberOnly) {
             if(token.type == T_PP_DEC_NUMBER || token.type == T_PP_OCTAL_NUMBER || token.type == T_PP_HEX_NUMBER ||
-               token.type == T_PP_FLOAT_NUMBER) {
+                token.type == T_PP_FLOAT_NUMBER) {
                 rest = token.text;
                 numberFound = true;
             }
@@ -78,7 +79,9 @@ void CxxPreProcessorScanner::Parse(CxxPreProcessor* pp) throw(CxxLexerException)
             if(pp->ExpandInclude(m_filename, token.text, include)) {
                 CxxPreProcessorScanner* scanner = new CxxPreProcessorScanner(include, pp->GetOptions());
                 try {
-                    scanner->Parse(pp);
+                    if(scanner && !scanner->IsNull()) {
+                        scanner->Parse(pp);
+                    }
                 } catch(CxxLexerException& e) {
                     // catch the exception
                     CL_DEBUG("Exception caught: %s\n", e.message);

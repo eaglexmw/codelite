@@ -30,6 +30,18 @@
 #include "codelite_exports.h"
 #include <wx/dcgraph.h>
 
+struct WXDLLIMPEXP_SDK clColourPalette 
+{
+    // basic colours
+    wxColour textColour;
+    wxColour bgColour;
+    wxColour penColour;
+    
+    // Selected item colours
+    wxColour selecteTextColour;
+    wxColour selectionBgColour;
+};
+
 class WXDLLIMPEXP_SDK DrawingUtils
 {
 public:
@@ -43,7 +55,7 @@ public:
     static wxColor GetMenuTextColour();
     static wxColor GetMenuBarBgColour();
 
-    static void TruncateText(const wxString& text, const int &maxWidth, wxString& fixedText);
+    static void TruncateText(const wxString& text, int maxWidth, wxDC& dc, wxString& fixedText);
     static void PaintStraightGradientBox(wxDC& dc, const wxRect& rect, const wxColour& startColor, const wxColour& endColor, bool vertical);
     static void DrawVerticalButton(wxDC& dc, const wxRect& rect, const bool &focus, const bool &upperTabs, bool vertical, bool hover = false);
     static void DrawHorizontalButton(wxDC& dc, const wxRect& rect, const bool &focus, const bool &upperTabs, bool vertical, bool hover = false);
@@ -51,6 +63,13 @@ public:
     static float GetDdkShadowLightFactor();
     static float GetDdkShadowLightFactor2();
     static wxColour GetGradient();
+    
+    static wxFont GetDefaultFixedFont();
+    
+    /**
+     * @brief return basic colour palette based on the current editor
+     */
+    static clColourPalette GetColourPalette();
     
     /// -------------------------------------------------------------
     /// New theme related API
@@ -95,6 +114,11 @@ public:
      * @brief return the AUI pane bg colour
      */
     static wxColour GetAUIPaneBGColour();
+    
+    /**
+     * @brief get the caption colour
+     */
+    static wxColour GetCaptionColour();
     
     /**
      * @brief stipple brush used for painting on various wxPanels

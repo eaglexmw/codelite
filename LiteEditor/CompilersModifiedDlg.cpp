@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CompilersModifiedDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -34,7 +34,7 @@ CompilersModifiedDlg::CompilersModifiedDlg(wxWindow* parent, const wxStringSet_t
     , m_enableOKButton(false)
 {
     wxArrayString compilers;
-    compilers = BuildSettingsConfigST::Get()->GetAllCompilers();
+    compilers = BuildSettingsConfigST::Get()->GetAllCompilersNames();
     compilers.Insert(SELECT_COMPILER, 0);
     
     wxStringSet_t::const_iterator iter = deletedCompilers.begin();
@@ -47,12 +47,13 @@ CompilersModifiedDlg::CompilersModifiedDlg(wxWindow* parent, const wxStringSet_t
         message << _("Create a new compiler named '") << *iter << "' by cloning an existing compiler";
         prop->SetHelpString( message );
     }
-    WindowAttrManager::Load(this, "CompilersModifiedDlg");
+    SetName("CompilersModifiedDlg");
+    WindowAttrManager::Load(this);
 }
 
 CompilersModifiedDlg::~CompilersModifiedDlg()
 {
-    WindowAttrManager::Save(this, "CompilersModifiedDlg");
+    
 }
 
 void CompilersModifiedDlg::OnOKUI(wxUpdateUIEvent& event)

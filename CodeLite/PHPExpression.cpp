@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <set>
 #include "PHPEntityNamespace.h"
+#include "PHPEntityFunctionAlias.h"
 
 PHPExpression::PHPExpression(const wxString& fulltext, const wxString& exprText, bool functionCalltipExpr)
     : m_type(kNone)
@@ -31,6 +32,7 @@ PHPExpression::~PHPExpression() {}
 
 phpLexerToken::Vet_t PHPExpression::CreateExpression(const wxString& text)
 {
+    m_exprStartsWithOpenTag = false;
     // Extract the expression at the end of the input text
     std::stack<phpLexerToken::Vet_t> stack;
     phpLexerToken::Vet_t tokens;
@@ -45,7 +47,7 @@ phpLexerToken::Vet_t PHPExpression::CreateExpression(const wxString& text)
         lastToken = token;
         switch(token.type) {
         case kPHP_T_OPEN_TAG:
-            // skip the open tag
+            if(current) current->push_back(token);
             break;
         // the following are tokens that once seen
         // we should start a new expression:
@@ -103,6 +105,14 @@ phpLexerToken::Vet_t PHPExpression::CreateExpression(const wxString& text)
         case kPHP_T_CONST:
         case kPHP_T_REQUIRE:
         case kPHP_T_REQUIRE_ONCE:
+        case kPHP_T_USE:
+        case kPHP_T_INT_CAST:
+        case kPHP_T_DOUBLE_CAST:
+        case kPHP_T_STRING_CAST:
+        case kPHP_T_OBJECT_CAST:
+        case kPHP_T_ARRAY_CAST:
+        case kPHP_T_BOOL_CAST:
+        case kPHP_T_UNSET_CAST:
         case '.':
         case ';':
         case '{':
@@ -111,6 +121,10 @@ phpLexerToken::Vet_t PHPExpression::CreateExpression(const wxString& text)
         case ':':
         case ',':
         case '!':
+        case '?':
+        case '|':
+        case '@':
+        case '<':
             if(current) current->clear();
             break;
         case '(':
@@ -149,7 +163,13 @@ phpLexerToken::Vet_t PHPExpression::CreateExpression(const wxString& text)
         }
     }
 
-    if(current) {
+    if(current && !current->empty()) {
+        if(current->at(0).type == kPHP_T_OPEN_TAG) {
+            if(current->at(0).text == "<?") {
+                m_exprStartsWithOpenTag = true;
+            }
+            current->erase(current->begin());
+        }
         result.swap(*current);
     }
     return result;
@@ -206,23 +226,34 @@ PHPEntityBase::Ptr_t PHPExpression::Resolve(PHPLookupTable& lookpTable, const wx
     // Now, use the lookup table
     std::list<PHPExpression::Part>::iterator iter = m_parts.begin();
     PHPEntityBase::Ptr_t currentToken(NULL);
+    PHPEntityBase::Ptr_t parentToken(NULL);
     for(; iter != m_parts.end(); ++iter) {
         Part& part = *iter;
         if(!currentToken) {
             // first token
-            currentToken = lookpTable.FindScope(part.m_text);
+            // Check locks first
+            if(part.m_text.StartsWith("$") && m_sourceFile->CurrentScope()) {
+                // a variable
+                currentToken = m_sourceFile->CurrentScope()->FindChild(part.m_text);
+            }
             if(!currentToken) {
-                // If we are inside a namespace, try prepending the namespace
-                // to the first token
-                if(m_sourceFile->Namespace() && m_sourceFile->Namespace()->GetFullName() != "\\") {
-                    // Not the global namespace
-                    wxString fullns =
-                        PHPEntityNamespace::BuildNamespace(m_sourceFile->Namespace()->GetFullName(), part.m_text);
-                    // Check if it exists
-                    PHPEntityBase::Ptr_t pGuess = lookpTable.FindScope(fullns);
-                    if(pGuess) {
-                        currentToken = pGuess;
-                        part.m_text = fullns;
+                currentToken = lookpTable.FindScope(part.m_text);
+                if(!currentToken) {
+                    // If we are inside a namespace, try prepending the namespace
+                    // to the first token
+                    if(m_sourceFile->Namespace() && m_sourceFile->Namespace()->GetFullName() != "\\") {
+                        // Not the global namespace
+                        wxString fullns =
+                            PHPEntityNamespace::BuildNamespace(m_sourceFile->Namespace()->GetFullName(), part.m_text);
+                        // Check if it exists
+                        PHPEntityBase::Ptr_t pGuess = lookpTable.FindScope(fullns);
+                        if(pGuess) {
+                            currentToken = pGuess;
+                            part.m_text = fullns;
+                        } else {
+                            // Maybe its a global function..
+                            currentToken = lookpTable.FindFunction(part.m_text);
+                        }
                     } else {
                         // Maybe its a global function..
                         currentToken = lookpTable.FindFunction(part.m_text);
@@ -233,6 +264,10 @@ PHPEntityBase::Ptr_t PHPExpression::Resolve(PHPLookupTable& lookpTable, const wx
         } else {
             // load the children of the current token (optionally, filter by the text)
             currentToken = lookpTable.FindMemberOf(currentToken->GetDbId(), part.m_text);
+            if(currentToken && currentToken->Is(kEntityTypeFunctionAlias)) {
+                // If the member is a function-alias, use the actual function instead
+                currentToken = currentToken->Cast<PHPEntityFunctionAlias>()->GetFunc();
+            }
         }
 
         // If the current "part" of the expression ends with a scope resolving operator ("::") or
@@ -250,6 +285,11 @@ PHPEntityBase::Ptr_t PHPExpression::Resolve(PHPLookupTable& lookpTable, const wx
                     actualType = currentToken->Cast<PHPEntityVariable>()->GetTypeHint();
                 }
 
+                wxString fixedpath;
+                if(!actualType.IsEmpty() && FixReturnValueNamespace(lookpTable, parentToken, actualType, fixedpath)) {
+                    actualType.swap(fixedpath);
+                }
+
                 if(!actualType.IsEmpty()) {
                     currentToken = lookpTable.FindScope(actualType);
                 }
@@ -260,6 +300,7 @@ PHPEntityBase::Ptr_t PHPExpression::Resolve(PHPLookupTable& lookpTable, const wx
             // return NULL
             return currentToken;
         }
+        parentToken = currentToken;
     }
     return currentToken;
 }
@@ -270,12 +311,12 @@ wxString PHPExpression::DoSimplifyExpression(int depth, PHPSourceFile::Ptr_t sou
         // avoid infinite recursion, by limiting the nest level to 5
         return "";
     }
-    
+
     // Use the provided sourceFile if 'm_sourceFile' is NULL
     if(!m_sourceFile) {
         m_sourceFile = sourceFile;
     }
-    
+
     // Parse the input source file
     PHPEntityBase::Ptr_t scope = sourceFile->CurrentScope();
     const PHPEntityBase* innerClass = sourceFile->Class();
@@ -310,11 +351,13 @@ wxString PHPExpression::DoSimplifyExpression(int depth, PHPSourceFile::Ptr_t sou
                 // Same as $this: replace it with the current class absolute path
                 if(!innerClass) return "";
                 firstToken = innerClass->GetFullName(); // Is always in absolute path
+                firstTokenType = kPHP_T_SELF;
 
             } else if(token.type == kPHP_T_STATIC) {
                 // Same as $this: replace it with the current class absolute path
                 if(!innerClass) return "";
                 firstToken = innerClass->GetFullName(); // Is always in absolute path
+                firstTokenType = kPHP_T_STATIC;
 
             } else if(token.type == kPHP_T_VARIABLE) {
                 // the expression being evaluated starts with a variable (e.g. $a->something()->)
@@ -402,10 +445,10 @@ wxString PHPExpression::DoSimplifyExpression(int depth, PHPSourceFile::Ptr_t sou
                 }
             }
 
-            if(m_parts.empty() && firstTokenType == kPHP_T_PARENT) {
+            if(m_parts.empty()) {
                 // If the first token before the simplication was 'parent'
                 // keyword, we need to carry this over
-                part.m_textType = kPHP_T_PARENT;
+                part.m_textType = firstTokenType;
             }
 
             part.m_operator = token.type;
@@ -465,9 +508,9 @@ size_t PHPExpression::GetLookupFlags() const
         Part lastExpressionPart = m_parts.back();
         if(lastExpressionPart.m_operator == kPHP_T_PAAMAYIM_NEKUDOTAYIM) {
             if(lastExpressionPart.m_textType == kPHP_T_SELF)
-                flags |= PHPLookupTable::kLookupFlags_SelfStaticMembers;
+                flags |= PHPLookupTable::kLookupFlags_Self;
             else
-                flags |= PHPLookupTable::kLookupFlags_StaticMembers;
+                flags |= PHPLookupTable::kLookupFlags_Static;
         }
     }
     return flags;
@@ -481,6 +524,7 @@ void PHPExpression::Suggest(PHPEntityBase::Ptr_t resolved, PHPLookupTable& looku
 
     // GetCount() == 0 && !GetFilter().IsEmpty() i.e. a word completion is required.
     // We enhance the list with the following:
+    // - PHP keywords
     // - Global functions
     // - Global constants
     // - Function arguments
@@ -562,4 +606,28 @@ void PHPExpression::DoMakeUnique(PHPEntityBase::List_t& matches)
         }
     }
     matches.swap(uniqueList);
+}
+
+bool PHPExpression::FixReturnValueNamespace(PHPLookupTable& lookup,
+                                            PHPEntityBase::Ptr_t parent,
+                                            const wxString& classFullpath,
+                                            wxString& fixedpath)
+{
+    if(!parent) return false;
+    PHPEntityBase::Ptr_t pClass = lookup.FindClass(classFullpath);
+    if(!pClass) {
+        // classFullpath does not exist
+        // prepend the parent namespace to its path and check again
+        wxString parentNamespace = parent->GetFullName().BeforeLast('\\');
+        wxString returnValueNamespace = classFullpath.BeforeLast('\\');
+        wxString returnValueName = classFullpath.AfterLast('\\');
+        wxString newType = PHPEntityNamespace::BuildNamespace(parentNamespace, returnValueNamespace);
+        newType << "\\" << returnValueName;
+        pClass = lookup.FindClass(newType);
+        if(pClass) {
+            fixedpath = newType;
+            return true;
+        }
+    }
+    return false;
 }

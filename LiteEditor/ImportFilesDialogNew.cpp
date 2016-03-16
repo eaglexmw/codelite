@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : ImportFilesDialogNew.cpp
 //
 // -------------------------------------------------------------------------
@@ -97,14 +97,15 @@ ImportFilesDialogNew::ImportFilesDialogNew(wxWindow* parent)
     m_dirPicker->SetPath(options.GetBaseDir());
     m_textCtrSpec->SetValue( options.GetFileMask() );
     m_checkBoxFilesWOExt->SetValue(options.GetFlags() & IFS_INCLUDE_FILES_WO_EXT );
-    WindowAttrManager::Load(this, wxT("ImportFilesDialog"), NULL);
+    SetName("ImportFilesDialogNew");
+    WindowAttrManager::Load(this);
     
     DoBuildTree();
 }
 
 ImportFilesDialogNew::~ImportFilesDialogNew()
 {
-    WindowAttrManager::Save(this, wxT("ImportFilesDialog"), NULL);
+    
     ImportFilesSettings options;
     options.SetBaseDir(m_dirPicker->GetPath());
     options.SetFileMask(m_textCtrSpec->GetValue());

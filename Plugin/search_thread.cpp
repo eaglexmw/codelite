@@ -38,6 +38,8 @@
 #include "macros.h"
 #include "workspace.h"
 #include "globals.h"
+#include <algorithm>
+#include "fileutils.h"
 
 const wxEventType wxEVT_SEARCH_THREAD_MATCHFOUND = wxNewEventType();
 const wxEventType wxEVT_SEARCH_THREAD_SEARCHEND = wxNewEventType();
@@ -115,6 +117,9 @@ void SearchThread::ProcessRequest(ThreadRequest* req)
     m_summary.SetElapsedTime(sw.Time());
 
     SearchData* sd = (SearchData*)req;
+    m_summary.SetFindWhat(sd->GetFindString());
+    m_summary.SetReplaceWith(sd->GetReplaceWith());
+    
     // Send search end event
     SendEvent(wxEVT_SEARCH_THREAD_SEARCHEND, sd->GetOwner());
 }
@@ -124,38 +129,31 @@ void SearchThread::GetFiles(const SearchData* data, wxArrayString& files)
     std::set<wxString> scannedFiles;
 
     const wxArrayString& rootDirs = data->GetRootDirs();
-    for(size_t i = 0; i < rootDirs.Count(); ++i) {
-        wxArrayString someFiles;
-        const wxString& rootDir = rootDirs.Item(i);
-        // Check both translations and otherwise: the history may have contained either
-        if(rootDir == wxGetTranslation(SEARCH_IN_WORKSPACE) ||
-           rootDir == wxGetTranslation(SEARCH_IN_CURR_FILE_PROJECT) || rootDir == wxGetTranslation(SEARCH_IN_PROJECT) ||
-           rootDir == wxGetTranslation(SEARCH_IN_CURRENT_FILE) || rootDir == wxGetTranslation(SEARCH_IN_OPEN_FILES) ||
-           rootDir == SEARCH_IN_WORKSPACE || rootDir == SEARCH_IN_CURR_FILE_PROJECT || rootDir == SEARCH_IN_PROJECT ||
-           rootDir == SEARCH_IN_CURRENT_FILE || rootDir == SEARCH_IN_OPEN_FILES) {
-            someFiles = data->GetFiles();
-            // filter files which does not match the criteria
-            FilterFiles(someFiles, data);
+    files = data->GetFiles();
 
-        } else if(wxFile::Exists(rootDir)) {
-            // search root is actually a file...
-            someFiles.push_back(rootDir);
+    // Remove files that do not match our search criteria
+    FilterFiles(files, data);
 
-        } else if(wxDir::Exists(rootDir)) {
-            // make sure it's really a dir (not a fifo, etc.)
-            DirTraverser traverser(data->GetExtensions());
-            wxDir dir(rootDir);
-            dir.Traverse(traverser);
-            someFiles = traverser.GetFiles();
-        }
+    // Populate "scannedFiles" with list of files to scan
+    scannedFiles.insert(files.begin(), files.end());
+
+    for(size_t i = 0; i < rootDirs.size(); ++i) {
+        // make sure it's really a dir (not a fifo, etc.)
+        DirTraverser traverser(data->GetExtensions());
+        wxDir dir(rootDirs.Item(i));
+        dir.Traverse(traverser);
+        wxArrayString& someFiles = traverser.GetFiles();
 
         for(size_t j = 0; j < someFiles.Count(); ++j) {
-            if(scannedFiles.find(someFiles.Item(j)) == scannedFiles.end()) {
+            if(scannedFiles.count(someFiles.Item(j)) == 0) {
                 files.Add(someFiles.Item(j));
                 scannedFiles.insert(someFiles.Item(j));
             }
         }
     }
+
+    files.clear();
+    std::for_each(scannedFiles.begin(), scannedFiles.end(), [&](const wxString& file) { files.Add(file); });
 }
 
 void SearchThread::DoSearchFiles(ThreadRequest* req)
@@ -163,9 +161,10 @@ void SearchThread::DoSearchFiles(ThreadRequest* req)
     SearchData* data = static_cast<SearchData*>(req);
 
     // Get all files
-    if(data->GetRootDirs().IsEmpty()) return;
-
-    if(data->GetFindString().IsEmpty()) return;
+    if(data->GetFindString().IsEmpty()) {
+        SendEvent(wxEVT_SEARCH_THREAD_SEARCHSTARTED, data->GetOwner());
+        return;
+    }
 
     StopSearch(false);
     wxArrayString fileList;
@@ -177,8 +176,6 @@ void SearchThread::DoSearchFiles(ThreadRequest* req)
     if(m_notifiedWindow || data->GetOwner()) {
         wxCommandEvent event(wxEVT_SEARCH_THREAD_SEARCHSTARTED, GetId());
         event.SetClientData(new SearchData(*data));
-        // set the rquested output tab
-        event.SetInt(data->UseNewTab() ? 1 : 0);
         if(data->GetOwner()) {
             ::wxPostEvent(data->GetOwner(), event);
         } else {
@@ -226,6 +223,12 @@ void SearchThread::DoSearchFile(const wxString& fileName, const SearchData* data
     }
 
     wxFFile thefile(fileName, wxT("rb"));
+    if(!thefile.IsOpened()) {
+        // failed to open the file, probably because of permissions
+        m_summary.GetFailedFiles().Add(fileName);
+        return;
+    }
+
     wxFileOffset size = thefile.Length();
     wxString fileData;
     fileData.Alloc(size);
@@ -233,7 +236,10 @@ void SearchThread::DoSearchFile(const wxString& fileName, const SearchData* data
     // support for other encoding
     wxFontEncoding enc = wxFontMapper::GetEncodingFromName(data->GetEncoding().c_str());
     wxCSConv fontEncConv(enc);
-    thefile.ReadAll(&fileData, fontEncConv);
+    if(!thefile.ReadAll(&fileData, fontEncConv)) {
+        m_summary.GetFailedFiles().Add(fileName);
+        return;
+    }
 
     // take a wild guess and see if we really need to construct
     // a TextStatesPtr object (it is quite an expensive operation)
@@ -252,10 +258,11 @@ void SearchThread::DoSearchFile(const wxString& fileName, const SearchData* data
     // Incase one of the C++ options is enabled,
     // create a text states object
     TextStatesPtr states(NULL);
-    if(data->HasCppOptions() && shouldCreateStates) {
+    if(data->HasCppOptions() && shouldCreateStates && false) {
         CppWordScanner scanner("", fileData.mb_str().data(), 0);
         states = scanner.states();
     }
+
     int lineOffset = 0;
     if(data->IsRegularExpression()) {
         // regular expression search
@@ -268,11 +275,32 @@ void SearchThread::DoSearchFile(const wxString& fileName, const SearchData* data
         }
     } else {
         // simple search
+        wxString findString;
+        wxArrayString filters;
+        findString = data->GetFindString();
+        if(data->IsEnablePipeSupport()) {
+            if(data->GetFindString().Find('|') != wxNOT_FOUND) {
+                findString = data->GetFindString().BeforeFirst('|');
+
+                wxString filtersString = data->GetFindString().AfterFirst('|');
+                filters = ::wxStringTokenize(filtersString, "|", wxTOKEN_STRTOK);
+                if(!data->IsMatchCase()) {
+                    for(size_t i = 0; i < filters.size(); ++i) {
+                        filters.Item(i).MakeLower();
+                    }
+                }
+            }
+        }
+
+        if(!data->IsMatchCase()) {
+            findString.MakeLower();
+        }
+
         while(tkz.HasMoreTokens()) {
 
             // Read the next line
             wxString line = tkz.NextToken();
-            DoSearchLine(line, lineNumber, lineOffset, fileName, data, states);
+            DoSearchLine(line, lineNumber, lineOffset, fileName, data, findString, filters, states);
             lineOffset += line.Length() + 1;
             lineNumber++;
         }
@@ -371,14 +399,14 @@ void SearchThread::DoSearchLine(const wxString& line,
                                 const int lineOffset,
                                 const wxString& fileName,
                                 const SearchData* data,
+                                const wxString& findWhat,
+                                const wxArrayString& filters,
                                 TextStatesPtr statesPtr)
 {
-    wxString findString = data->GetFindString();
     wxString modLine = line;
 
     if(!data->IsMatchCase()) {
         modLine.MakeLower();
-        findString.MakeLower();
     }
 
     int pos = 0;
@@ -386,33 +414,45 @@ void SearchThread::DoSearchLine(const wxString& line,
     int iCorrectedCol = 0;
     int iCorrectedLen = 0;
     while(pos != wxNOT_FOUND) {
-        pos = modLine.Find(findString);
+        pos = modLine.Find(findWhat);
         if(pos != wxNOT_FOUND) {
             col += pos;
-
+            
+            // Pipe support
+            bool allFiltersOK = true;
+            if(!filters.IsEmpty()) {
+                // Apply the filters
+                for(size_t i = 0; i < filters.size() && allFiltersOK; ++i) {
+                    allFiltersOK = (modLine.Find(filters.Item(i)) != wxNOT_FOUND);
+                }
+            }
+            
+            // Pipe filtes OK?
+            if(!allFiltersOK) return;
+            
             // we have a match
             if(data->IsMatchWholeWord()) {
 
                 // make sure that the word before is not in the wordChars map
                 if((pos > 0) && (m_wordCharsMap.find(modLine.GetChar(pos - 1)) != m_wordCharsMap.end())) {
-                    if(!AdjustLine(modLine, pos, findString)) {
+                    if(!AdjustLine(modLine, pos, findWhat)) {
 
                         break;
                     } else {
-                        col += (int)findString.Length();
+                        col += (int)findWhat.Length();
                         continue;
                     }
                 }
                 // if we have more characters to the right, make sure that the first char does not match any
                 // in the wordCharsMap
-                if(pos + findString.Length() <= modLine.Length()) {
-                    wxChar nextCh = modLine.GetChar(pos + findString.Length());
+                if(pos + findWhat.Length() <= modLine.Length()) {
+                    wxChar nextCh = modLine.GetChar(pos + findWhat.Length());
                     if(m_wordCharsMap.find(nextCh) != m_wordCharsMap.end()) {
-                        if(!AdjustLine(modLine, pos, findString)) {
+                        if(!AdjustLine(modLine, pos, findWhat)) {
 
                             break;
                         } else {
-                            col += (int)findString.Length();
+                            col += (int)findWhat.Length();
                             continue;
                         }
                     }
@@ -422,7 +462,7 @@ void SearchThread::DoSearchLine(const wxString& line,
             // Notify our match
             // correct search Pos and Length owing to non plain ASCII multibyte characters
             iCorrectedCol = clUTF8Length(line.c_str(), col);
-            iCorrectedLen = clUTF8Length(findString.c_str(), findString.Length());
+            iCorrectedLen = clUTF8Length(findWhat.c_str(), findWhat.Length());
             SearchResult result;
             result.SetPosition(lineOffset + col);
             result.SetColumnInChars(col);
@@ -430,7 +470,7 @@ void SearchThread::DoSearchLine(const wxString& line,
             result.SetLineNumber(lineNum);
             result.SetPattern(line);
             result.SetFileName(fileName);
-            result.SetLenInChars((int)findString.Length());
+            result.SetLenInChars((int)findWhat.Length());
             result.SetLen(iCorrectedLen);
             result.SetFindWhat(data->GetFindString());
             result.SetFlags(data->m_flags);
@@ -478,15 +518,15 @@ void SearchThread::DoSearchLine(const wxString& line,
                 m_summary.SetNumMatchesFound(m_summary.GetNumMatchesFound() + 1);
             }
 
-            if(!AdjustLine(modLine, pos, findString)) {
+            if(!AdjustLine(modLine, pos, findWhat)) {
                 break;
             }
-            col += (int)findString.Length();
+            col += (int)findWhat.Length();
         }
     }
 }
 
-bool SearchThread::AdjustLine(wxString& line, int& pos, wxString& findString)
+bool SearchThread::AdjustLine(wxString& line, int& pos, const wxString& findString)
 {
     // adjust the current line
     if(line.Length() - (pos + findString.Length()) >= findString.Length()) {
@@ -551,52 +591,17 @@ void SearchThread::SendEvent(wxEventType type, wxEvtHandler* owner)
 
 void SearchThread::FilterFiles(wxArrayString& files, const SearchData* data)
 {
-    std::map<wxString, bool> spec;
-    wxString exts = data->GetExtensions();
-    if(exts.Trim().Trim(false) == wxT("*.*") || exts.Trim().Trim(false) == wxT("*")) {
-        spec.clear();
-    } else {
-        wxStringTokenizer tok(exts, wxT(";"));
-        while(tok.HasMoreTokens()) {
-            std::pair<wxString, bool> val;
-            val.first = tok.GetNextToken().AfterLast(wxT('*')).c_str();
-            val.first = val.first.AfterLast(wxT('.')).MakeLower().c_str();
-            val.second = true;
-            spec.insert(val);
+    wxArrayString tmpFiles;
+    std::set<wxString> uniqueFiles;
+    const wxString& mask = data->GetExtensions();
+    std::for_each(files.begin(), files.end(), [&](wxString& filename) {
+        if(uniqueFiles.count(filename)) return;
+        uniqueFiles.insert(filename);
+        if(FileUtils::WildMatch(mask, filename)) {
+            tmpFiles.Add(filename);
         }
-    }
-
-    std::set<wxString> uniqueFileList;
-    for(size_t i = 0; i < files.GetCount(); i++) {
-        uniqueFileList.insert(files.Item(i));
-    }
-
-    files.Clear();
-    // remove duplicate files from the file array
-    std::set<wxString>::iterator iter = uniqueFileList.begin();
-    for(; iter != uniqueFileList.end(); iter++) {
-        files.Add(*iter);
-    }
-
-    // if there is no spec, we are done here
-    if(spec.empty()) {
-        return;
-    }
-
-    // loop over the files and compare against the list of spec
-    wxArrayString f = files;
-    files.Clear();
-
-    // filter files by extension
-    for(size_t i = 0; i < f.GetCount(); i++) {
-        wxString ext = f.Item(i).AfterLast(wxT('.'));
-        if(ext.empty()) {
-            // add extensionless files (first checking for duplicates)
-            files.Add(f.Item(i));
-        } else if(spec.find(ext.MakeLower()) != spec.end()) {
-            files.Add(f.Item(i));
-        }
-    }
+    });
+    files.swap(tmpFiles);
 }
 
 static SearchThread* gs_SearchThread = NULL;

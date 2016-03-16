@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : clang_driver.cpp
 //
 // -------------------------------------------------------------------------
@@ -30,7 +30,6 @@
 #include "compilation_database.h"
 #include "pluginmanager.h"
 #include <wx/regex.h>
-#include "code_completion_box.h"
 #include "clangpch_cache.h"
 #include "asyncprocess.h"
 #include "frame.h"
@@ -62,6 +61,7 @@
 #include "browse_record.h"
 #include "mainbook.h"
 #include "macromanager.h"
+#include "wxCodeCompletionBoxManager.h"
 
 static bool wxIsWhitespace(wxChar ch)
 {
@@ -220,12 +220,6 @@ ClangThreadRequest* ClangDriver::DoMakeClangThreadRequest(IEditor* editor, Worki
 void ClangDriver::CodeCompletion(IEditor* editor)
 {
     if(m_isBusy) {
-        if(editor) {
-            CodeCompletionBox::Get().CancelTip();
-            CodeCompletionBox::Get().ShowTip(
-                wxT("<b>clang: </b>Code Completion Message:<hr>A lengthy operation is in progress..."),
-                dynamic_cast<LEditor*>(m_activeEditor));
-        }
         return;
     }
 
@@ -273,7 +267,8 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
 
     // Build the TU file name
     wxFileName fnSourceFile(sourceFile);
-    pchfile << WorkspaceST::Get()->GetWorkspaceFileName().GetPath() << wxFileName::GetPathSeparator() << wxT(".clang");
+    pchfile << clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetPath() << wxFileName::GetPathSeparator()
+            << wxT(".clang");
 
     {
         wxLogNull nl;
@@ -315,8 +310,8 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
 
             CompilerCommandLineParser cclp(compilationLine, cwd);
             cclp.MakeAbsolute(cwd);
-
             CL_DEBUG(wxT("Loaded compilation flags: %s"), compilationLine.c_str());
+            
             args.insert(args.end(), cclp.GetIncludesWithPrefix().begin(), cclp.GetIncludesWithPrefix().end());
             args.insert(args.end(), cclp.GetMacrosWithPrefix().begin(), cclp.GetMacrosWithPrefix().end());
             args.Add(cclp.GetStandardWithPrefix());
@@ -350,7 +345,7 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
     LocalWorkspaceST::Get()->GetParserPaths(workspaceIncls, dummy);
     for(size_t i = 0; i < workspaceIncls.GetCount(); i++) {
         wxFileName fn(workspaceIncls.Item(i).Trim().Trim(false), wxT(""));
-        fn.MakeAbsolute(WorkspaceST::Get()->GetWorkspaceFileName().GetPath());
+        fn.MakeAbsolute(clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetPath());
         cppCompileArgs.Add(wxString::Format(wxT("-I%s"), fn.GetPath().c_str()));
         cCompileArgs.Add(wxString::Format(wxT("-I%s"), fn.GetPath().c_str()));
     }
@@ -364,11 +359,15 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
         cCompileArgs.Add(wxString::Format(wxT("-D%s"), workspaceMacros.Item(i).Trim().Trim(false).c_str()));
     }
 
-    // C++ 11
+    // C++ 11 / 14
     size_t workspaceFlags = LocalWorkspaceST::Get()->GetParserFlags();
     if(workspaceFlags & LocalWorkspace::EnableCpp11) {
         cppCompileArgs.Add(wxT("-std=c++11"));
-        cCompileArgs.Add(wxT("-std=c++11"));
+        //cCompileArgs.Add(wxT("-std=c++11"));
+    }
+    if(workspaceFlags & LocalWorkspace::EnableCpp14) {
+        cppCompileArgs.Add(wxT("-std=c++14"));
+        //cCompileArgs.Add(wxT("-std=c++14"));
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -385,7 +384,7 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
                                        PluginManager::Get(),
                                        ManagerST::Get()->GetActiveProjectName()),
                           wxT(""));
-            fn.MakeAbsolute(WorkspaceST::Get()->GetWorkspaceFileName().GetPath());
+            fn.MakeAbsolute(clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetPath());
             cppCompileArgs.Add(wxString::Format(wxT("-I%s"), fn.GetPath().c_str()));
             cCompileArgs.Add(wxString::Format(wxT("-I%s"), fn.GetPath().c_str()));
         }
@@ -399,7 +398,11 @@ FileTypeCmpArgs_t ClangDriver::DoPrepareCompilationArgs(const wxString& projectN
 
         if(buildConf->IsClangC11()) {
             cppCompileArgs.Add(wxT("-std=c++11"));
-            cCompileArgs.Add(wxT("-std=c++11"));
+            //cCompileArgs.Add(wxT("-std=c++11"));
+        }
+        if(buildConf->IsClangC14()) {
+            cppCompileArgs.Add(wxT("-std=c++14"));
+            //cCompileArgs.Add(wxT("-std=c++14"));
         }
     }
 
@@ -577,6 +580,7 @@ void ClangDriver::OnPrepareTUEnded(wxCommandEvent& e)
         // Notify about this error
         clCommandEvent event(wxEVT_CLANG_CODE_COMPLETE_MESSAGE);
         event.SetString(reply->errorMessage);
+        event.SetInt(1); // indicates that this is an error message
         EventNotifier::Get()->AddPendingEvent(event);
         return;
     }
@@ -641,7 +645,7 @@ void ClangDriver::OnPrepareTUEnded(wxCommandEvent& e)
         tag->SetSignature(entrySignature);
 
 // Add support for clang comment parsing
-#ifndef __FreeBSD__
+#if HAS_LIBCLANG_BRIEFCOMMENTS
         CXString BriefComment = clang_getCompletionBriefComment(str);
         const char* comment = clang_getCString(BriefComment);
         if(comment && comment[0] != '\0') {
@@ -708,7 +712,8 @@ void ClangDriver::OnPrepareTUEnded(wxCommandEvent& e)
         m_activeEditor->ShowCalltip(new clCallTip(tips));
 
     } else {
-        m_activeEditor->ShowCompletionBox(tags, filterWord, true, NULL);
+        wxCodeCompletionBoxManager::Get().ShowCompletionBox(
+            m_activeEditor->GetCtrl(), tags, wxCodeCompletionBox::kNone, wxNOT_FOUND);
     }
 }
 
@@ -793,7 +798,7 @@ void ClangDriver::OnWorkspaceLoaded(wxCommandEvent& event)
 
     wxLogNull nolog;
     wxString cachePath;
-    cachePath << WorkspaceST::Get()->GetWorkspaceFileName().GetPath() << wxFileName::GetPathSeparator()
+    cachePath << clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetPath() << wxFileName::GetPathSeparator()
               << wxT(".clang");
     wxMkdir(cachePath);
     ClangTUCache::DeleteDirectoryContent(cachePath);
@@ -814,9 +819,6 @@ ClangThreadRequest::List_t ClangDriver::DoCreateListOfModifiedBuffers(IEditor* e
     return modifiedBuffers;
 }
 
-void ClangDriver::DoDeleteTempFile(const wxString& fileName)
-{
-    wxUnusedVar(fileName);
-}
+void ClangDriver::DoDeleteTempFile(const wxString& fileName) { wxUnusedVar(fileName); }
 
 #endif // HAS_LIBCLANG

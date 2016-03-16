@@ -31,6 +31,7 @@
 #include <map>
 #include <list>
 #include <wx/arrstr.h>
+#include <vector>
 
 /**
  * \ingroup LiteEditor
@@ -116,7 +117,7 @@ public:
     /**
      * @brief return the compiler default include paths
      */
-    wxArrayString GetDefaultIncludePaths() const;
+    wxArrayString GetDefaultIncludePaths();
 
     /**
      * @brief return true if this compiler is compatible with GNU compilers
@@ -210,4 +211,6 @@ public:
 };
 
 typedef SmartPtr<Compiler> CompilerPtr;
+typedef std::vector<CompilerPtr> CompilerPtrVec_t;
+
 #endif // COMPILER_H

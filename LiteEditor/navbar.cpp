@@ -30,6 +30,8 @@
 #include "frame.h"
 #include "navbar.h"
 #include "event_notifier.h"
+#include "globals.h"
+#include "workspace.h"
 
 NavBar::NavBar(wxWindow* parent)
     : NavBarControlBaseClass(parent)
@@ -92,6 +94,13 @@ void NavBar::DoShow(bool s)
 
 void NavBar::UpdateScope(TagEntryPtr tag)
 {
+    if(!clCxxWorkspaceST::Get()->IsOpen()) {
+        m_tags.clear();
+        m_scope->Clear();
+        m_func->Clear();
+        return;
+    }
+    
     size_t sel = m_func->GetSelection();
     if(tag && sel < m_tags.size() && *m_tags[sel] == *tag) return;
 
@@ -135,6 +144,8 @@ void NavBar::OnFileSaved(clCommandEvent& e)
 
 void NavBar::DoPopulateTags(const wxFileName& fn)
 {
+    if(!clCxxWorkspaceST::Get()->IsOpen()) return;
+    
     std::vector<wxString> scopes;
     TagsManagerST::Get()->GetScopesFromFile(fn, scopes);
 
@@ -159,10 +170,10 @@ void NavBar::DoPopulateTags(const wxFileName& fn)
 void NavBar::OnEditorChanged(wxCommandEvent& e)
 {
     e.Skip();
-    IEditor* editor = reinterpret_cast<IEditor*>(e.GetClientData());
-    if(!editor) {
-        return;
-    }
+    if(!clCxxWorkspaceST::Get()->IsOpen()) return;
+    
+    IEditor* editor = ::clGetManager()->GetActiveEditor();
+    CHECK_PTR_RET(editor);
 
     const wxFileName& fn = editor->GetFileName();
     DoPopulateTags(fn);
@@ -170,6 +181,8 @@ void NavBar::OnEditorChanged(wxCommandEvent& e)
 
 void NavBar::DoPopulateFunctions(const wxFileName& fn, const wxString& scope)
 {
+    if(!clCxxWorkspaceST::Get()->IsOpen()) return;
+    
     m_tags.clear();
     TagsManagerST::Get()->TagsFromFileAndScope(fn, scope, m_tags);
 

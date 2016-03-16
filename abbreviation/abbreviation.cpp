@@ -37,11 +37,13 @@
 #include "cl_config.h"
 #include "macromanager.h"
 #include "clKeyboardManager.h"
+#include "wxCodeCompletionBoxEntry.h"
+#include "wxCodeCompletionBoxManager.h"
 
 static AbbreviationPlugin* thePlugin = NULL;
 
 // Define the plugin entry point
-extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
     if(thePlugin == 0) {
         thePlugin = new AbbreviationPlugin(manager);
@@ -49,17 +51,17 @@ extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
     return thePlugin;
 }
 
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
+    static PluginInfo info;
     info.SetAuthor(wxT("Eran Ifrah"));
     info.SetName(wxT("Abbreviation"));
     info.SetDescription(_("Abbreviation plugin"));
     info.SetVersion(wxT("v1.0"));
-    return info;
+    return &info;
 }
 
-extern "C" EXPORT int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 
 AbbreviationPlugin::AbbreviationPlugin(IManager* manager)
     : IPlugin(manager)
@@ -166,19 +168,18 @@ void AbbreviationPlugin::OnAbbreviations(wxCommandEvent& e)
     if(!autoInsert) {
         static wxBitmap bmp = LoadBitmapFile(wxT("abbrev.png"));
         if(bmp.IsOk()) {
-            editor->RegisterImageForKind(wxT("Abbreviation"), bmp);
-            std::vector<TagEntryPtr> tags;
+            wxCodeCompletionBoxEntry::Vec_t ccEntries;
+            wxCodeCompletionBox::BmpVec_t bitmaps;
+            bitmaps.push_back(bmp);
 
             // search for the old item
             const JSONElement::wxStringMap_t& entries = jsonData.GetEntries();
             JSONElement::wxStringMap_t::const_iterator iter = entries.begin();
             for(; iter != entries.end(); ++iter) {
-                TagEntryPtr t(new TagEntry());
-                t->SetName(iter->first);
-                t->SetKind(wxT("Abbreviation"));
-                tags.push_back(t);
+                ccEntries.push_back(wxCodeCompletionBoxEntry::New(iter->first, 0));
             }
-            editor->ShowCompletionBox(tags, editor->GetWordAtCaret(), false, this);
+            wxCodeCompletionBoxManager::Get().ShowCompletionBox(
+                editor->GetCtrl(), ccEntries, bitmaps, wxCodeCompletionBox::kNone, wxNOT_FOUND, this);
         }
     }
 }
@@ -221,20 +222,14 @@ void AbbreviationPlugin::InitDefaults()
         m_config.WriteItem(&jsonData);
     }
     clKeyboardManager::Get()->AddGlobalAccelerator(
-        "abbrev_insert", "Ctrl-Alt-SPACE", _("Plugins::Abbreviations::Show abbrevations completion box"));
+        "abbrev_insert", "Ctrl-Alt-SPACE", _("Plugins::Abbreviations::Show abbreviations completion box"));
 }
 
 bool AbbreviationPlugin::InsertExpansion(const wxString& abbreviation)
 {
     // get the active editor
     IEditor* editor = m_mgr->GetActiveEditor();
-
-    if(!editor || !abbreviation) return false;
-
-    // hide the completion box
-    if(editor->IsCompletionBoxShown()) {
-        editor->HideCompletionBox();
-    }
+    if(!editor || abbreviation.IsEmpty()) return false;
 
     // search for abbreviation that matches str
     // prepate list of abbreviations

@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : wxFlatButtonBar.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef WXFLATBUTTONBAR_H
 #define WXFLATBUTTONBAR_H
 
@@ -10,7 +35,6 @@ class WXDLLIMPEXP_SDK wxFlatButtonBar : public wxFlatButtonBarBase
     wxFlatButton::eTheme m_theme;
     wxColour m_penColour;
     wxColour m_bgColour;
-    int m_style;
     
 public:
     /**
@@ -19,7 +43,8 @@ public:
      * @param theme the theme. Can be Dark or Normal
      * @param flags bar style flags. Only supported flag is wxNO_BORDER or 0
      */
-    wxFlatButtonBar(wxWindow* parent, const wxFlatButton::eTheme theme, int flags = 0);
+    wxFlatButtonBar(wxWindow* parent, const wxFlatButton::eTheme theme, int rows, int cols);
+    void SetExpandableColumn(int col);
     virtual ~wxFlatButtonBar();
 
     wxFlatButton*

@@ -39,9 +39,6 @@ void EditHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
     LEditor *editor = (LEditor*)owner;
     
     OptionsConfigPtr options = editor->GetOptions();
-    // hide completion box
-    editor->HideCompletionBox();
-    
     if (event.GetId() == wxID_COPY) {
         editor->CopyAllowLine();
 
@@ -84,6 +81,12 @@ void EditHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
 
     } else if (event.GetId() == XRCID("delete_line")) {
         editor->LineDelete();
+
+    } else if (event.GetId() == XRCID("copy_line")) {
+        editor->LineCopy();
+
+    } else if (event.GetId() == XRCID("cut_line")) {
+        editor->LineCut();
 
     } else if (event.GetId() == XRCID("trim_trailing")) {
         editor->TrimText(true, false);
@@ -129,9 +132,6 @@ void EditHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
             editor->MoveSelectedLinesUp();  // There is a selection, so we can move it direct
         }
 
-    } else if (event.GetId() == XRCID("center_line")) {
-        //editor->VerticalCentreCaret();
-
     } else if (event.GetId() == XRCID("center_line_roll")) {
         int here    = editor->GetCurrentLine();
         int top     = editor->GetFirstVisibleLine();
@@ -145,6 +145,10 @@ void EditHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
                 editor->LineScrollDown(); //roll down until we get to center
         }
 
+    } else if(event.GetId() == XRCID("convert_indent_to_spaces")) {
+        editor->ConvertIndentToSpaces();
+    } else if(event.GetId() == XRCID("convert_indent_to_tabs")) {
+        editor->ConvertIndentToTabs();
     }
 }
 
@@ -215,6 +219,11 @@ void FindReplaceHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &ev
         } else if ( event.GetId() == wxID_REPLACE ) {
             editor->DoFindAndReplace(true);
 
+        } else if(event.GetId() == XRCID("ID_QUICK_ADD_NEXT")) {
+            editor->QuickAddNext();
+            
+        } else if(event.GetId() == XRCID("ID_QUICK_FIND_ALL")) {
+            editor->QuickFindAll();
         }
 
     } else if ( event.GetId() == wxID_FIND ) {
@@ -241,7 +250,7 @@ void GotoHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
     }
 
     wxString msg;
-    msg.Printf(_("Go to line number (1 - %d):"), editor->GetLineCount());
+    msg.Printf(_("Go to line number (1 - %i):"), editor->GetLineCount());
 
     while ( 1 ) {
         wxTextEntryDialog dlg(editor, msg, _("Go To Line"));
@@ -259,17 +268,13 @@ void GotoHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
 
             if (line > editor->GetLineCount()) {
                 wxString err;
-                err.Printf(_("Please insert a line number in the range of (1 - %ld)"), editor->GetLineCount());
+                err.Printf(_("Please insert a line number in the range of (1 - %i)"), editor->GetLineCount());
                 wxMessageBox (err, _("Go To Line"), wxOK | wxICON_INFORMATION);
                 continue;
             }
 
             if (line > 0) {
-                int pos = editor->PositionFromLine(line - 1);
-                // Clear any existing selection, which otherwise becomes the Goto target
-                editor->SetSelectionStart(pos);
-                editor->SetSelectionEnd(pos);
-                editor->SetEnsureCaretIsVisible(pos);
+                editor->CenterLine(line-1);
                 break;
             } else {
                 editor->GotoLine(0);
@@ -341,39 +346,6 @@ void GotoDefinitionHandler::ProcessUpdateUIEvent(wxWindow *owner, wxUpdateUIEven
     } else {
         event.Enable(editor != NULL);
     }
-}
-
-//-------------------------------------------------
-// View As
-//-------------------------------------------------
-
-void ViewAsHandler::ProcessCommandEvent(wxWindow *owner, wxCommandEvent &event)
-{
-    LEditor *editor = dynamic_cast<LEditor*>(owner);
-    if ( !editor ) {
-        return;
-    }
-
-    wxString lexName = clMainFrame::Get()->GetViewAsLanguageById(event.GetInt());
-    if (lexName.IsEmpty() == false) {
-        editor->SetSyntaxHighlight(lexName);
-    }
-}
-
-void ViewAsHandler::ProcessUpdateUIEvent(wxWindow *owner, wxUpdateUIEvent &event)
-{
-    LEditor *editor = dynamic_cast<LEditor*>(owner);
-    if ( !editor ) {
-        return;
-    }
-
-    event.Enable(true);
-    wxString lexName = clMainFrame::Get()->GetViewAsLanguageById(event.GetInt());
-    
-    wxString contextName = editor->GetContext()->GetName();
-    contextName.MakeLower();
-    
-    event.Check(contextName == lexName);
 }
 
 //----------------------------------------------------

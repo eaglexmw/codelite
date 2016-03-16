@@ -150,7 +150,7 @@ void XDebugManager::DoStartDebugger()
     PHPConfigurationData conf;
     conf.Load();
     if(!conf.HasFlag(PHPConfigurationData::kDontPromptForMissingFileMapping) &&
-       GetFileMapping(PHPWorkspace::Get()->GetActiveProject()).empty()) {
+        GetFileMapping(PHPWorkspace::Get()->GetActiveProject()).empty()) {
         // Issue a warning
         wxString message;
         message << _("This project has no file mapping defined. This may result in breakpoints not applied\n")
@@ -424,7 +424,7 @@ void XDebugManager::ClearDebuggerMarker()
     m_plugin->GetManager()->GetAllEditors(editors);
     IEditor::List_t::iterator iter = editors.begin();
     for(; iter != editors.end(); ++iter) {
-        (*iter)->GetSTC()->MarkerDeleteAll(smt_indicator);
+        (*iter)->GetCtrl()->MarkerDeleteAll(smt_indicator);
     }
 }
 
@@ -449,9 +449,8 @@ void XDebugManager::OnGotFocusFromXDebug(XDebugEvent& e)
         frame->Raise();
     }
 
-    CL_DEBUG("CodeLite: opening file %s:%d",
-             e.GetFileName(),
-             e.GetLineNumber() + 1); // The user sees the line number from 1 (while scintilla counts them from 0)
+    CL_DEBUG("CodeLite: opening file %s:%d", e.GetFileName(),
+        e.GetLineNumber() + 1); // The user sees the line number from 1 (while scintilla counts them from 0)
 
     // Mark the debugger line / file
     IEditor* editor = m_plugin->GetManager()->FindEditor(e.GetFileName());
@@ -463,8 +462,8 @@ void XDebugManager::OnGotFocusFromXDebug(XDebugEvent& e)
     }
 
     if(editor) {
-        m_plugin->GetManager()->SelectPage(editor->GetSTC());
-        CallAfter(&XDebugManager::SetDebuggerMarker, editor->GetSTC(), e.GetLineNumber());
+        m_plugin->GetManager()->SelectPage(editor->GetCtrl());
+        CallAfter(&XDebugManager::SetDebuggerMarker, editor->GetCtrl(), e.GetLineNumber());
     }
 
     // Update the callstack/locals views
@@ -640,7 +639,7 @@ void XDebugManager::OnDeleteBreakpoint(PHPEvent& e)
     }
     IEditor* editor = m_plugin->GetManager()->FindEditor(filename);
     if(editor) {
-        editor->GetSTC()->MarkerDelete(line - 1, smt_breakpoint);
+        editor->GetCtrl()->MarkerDelete(line - 1, smt_breakpoint);
     }
     m_breakpointsMgr.DeleteBreakpoint(filename, line);
 }
@@ -669,13 +668,13 @@ void XDebugManager::OnBreakpointsViewUpdated(XDebugEvent& e)
 void XDebugManager::DoRefreshBreakpointsMarkersForEditor(IEditor* editor)
 {
     CHECK_PTR_RET(editor);
-    editor->GetSTC()->MarkerDeleteAll(smt_breakpoint);
+    editor->GetCtrl()->MarkerDeleteAll(smt_breakpoint);
 
     XDebugBreakpoint::List_t bps;
     m_breakpointsMgr.GetBreakpointsForFile(editor->GetFileName().GetFullPath(), bps);
     XDebugBreakpoint::List_t::const_iterator iter = bps.begin();
     for(; iter != bps.end(); ++iter) {
-        editor->GetSTC()->MarkerAdd(iter->GetLine() - 1, smt_breakpoint);
+        editor->GetCtrl()->MarkerAdd(iter->GetLine() - 1, smt_breakpoint);
     }
 }
 
@@ -734,10 +733,8 @@ void XDebugManager::OnCommThreadTerminated()
 
 void XDebugManager::XDebugNotConnecting()
 {
-    wxRichMessageDialog dlg(EventNotifier::Get()->TopFrame(),
-                            _("XDebug did not connect in a timely manner"),
-                            "CodeLite",
-                            wxICON_WARNING | wxOK | wxCANCEL_DEFAULT | wxCANCEL);
+    wxRichMessageDialog dlg(EventNotifier::Get()->TopFrame(), _("XDebug did not connect in a timely manner"),
+        "CodeLite", wxICON_WARNING | wxOK | wxCANCEL_DEFAULT | wxCANCEL);
     dlg.SetOKCancelLabels(_("Run XDebug Test"), _("OK"));
     if(dlg.ShowModal() == wxID_OK) {
         m_plugin->CallAfter(&PhpPlugin::RunXDebugDiagnostics);
@@ -748,12 +745,12 @@ void XDebugManager::XDebugNotConnecting()
 void XDebugManager::OnShowTooltip(XDebugEvent& e)
 {
     if(e.GetEvalReason() == XDebugEvalCmdHandler::kEvalForTooltip) {
-        wxString str;
+        wxString tip, title;
+        title << e.GetString();
+
         if(!e.IsEvalSucceeded()) {
-            str << _("<color=\"red\">*** Error evaluating expression : </color><strong>") << e.GetString()
-                << "</strong>\n<hr>" << e.GetErrorString();
+            tip << _("Error evaluating expression ");
         } else {
-            str << "<b>" << e.GetString() << "</b>\n<hr>";
             wxString evaluated = e.GetEvaluted();
             // Reomve extra escapes
             evaluated.Replace("\\n", "\n");
@@ -761,10 +758,10 @@ void XDebugManager::OnShowTooltip(XDebugEvent& e)
             evaluated.Replace("\\r", "\r");
             evaluated.Replace("\\v", "\v");
             evaluated.Replace("\\b", "\b");
-            str << evaluated;
-            str.Trim();
+            tip << evaluated;
+            tip.Trim();
         }
-        m_plugin->GetManager()->GetActiveEditor()->ShowRichTooltip(str, wxNOT_FOUND);
+        m_plugin->GetManager()->GetActiveEditor()->ShowRichTooltip(tip, title, wxNOT_FOUND);
     } else {
         e.Skip();
     }

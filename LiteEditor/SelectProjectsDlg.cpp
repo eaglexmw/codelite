@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : SelectProjectsDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -40,12 +40,13 @@ SelectProjectsDlg::SelectProjectsDlg(wxWindow* parent)
         m_checkListBoxProjects->Check(pos, true);
     }
     
-    WindowAttrManager::Load(this, "SelectProjectsDlg", NULL);
+    SetName("SelectProjectsDlg");
+    WindowAttrManager::Load(this);
 }
 
 SelectProjectsDlg::~SelectProjectsDlg()
 {
-    WindowAttrManager::Save(this, "SelectProjectsDlg", NULL);
+    
 }
 
 void SelectProjectsDlg::OnSelectAll(wxCommandEvent& event)

@@ -28,6 +28,7 @@
 
 #include "plugin.h"
 #include "externaltoolsdata.h"
+#include "asyncprocess.h"
 
 class wxToolBar;
 class AsyncExeCmd;
@@ -36,24 +37,16 @@ class ExternalToolsPlugin : public IPlugin
 {
     clToolBar* m_tb;
     wxEvtHandler* topWin;
-    AsyncExeCmd* m_pipedProcess;
     wxMenu* m_parentMenu;
 
 protected:
     void OnSettings(wxCommandEvent& e);
-    void OnLaunchExternalTool(wxCommandEvent& e);
-    void OnLaunchExternalToolUI(wxUpdateUIEvent& e);
-    void OnStopExternalTool(wxCommandEvent& e);
-    void OnStopExternalToolUI(wxUpdateUIEvent& e);
-    void DoLaunchTool(const ToolInfo& ti);
+    void OnShowRunningTools(wxCommandEvent& e);
     void DoRecreateToolbar();
-    bool IsRedirectedToolRunning();
-    void OnProcessEnd(wxProcessEvent& event);
     void DoCreatePluginMenu();
-    void OnRecreateTB(wxCommandEvent& e);
-    void DoClearNativeToolbarItems(wxToolBar* toolbar);
-    void DoAppendToolsToNativeToolbar(wxToolBar* toolbar);
-    
+    void OnRecreateTB();
+    void OnLaunchExternalTool(wxCommandEvent& e);
+
 public:
     ExternalToolsPlugin(IManager* manager);
     ~ExternalToolsPlugin();

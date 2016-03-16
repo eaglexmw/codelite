@@ -41,9 +41,12 @@ class wxTreebook;
 class SyntaxHighlightDlg : public SyntaxHighlightBaseDlg
 {
     bool m_isModified;
+    bool m_globalThemeChanged;
     LexerConf::Ptr_t m_lexer;
 
 protected:
+    virtual void OnGlobalFontSelected(wxFontPickerEvent& event);
+    virtual void OnGlobalThemeSelected(wxCommandEvent& event);
     virtual void OnLoadEclipseThemeWebsite(wxCommandEvent& event);
     virtual void OnImportEclipseTheme(wxAuiToolBarEvent& event);
     virtual void OnRestoreDefaults(wxCommandEvent& event);
@@ -72,7 +75,7 @@ protected:
     virtual void OnStyleWithinPreprocessor(wxCommandEvent& event);
     virtual void OnStyleWithingPreProcessorUI(wxUpdateUIEvent& event);
     virtual void OnText(wxCommandEvent& event);
-
+    
     // Handlers for SyntaxHighlightBaseDlg events.
     void OnButtonOK( wxCommandEvent& event );
     void OnButtonCancel( wxCommandEvent& event );
@@ -83,9 +86,11 @@ protected:
     void SaveChanges();
     void Clear();
     void CreateLexerPage();
-    StyleProperty::List_t::iterator GetSelectedStyle();
+    StyleProperty::Map_t::iterator GetSelectedStyle();
     void EditKeyWords(int set);
-
+    
+    void DoUpdatePreview();
+    
 public:
     /** Constructor */
     SyntaxHighlightDlg( wxWindow* parent );

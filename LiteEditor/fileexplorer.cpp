@@ -37,114 +37,60 @@
 #include "frame.h"
 #include "FileExplorerTab.h"
 #include "file_logger.h"
+#include "cl_config.h"
+#include "OpenFolderDlg.h"
+#include "globals.h"
+#include <wx/arrstr.h>
+#include "clTreeCtrlPanel.h"
+#include "clFileOrFolderDropTarget.h"
+#include "codelite_events.h"
+#include "clWorkspaceView.h"
 
-FileExplorer::FileExplorer(wxWindow *parent, const wxString &caption)
+FileExplorer::FileExplorer(wxWindow* parent, const wxString& caption)
     : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(250, 300))
     , m_caption(caption)
-    , m_isLinkedToEditor(false)
 {
-    long link = EditorConfigST::Get()->GetInteger(wxT("LinkFileExplorerToEditor"), 0);
-    m_isLinkedToEditor = link ? true : false;
     CreateGUIControls();
+    m_keyboardHelper.reset(new clTreeKeyboardInput(m_view->GetTreeCtrl()));
+    
     m_themeHelper = new ThemeHandlerHelper(this);
+    SetDropTarget(new clFileOrFolderDropTarget(this));
+    Bind(wxEVT_DND_FOLDER_DROPPED, &FileExplorer::OnFolderDropped, this);
 }
 
 FileExplorer::~FileExplorer()
 {
+    m_keyboardHelper.reset(NULL);
     wxDELETE(m_themeHelper);
-    wxTheApp->Disconnect(XRCID("show_in_explorer"), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(FileExplorer::OnShowFile), NULL, this);
-    wxTheApp->Disconnect(XRCID("show_in_explorer"), wxEVT_UPDATE_UI, wxUpdateUIEventHandler(FileExplorer::OnShowFileUI), NULL, this);
-    EventNotifier::Get()->Disconnect(wxEVT_WORKSPACE_LOADED, wxCommandEventHandler(FileExplorer::OnWorkspaceLoaded), NULL, this);
-    EventNotifier::Get()->Disconnect(wxEVT_ACTIVE_EDITOR_CHANGED, wxCommandEventHandler(FileExplorer::OnActiveEditorChanged), NULL, this);
+    Unbind(wxEVT_DND_FOLDER_DROPPED, &FileExplorer::OnFolderDropped, this);
 }
 
 void FileExplorer::CreateGUIControls()
 {
-    wxBoxSizer *mainSizer = new wxBoxSizer(wxVERTICAL);
+    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     SetSizer(mainSizer);
-
-    wxToolBar *tb = new wxToolBar(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_FLAT|wxTB_HORIZONTAL|wxTB_NODIVIDER);
-    mainSizer->Add(tb, 0, wxEXPAND);
+    m_view = new clTreeCtrlPanel(this);
     
-    m_fileTree = new FileExplorerTab(this);
-    mainSizer->Add(m_fileTree, 1, wxEXPAND|wxALL, 1);
-
-    tb->AddTool(XRCID("link_editor"), wxEmptyString, wxXmlResource::Get()->LoadBitmap(wxT("link_editor")), _("Link Editor"), wxITEM_CHECK);
-    tb->ToggleTool(XRCID("link_editor"), m_isLinkedToEditor);
-    tb->AddTool(XRCID("collapse_all"), wxEmptyString, wxXmlResource::Get()->LoadBitmap(wxT("collapse")), _("Collapse All"), wxITEM_NORMAL);
-    tb->AddTool(XRCID("go_home"), wxEmptyString, wxXmlResource::Get()->LoadBitmap(wxT("gohome")), _("Goto Current Directory"), wxITEM_NORMAL);
-    tb->Realize();
-
-    Connect( XRCID("link_editor"), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( FileExplorer::OnLinkEditor ));
-    Connect( XRCID("collapse_all"), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( FileExplorer::OnCollapseAll ));
-    Connect( XRCID("go_home"), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( FileExplorer::OnGoHome ));
-
-    mainSizer->Layout();
-
-    wxTheApp->Connect(XRCID("show_in_explorer"), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(FileExplorer::OnShowFile), NULL, this);
-    wxTheApp->Connect(XRCID("show_in_explorer"), wxEVT_UPDATE_UI, wxUpdateUIEventHandler(FileExplorer::OnShowFileUI), NULL, this);
-    EventNotifier::Get()->Connect(wxEVT_WORKSPACE_LOADED, wxCommandEventHandler(FileExplorer::OnWorkspaceLoaded), NULL, this);
-    EventNotifier::Get()->Connect(wxEVT_ACTIVE_EDITOR_CHANGED, wxCommandEventHandler(FileExplorer::OnActiveEditorChanged), NULL, this);
+    // For the file explorer we use the standard configuration tool
+    m_view->SetConfig(&clConfig::Get());
+    m_view->SetViewName(_("File Explorer"));
+    mainSizer->Add(m_view, 1, wxEXPAND | wxALL, 0);
+    Layout();
 }
 
-void FileExplorer::OnCollapseAll(wxCommandEvent &e)
+void FileExplorer::OnFolderDropped(clCommandEvent& event)
 {
-    wxUnusedVar(e);
-    m_fileTree->Tree()->ReCreateTree();
-}
-
-void FileExplorer::OnGoHome(wxCommandEvent &e)
-{
-    wxUnusedVar(e);
-    m_fileTree->ClearSelections();
-    m_fileTree->Tree()->ExpandPath( ::wxGetCwd() );
-}
-
-void FileExplorer::OnLinkEditor(wxCommandEvent &e)
-{
-    m_isLinkedToEditor = !m_isLinkedToEditor;
-    EditorConfigST::Get()->SetInteger(wxT("LinkFileExplorerToEditor"), m_isLinkedToEditor ? 1 : 0);
-    if (m_isLinkedToEditor) {
-        OnActiveEditorChanged(e);
+    const wxArrayString& folders = event.GetStrings();
+    for(size_t i = 0; i < folders.size(); ++i) {
+        m_view->AddFolder(folders.Item(i));
+    }
+    size_t index = clGetManager()->GetWorkspacePaneNotebook()->GetPageIndex(_("Explorer"));
+    if(index != wxString::npos) {
+        clGetManager()->GetWorkspacePaneNotebook()->ChangeSelection(index);
     }
 }
 
-void FileExplorer::OnShowFile(wxCommandEvent& e)
+void FileExplorer::OpenFolder(const wxString& path)
 {
-    LEditor *editor = clMainFrame::Get()->GetMainBook()->GetActiveEditor();
-    if (editor && editor->GetFileName().FileExists()) {
-        m_fileTree->ClearSelections();
-        m_fileTree->Tree()->ExpandPath(editor->GetFileName().GetFullPath());
-        ManagerST::Get()->ShowWorkspacePane(m_caption);
-    }
-    e.Skip();
-}
-
-void FileExplorer::OnShowFileUI(wxUpdateUIEvent& e)
-{
-    LEditor *editor = clMainFrame::Get()->GetMainBook()->GetActiveEditor();
-    e.Enable(editor && editor->GetFileName().FileExists());
-}
-
-void FileExplorer::OnActiveEditorChanged(wxCommandEvent& e)
-{
-    e.Skip();
-    if (m_isLinkedToEditor) {
-        LEditor *editor = clMainFrame::Get()->GetMainBook()->GetActiveEditor();
-        if (editor && editor->GetFileName().FileExists()) {
-            m_fileTree->ClearSelections();
-CL_DEBUG1(" ===> [Explorer] Expand to path for " + editor->GetFileName().GetFullPath() );
-            m_fileTree->Tree()->ExpandPath(editor->GetFileName().GetFullPath());
-CL_DEBUG1(" <=== [Explorer] Expand to path for " + editor->GetFileName().GetFullPath() );
-        }
-    }
-}
-
-void FileExplorer::OnWorkspaceLoaded(wxCommandEvent& e)
-{
-    e.Skip();
-    wxUnusedVar(e);
-    if (m_isLinkedToEditor) {
-        m_fileTree->Tree()->ExpandPath( wxGetCwd() );
-    }
+    m_view->AddFolder(path);
 }

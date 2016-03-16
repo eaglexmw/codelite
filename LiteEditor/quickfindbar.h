@@ -33,6 +33,27 @@
 
 class QuickFindBarOptionsMenu;
 class wxStyledTextCtrl;
+
+class clNoMatchBitmap : public wxPanel
+{
+    wxBitmap m_warningBmp;
+    bool m_visible;
+
+protected:
+    void OnPaint(wxPaintEvent& event);
+    void OnEraseBg(wxEraseEvent& event) { wxUnusedVar(event); }
+
+public:
+    clNoMatchBitmap(wxWindow* parent);
+    virtual ~clNoMatchBitmap();
+
+    void SetVisible(bool visible) { this->m_visible = visible; }
+    bool IsVisible() const { return m_visible; }
+
+    void SetWarningBmp(const wxBitmap& warningBmp) { this->m_warningBmp = warningBmp; }
+    const wxBitmap& GetWarningBmp() const { return m_warningBmp; }
+};
+
 class QuickFindBar : public QuickFindBarBase
 {
 public:
@@ -52,15 +73,18 @@ protected:
     wxComboBox* m_findWhat;
     wxComboBox* m_replaceWith;
     wxFlatButtonBar* m_bar;
+
     wxFlatButton* m_caseSensitive;
     wxFlatButton* m_wholeWord;
     wxFlatButton* m_regexOrWildButton;
-    wxFlatButton* m_showReplaceControls;
-    wxFlatButton* m_buttonReplace;
+    wxButton* m_buttonReplace;
+    wxButton* m_buttonReplaceAll;
     wxFlatButton* m_closeButton;
-    wxMenu* m_regexOrWildMenu;
+    wxFlatButton* m_replaceInSelectionButton;
+    clNoMatchBitmap* m_noMatchBmp;
     eRegexType m_regexType;
-    
+    bool m_replaceInSelection;
+    bool m_disableTextUpdateEvent;
     friend class QuickFindBarOptionsMenu;
 
 public:
@@ -77,9 +101,7 @@ public:
     };
 
     enum {
-        kSearchForward = 0x00000001,
-        kSearchIncremental = 0x00000002,
-        kSearchMultiSelect = 0x00000004,
+        kSearchForward = (1 << 0),
     };
 
 private:
@@ -87,13 +109,15 @@ private:
     void DoUpdateSearchHistory();
     void DoUpdateReplaceHistory();
     size_t DoGetSearchFlags();
-    
+    void DoReplaceAll(bool selectionOnly);
+
 protected:
     virtual void OnReplaceKeyDown(wxKeyEvent& event);
-    void DoSearch(size_t searchFlags, int posToSearchFrom = wxNOT_FOUND);
+    void DoSearch(size_t searchFlags);
+    void DoSetCaretAtEndOfText();
+    void DoFixRegexParen(wxString& findwhat);
     wxString DoGetSelectedText();
-    void DoMarkAll(bool useIndicators = true);
-    wchar_t* DoGetSearchStringPtr();
+    void DoSelectAll(bool addMarkers);
 
     // General events
     void OnUndo(wxCommandEvent& e);
@@ -102,34 +126,35 @@ protected:
     void OnPaste(wxCommandEvent& e);
     void OnSelectAll(wxCommandEvent& e);
     void OnEditUI(wxUpdateUIEvent& e);
+    void DoEnsureLineIsVisible(int line = wxNOT_FOUND);
 
     // Control events
     void OnHide(wxCommandEvent& e);
     void OnNext(wxCommandEvent& e);
     void OnPrev(wxCommandEvent& e);
-    void OnButtonNext(wxFlatButtonEvent& e);
-    void OnButtonPrev(wxFlatButtonEvent& e);
-    void OnFindAll(wxFlatButtonEvent& e);
+    void OnFindAll(wxCommandEvent& e);
+    void OnButtonNext(wxCommandEvent& e);
+    void OnButtonPrev(wxCommandEvent& e);
     void OnButtonNextUI(wxUpdateUIEvent& e);
     void OnButtonPrevUI(wxUpdateUIEvent& e);
     void OnText(wxCommandEvent& e);
     void OnKeyDown(wxKeyEvent& e);
     void OnFindMouseWheel(wxMouseEvent& e);
-    void OnShowReplaceControls(wxFlatButtonEvent& e);
-    void OnButtonReplace(wxFlatButtonEvent& e);
+    void OnButtonReplace(wxCommandEvent& e);
+    void OnReplaceAll(wxCommandEvent& e);
     void OnButtonReplaceUI(wxUpdateUIEvent& e);
+    void OnButtonReplaceAllUI(wxUpdateUIEvent& e);
     void OnEnter(wxCommandEvent& e);
     void OnReplace(wxCommandEvent& e);
     void OnUpdateUI(wxUpdateUIEvent& e);
-    void OnReplaceUI(wxUpdateUIEvent& e);
     void OnReplaceEnter(wxCommandEvent& e);
     void OnHighlightMatches(wxFlatButtonEvent& e);
+    void OnReplaceInSelection(wxFlatButtonEvent& e);
     void OnHideBar(wxFlatButtonEvent& e);
-    void OnRegularExpMenu(wxFlatButtonEvent& e);
-    void OnUseRegex(wxCommandEvent& e);
-    void OnNoRegex(wxCommandEvent& e);
-    void OnUseWildcards(wxCommandEvent& e);
+    void OnRegex(wxFlatButtonEvent& event);
+    void OnRegexUI(wxUpdateUIEvent& event);
     void OnHighlightMatchesUI(wxUpdateUIEvent& event);
+    void OnReplaceInSelectionUI(wxUpdateUIEvent& event);
     void OnQuickFindCommandEvent(wxCommandEvent& event);
     void OnReceivingFocus(wxFocusEvent& event);
     void OnReleaseEditor(wxCommandEvent& e);
@@ -140,7 +165,7 @@ protected:
     void OnFindPreviousCaret(wxCommandEvent& e);
 
 protected:
-    bool DoShow(bool s, const wxString& findWhat);
+    bool DoShow(bool s, const wxString& findWhat, bool replaceBar);
     wxStyledTextCtrl* DoCheckPlugins();
 
 public:
@@ -148,8 +173,9 @@ public:
     virtual ~QuickFindBar();
     int GetCloseButtonId();
     bool ShowForPlugins();
-    bool Show(bool s = true);
-    bool Show(const wxString& findWhat);
+    bool Show(bool s = true, bool replaceBar = false);
+    bool Show(const wxString& findWhat, bool replaceBar = false);
+    void ShowReplacebar(bool show);
     wxStyledTextCtrl* GetEditor() { return m_sci; }
     void SetEditor(wxStyledTextCtrl* sci);
 };

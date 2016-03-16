@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CompileCommandsCreateor.cpp
 //
 // -------------------------------------------------------------------------
@@ -42,7 +42,7 @@ void CompileCommandsCreateor::Process(wxThread* thread)
 {
     wxString errMsg;
     wxUnusedVar(thread);
-    Workspace workspace;
+    clCxxWorkspace workspace;
     workspace.OpenReadOnly(m_filename.GetFullPath(), errMsg);
     
     JSONRoot json(cJSON_Array);
@@ -51,6 +51,12 @@ void CompileCommandsCreateor::Process(wxThread* thread)
     
     // Save the file
     wxFileName compileCommandsFile(m_filename.GetPath(), "compile_commands.json");
+    compileCommandsFile.AppendDir(".codelite");
+    
+    // Make sure that the folder exists
+    compileCommandsFile.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+    
+    // Save the file
     json.save( compileCommandsFile );
     
     clCommandEvent eventCompileCommandsGenerated(wxEVT_COMPILE_COMMANDS_JSON_GENERATED);

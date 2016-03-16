@@ -6,12 +6,16 @@
 #include "PHPEntityVariable.h"
 #include "PHPEntityFunction.h"
 #include "event_notifier.h"
+#include "fileutils.h"
+#include <wx/stopwatch.h>
+#include <wx/log.h>
+#include "PHPEntityFunctionAlias.h"
 
 wxDEFINE_EVENT(wxPHP_PARSE_STARTED, clParseEvent);
 wxDEFINE_EVENT(wxPHP_PARSE_ENDED, clParseEvent);
 wxDEFINE_EVENT(wxPHP_PARSE_PROGRESS, clParseEvent);
 
-static wxString PHP_SCHEMA_VERSION = "7.0.6";
+static wxString PHP_SCHEMA_VERSION = "9.0.1";
 
 //------------------------------------------------
 // Metadata table
@@ -77,6 +81,28 @@ const static wxString CREATE_FUNCTION_TABLE_SQL_IDX5 =
     "CREATE INDEX IF NOT EXISTS FUNCTION_TABLE_IDX_5 ON FUNCTION_TABLE(LINE_NUMBER)";
 
 //------------------------------------------------
+// Function Alias table
+//------------------------------------------------
+const static wxString CREATE_FUNCTION_ALIAS_TABLE_SQL =
+    "CREATE TABLE IF NOT EXISTS FUNCTION_ALIAS_TABLE(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+    "SCOPE_ID INTEGER NOT NULL DEFAULT -1, "
+    "NAME TEXT, "         // no scope, just the function name
+    "REALNAME TEXT, "     // The fullname of the actual function we are referencing
+    "FULLNAME TEXT, "     // Fullname with scope (of the alias name)
+    "SCOPE TEXT, "        // Usually, this means the namespace\class
+    "LINE_NUMBER INTEGER NOT NULL DEFAULT 0, "
+    "FILE_NAME TEXT )";
+
+const static wxString CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX1 =
+    "CREATE INDEX IF NOT EXISTS FUNCTION_ALIAS_TABLE_IDX_1 ON FUNCTION_ALIAS_TABLE(SCOPE_ID)";
+const static wxString CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX2 =
+    "CREATE INDEX IF NOT EXISTS FUNCTION_ALIAS_TABLE_IDX_2 ON FUNCTION_ALIAS_TABLE(NAME)";
+const static wxString CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX3 =
+    "CREATE INDEX IF NOT EXISTS FUNCTION_ALIAS_TABLE_IDX_3 ON FUNCTION_ALIAS_TABLE(REALNAME)";
+const static wxString CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX4 =
+    "CREATE UNIQUE INDEX IF NOT EXISTS FUNCTION_ALIAS_TABLE_IDX_4 ON FUNCTION_ALIAS_TABLE(NAME,REALNAME,SCOPE_ID)";
+
+//------------------------------------------------
 // Variables table
 //------------------------------------------------
 const static wxString CREATE_VARIABLES_TABLE_SQL =
@@ -113,11 +139,11 @@ const static wxString CREATE_FILES_TABLE_SQL_IDX1 =
     "CREATE UNIQUE INDEX IF NOT EXISTS FILES_TABLE_IDX_1 ON FILES_TABLE(FILE_NAME)";
 
 PHPLookupTable::PHPLookupTable()
-    : m_sizeLimit(250)
+    : m_sizeLimit(50)
 {
 }
 
-PHPLookupTable::~PHPLookupTable() {}
+PHPLookupTable::~PHPLookupTable() { Close(); }
 
 PHPEntityBase::Ptr_t PHPLookupTable::FindMemberOf(wxLongLong parentDbId, const wxString& exactName, size_t flags)
 {
@@ -153,18 +179,20 @@ PHPEntityBase::Ptr_t PHPLookupTable::FindScope(const wxString& fullname)
     return DoFindScope(scopeName);
 }
 
-void PHPLookupTable::Open(const wxString& workspacePath)
+void PHPLookupTable::Open(const wxFileName& dbfile)
 {
-    wxFileName fnDBFile(workspacePath, "phpsymbols.db");
-
-    // ensure that the database directory exists
-    fnDBFile.AppendDir(".codelite");
-    fnDBFile.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-
     try {
-        wxFileName::Mkdir(fnDBFile.GetPath(), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-        m_db.Open(fnDBFile.GetFullPath());
+
+        if(dbfile.Exists()) {
+            // Check for its integrity. If the database is corrupted,
+            // it will be deleted
+            EnsureIntegrity(dbfile);
+        }
+
+        wxFileName::Mkdir(dbfile.GetPath(), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+        m_db.Open(dbfile.GetFullPath());
         m_db.SetBusyTimeout(10); // Don't lock when we cant access to the database
+        m_filename = dbfile;
         CreateSchema();
 
     } catch(wxSQLite3Exception& e) {
@@ -172,12 +200,22 @@ void PHPLookupTable::Open(const wxString& workspacePath)
     }
 }
 
+void PHPLookupTable::Open(const wxString& workspacePath)
+{
+    wxFileName fnDBFile(workspacePath, "phpsymbols.db");
+
+    // ensure that the database directory exists
+    fnDBFile.AppendDir(".codelite");
+    fnDBFile.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+    Open(fnDBFile);
+}
+
 void PHPLookupTable::CreateSchema()
 {
     wxString schemaVersion;
     try {
         wxString sql;
-        sql = wxT("PRAGMA journal_mode= OFF;");
+        sql = wxT("PRAGMA journal_mode = ON;");
         m_db.ExecuteUpdate(sql);
 
         sql = wxT("PRAGMA synchronous = OFF;");
@@ -202,6 +240,7 @@ void PHPLookupTable::CreateSchema()
         m_db.ExecuteUpdate("drop table if exists SCHEMA_VERSION");
         m_db.ExecuteUpdate("drop table if exists SCOPE_TABLE");
         m_db.ExecuteUpdate("drop table if exists FUNCTION_TABLE");
+        m_db.ExecuteUpdate("drop table if exists FUNCTION_ALIAS_TABLE");
         m_db.ExecuteUpdate("drop table if exists VARIABLES_TABLE");
         m_db.ExecuteUpdate("drop table if exists FILES_TABLE");
     }
@@ -227,6 +266,13 @@ void PHPLookupTable::CreateSchema()
         m_db.ExecuteUpdate(CREATE_FUNCTION_TABLE_SQL_IDX3);
         m_db.ExecuteUpdate(CREATE_FUNCTION_TABLE_SQL_IDX4);
         m_db.ExecuteUpdate(CREATE_FUNCTION_TABLE_SQL_IDX5);
+
+        // function alias table
+        m_db.ExecuteUpdate(CREATE_FUNCTION_ALIAS_TABLE_SQL);
+        m_db.ExecuteUpdate(CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX1);
+        m_db.ExecuteUpdate(CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX2);
+        m_db.ExecuteUpdate(CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX3);
+        m_db.ExecuteUpdate(CREATE_FUNCTION_ALIAS_TABLE_SQL_IDX4);
 
         // variables (function args, globals class members and consts)
         m_db.ExecuteUpdate(CREATE_VARIABLES_TABLE_SQL);
@@ -338,7 +384,25 @@ PHPLookupTable::DoFindMemberOf(wxLongLong parentDbId, const wxString& exactName,
                 matches.push_back(match);
             }
         }
+        
+        if(matches.empty()) {
+            // Search functions alias table
+            wxString sql;
+            sql << "SELECT * from FUNCTION_ALIAS_TABLE WHERE SCOPE_ID=" << parentDbId << " AND NAME='" << exactName << "'";
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
 
+            while(res.NextRow()) {
+                PHPEntityBase::Ptr_t match(new PHPEntityFunctionAlias());
+                match->FromResultSet(res);
+                PHPEntityBase::Ptr_t pFunc = FindFunction(match->Cast<PHPEntityFunctionAlias>()->GetRealname());
+                if(pFunc) {
+                    match->Cast<PHPEntityFunctionAlias>()->SetFunc(pFunc);
+                    matches.push_back(match);
+                }
+            }
+        }
+        
         if(matches.empty() && parentIsNamespace) {
             // search the scope table as well
             wxString sql;
@@ -580,12 +644,10 @@ void PHPLookupTable::RecreateSymbolsDatabase(const wxArrayString& files, eUpdate
             EventNotifier::Get()->AddPendingEvent(event);
         }
 
-        m_db.Begin();
-        // If the parsing mode is 'Full' - clear the database first
-        if(updateMode == kUpdateMode_Full) {
-            ClearAll(false);
-        }
+        wxStopWatch sw;
+        sw.Start();
 
+        m_db.Begin();
         for(size_t i = 0; i < files.GetCount(); ++i) {
             {
                 clParseEvent event(wxPHP_PARSE_PROGRESS);
@@ -623,8 +685,14 @@ void PHPLookupTable::RecreateSymbolsDatabase(const wxArrayString& files, eUpdate
                 reParseNeeded = false;
 
             if(reParseNeeded) {
+                // For performance reaons, load the file into memory and then parse it
                 wxFileName fnSourceFile(files.Item(i));
-                PHPSourceFile sourceFile(fnSourceFile);
+                wxString content;
+                if(!FileUtils::ReadFileContent(fnSourceFile, content, wxConvISO8859_1)) {
+                    CL_WARNING("PHP: Failed to read file: %s for parsing", fnSourceFile.GetFullPath());
+                    continue;
+                }
+                PHPSourceFile sourceFile(content);
                 sourceFile.SetFilename(fnSourceFile);
                 sourceFile.SetParseFunctionBody(parseFuncBodies);
                 sourceFile.Parse();
@@ -632,6 +700,10 @@ void PHPLookupTable::RecreateSymbolsDatabase(const wxArrayString& files, eUpdate
             }
         }
         m_db.Commit();
+        long elapsedMs = sw.Time();
+        wxString message;
+        message << _("PHP: parsed ") << files.GetCount() << " in " << elapsedMs << " milliseconds";
+        CL_DEBUGS(message);
 
         {
             clParseEvent event(wxPHP_PARSE_ENDED);
@@ -723,20 +795,25 @@ void PHPLookupTable::LoadFromTableByNameHint(PHPEntityBase::List_t& matches,
     DoAddNameFilter(sql, trimmedNameHint, flags);
     DoAddLimit(sql);
 
-    wxSQLite3Statement st = m_db.PrepareStatement(sql);
-    wxSQLite3ResultSet res = st.ExecuteQuery();
+    try {
+        wxSQLite3Statement st = m_db.PrepareStatement(sql);
+        wxSQLite3ResultSet res = st.ExecuteQuery();
 
-    while(res.NextRow()) {
-        ePhpScopeType st = kPhpScopeTypeAny;
-        if(tableName == "SCOPE_TABLE") {
-            st = res.GetInt("SCOPE_TYPE", 1) == kPhpScopeTypeNamespace ? kPhpScopeTypeNamespace : kPhpScopeTypeClass;
-        }
+        while(res.NextRow()) {
+            ePhpScopeType st = kPhpScopeTypeAny;
+            if(tableName == "SCOPE_TABLE") {
+                st =
+                    res.GetInt("SCOPE_TYPE", 1) == kPhpScopeTypeNamespace ? kPhpScopeTypeNamespace : kPhpScopeTypeClass;
+            }
 
-        PHPEntityBase::Ptr_t match = NewEntity(tableName, st);
-        if(match) {
-            match->FromResultSet(res);
-            matches.push_back(match);
+            PHPEntityBase::Ptr_t match = NewEntity(tableName, st);
+            if(match) {
+                match->FromResultSet(res);
+                matches.push_back(match);
+            }
         }
+    } catch(wxSQLite3Exception& e) {
+        CL_WARNING("PHPLookupTable::LoadFromTableByNameHint: %s", e.GetMessage());
     }
 }
 
@@ -762,7 +839,15 @@ void PHPLookupTable::DeleteFileEntries(const wxFileName& filename, bool autoComm
             st.Bind(st.GetParamIndex(":FILE_NAME"), filename.GetFullPath());
             st.ExecuteUpdate();
         }
-
+        
+        {
+            wxString sql;
+            sql << "delete from FUNCTION_ALIAS_TABLE where FILE_NAME=:FILE_NAME";
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            st.Bind(st.GetParamIndex(":FILE_NAME"), filename.GetFullPath());
+            st.ExecuteUpdate();
+        }
+        
         {
             wxString sql;
             sql << "delete from VARIABLES_TABLE where FILE_NAME=:FILE_NAME";
@@ -792,6 +877,8 @@ void PHPLookupTable::Close()
         if(m_db.IsOpen()) {
             m_db.Close();
         }
+        m_filename.Clear();
+
     } catch(wxSQLite3Exception& e) {
         CL_WARNING("PHPLookupTable::Close: %s", e.GetMessage());
     }
@@ -836,16 +923,43 @@ void PHPLookupTable::DoFindChildren(PHPEntityBase::List_t& matches,
             while(res.NextRow()) {
                 PHPEntityBase::Ptr_t match(new PHPEntityFunction());
                 match->FromResultSet(res);
-                bool isStatic = match->HasFlag(kFunc_Static);
-                if(isStatic & CollectingStatics(flags)) {
+                bool isStaticFunction = match->HasFlag(kFunc_Static);
+                if(isStaticFunction) {
+                    // always return static functions
                     matches.push_back(match);
 
-                } else if(!isStatic && !CollectingStatics(flags)) {
+                } else {
+                    // Non static function.
+                    if(!(flags & kLookupFlags_Static)) {
+                        matches.push_back(match);
+                    }
+                }
+            }
+        }
+        
+        {
+            // load function aliases
+            wxString sql;
+            sql << "SELECT * from FUNCTION_ALIAS_TABLE WHERE SCOPE_ID=" << parentId << " AND ";
+            DoAddNameFilter(sql, nameHint, flags);
+            DoAddLimit(sql);
+
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
+            while(res.NextRow()) {
+                PHPEntityBase::Ptr_t match(new PHPEntityFunctionAlias());
+                match->FromResultSet(res);
+                const wxString& realFuncName = match->Cast<PHPEntityFunctionAlias>()->GetRealname();
+                // Load the function pointed by this reference
+                PHPEntityBase::Ptr_t pFunc = FindFunction(realFuncName);
+                if(pFunc) {
+                    // Keep the reference to the real function
+                    match->Cast<PHPEntityFunctionAlias>()->SetFunc(pFunc);
                     matches.push_back(match);
                 }
             }
         }
-
+        
         {
             // Add members from the variables table
             wxString sql;
@@ -944,7 +1058,14 @@ void PHPLookupTable::ClearAll(bool autoCommit)
             wxSQLite3Statement st = m_db.PrepareStatement(sql);
             st.ExecuteUpdate();
         }
-
+        
+        {
+            wxString sql;
+            sql << "delete from FUNCTION_ALIAS_TABLE";
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            st.ExecuteUpdate();
+        }
+        
         if(autoCommit) m_db.Commit();
     } catch(wxSQLite3Exception& e) {
         if(autoCommit) m_db.Rollback();
@@ -1081,4 +1202,136 @@ PHPEntityBase::Ptr_t PHPLookupTable::FindFunctionByLineAndFile(const wxFileName&
         CL_WARNING("PHPLookupTable::FindFunctionByLineAndFile: %s", e.GetMessage());
     }
     return NULL;
+}
+
+void PHPLookupTable::ResetDatabase()
+{
+    wxFileName curfile = m_filename;
+    Close(); // Close the databse releasing any file capture we have
+    // Delete the file
+    if(curfile.IsOk() && curfile.Exists()) {
+        // Delete it from the file system
+        wxLogNull noLog;
+        if(!::wxRemoveFile(curfile.GetFullPath())) {
+            // CL_WARNING("PHPLookupTable::ResetDatabase: failed to remove file '%s'", curfile.GetFullPath());
+        }
+    }
+    Open(curfile);
+}
+
+bool PHPLookupTable::CheckDiskImage(wxSQLite3Database& db)
+{
+    try {
+        wxSQLite3ResultSet res = db.ExecuteQuery("PRAGMA quick_check");
+        if(res.NextRow()) {
+            wxString value = res.GetString("integrity_check");
+            return (value.Lower() == "ok");
+        } else {
+            return false;
+        }
+    } catch(wxSQLite3Exception& exec) {
+        // this can only happen if we have a corrupt disk image
+        CL_WARNING("PHP: database image is corrupted %s", m_filename.GetFullPath());
+        return false;
+    }
+    return true;
+}
+
+void PHPLookupTable::EnsureIntegrity(const wxFileName& filename)
+{
+    wxSQLite3Database db;
+    db.Open(filename.GetFullPath());
+    if(db.IsOpen()) {
+        if(!CheckDiskImage(db)) {
+            // disk image is malformed
+            db.Close();
+            wxLogNull noLog;
+            ::wxRemoveFile(filename.GetFullPath());
+        }
+    }
+}
+
+PHPEntityBase::List_t PHPLookupTable::FindSymbol(const wxString& name)
+{
+    // locate the scope
+    PHPEntityBase::List_t matches;
+    try {
+        {
+            //---------------------------------------------------------------------
+            // Load scopes (classes / namespaces)
+            //---------------------------------------------------------------------
+            wxString sql;
+            sql << "SELECT * from SCOPE_TABLE WHERE NAME='" << name << "'";
+
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
+
+            while(res.NextRow()) {
+                ePhpScopeType st = kPhpScopeTypeAny;
+                st =
+                    res.GetInt("SCOPE_TYPE", 1) == kPhpScopeTypeNamespace ? kPhpScopeTypeNamespace : kPhpScopeTypeClass;
+
+                PHPEntityBase::Ptr_t match = NewEntity("SCOPE_TABLE", st);
+                if(match) {
+                    match->FromResultSet(res);
+                    matches.push_back(match);
+                }
+            }
+        }
+
+        {
+            //---------------------------------------------------------------------
+            // Load functions
+            //---------------------------------------------------------------------
+            wxString sql;
+            sql << "SELECT * from FUNCTION_TABLE WHERE NAME='" << name << "'";
+
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
+
+            while(res.NextRow()) {
+                PHPEntityBase::Ptr_t match(new PHPEntityFunction());
+                match->FromResultSet(res);
+                matches.push_back(match);
+            }
+        }
+        
+        {
+            //---------------------------------------------------------------------
+            // Load function aliases
+            //---------------------------------------------------------------------
+            wxString sql;
+            sql << "SELECT * from FUNCTION_ALIAS_TABLE WHERE NAME='" << name << "'";
+
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
+
+            while(res.NextRow()) {
+                PHPEntityBase::Ptr_t match(new PHPEntityFunction());
+                match->FromResultSet(res);
+                matches.push_back(match);
+            }
+        }
+
+        {
+            //---------------------------------------------------------------------
+            // Load variables
+            //---------------------------------------------------------------------
+            wxString sql;
+            sql << "SELECT * from VARIABLES_TABLE WHERE NAME='" << name << "'";
+
+            wxSQLite3Statement st = m_db.PrepareStatement(sql);
+            wxSQLite3ResultSet res = st.ExecuteQuery();
+
+            while(res.NextRow()) {
+                PHPEntityBase::Ptr_t match = NewEntity("VARIABLES_TABLE", kPhpScopeTypeAny);
+                match->FromResultSet(res);
+                matches.push_back(match);
+            }
+        }
+
+    } catch(wxSQLite3Exception& e) {
+        CL_WARNING("PHPLookupTable::FindSymbol: %s", e.GetMessage());
+    }
+    return matches;
 }

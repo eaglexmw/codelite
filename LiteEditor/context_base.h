@@ -66,6 +66,17 @@ protected:
     void PrependMenuItem(wxMenu* menu, const wxString &text, wxObjectEventFunction func, int eventId = -1);
     void PrependMenuItem(wxMenu* menu, const wxString &text, int id);
     void PrependMenuItemSeparator(wxMenu* menu);
+    
+    /**
+     * @brief search for the next 'what' in the editor
+     * this function only searches through the visible lines
+     */
+    int FindNext(const wxString& what, int &pos);
+    /**
+     * @brief search for the next 'what' in the editor
+     * this function only searches through the visible lines
+     */
+    int FindPrev(const wxString& what, int &pos);
 
 public:
     
@@ -76,16 +87,18 @@ public:
     
     
     /**
+     * @brief return true if str is a string that should trigger a code completion
+     */
+    virtual bool IsStringTriggerCodeComplete(const wxString& str) const;
+    
+    /**
      * @brief when the context is requested to display a code completion for keywords
      * this functions determines which keyword set to display ( there are up to 5, indexed from: 0-4)
      */
     virtual int GetActiveKeywordSet() const {
         return 0;
     }
-    
-    const wxStringSet_t& GetCompletionTriggerStrings() const {
-        return m_completionTriggerStrings;
-    }
+
     /**
      * Return the context parent control
      */
@@ -186,6 +199,11 @@ public:
     virtual void ColourContextTokens( const wxArrayString& workspaceTokens ) {
         wxUnusedVar(workspaceTokens);
     }
+    
+    /**
+     * @brief process any idle actions by the context
+     */
+    virtual void ProcessIdleActions() {}
 };
 
 typedef SmartPtr<ContextBase> ContextBasePtr;

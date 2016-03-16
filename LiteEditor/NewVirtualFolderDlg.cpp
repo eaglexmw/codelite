@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : NewVirtualFolderDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -31,21 +31,23 @@
 NewVirtualFolderDlg::NewVirtualFolderDlg(wxWindow* parent, const wxString& currentVD)
     : NewVirtualFolderDlgBase(parent)
 {
-    m_checkBoxCreateOnDisk->SetValue( clConfig::Get().Read("CreateVirtualFoldersOnDisk", false) );
+    m_checkBoxCreateOnDisk->SetValue( clConfig::Get().Read(kConfigCreateVirtualFoldersOnDisk, false) );
     wxString project_name = currentVD.BeforeFirst(':');
     wxString vd_path = currentVD.AfterFirst(':');
     vd_path.Replace(":", wxFILE_SEP_PATH);
     wxString errmsg;
-    ProjectPtr proj = WorkspaceST::Get()->FindProjectByName(project_name, errmsg);
+    ProjectPtr proj = clCxxWorkspaceST::Get()->FindProjectByName(project_name, errmsg);
     wxString projectPath = proj->GetFileName().GetPath();
     m_basePath = wxFileName(projectPath + wxFILE_SEP_PATH + vd_path, "").GetPath();
-    WindowAttrManager::Load(this, "NewVirtualFolderDlg");
+    
+    SetName("NewVirtualFolderDlg");
+    WindowAttrManager::Load(this);
 }
 
 NewVirtualFolderDlg::~NewVirtualFolderDlg()
 {
-    WindowAttrManager::Save(this, "NewVirtualFolderDlg");
-    clConfig::Get().Write("CreateVirtualFoldersOnDisk", m_checkBoxCreateOnDisk->IsChecked());
+    
+    clConfig::Get().Write(kConfigCreateVirtualFoldersOnDisk, m_checkBoxCreateOnDisk->IsChecked());
 }
 
 void NewVirtualFolderDlg::OnCreateOnDiskUI(wxUpdateUIEvent& event)

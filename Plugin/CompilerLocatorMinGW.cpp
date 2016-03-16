@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CompilerLocatorMinGW.cpp
 //
 // -------------------------------------------------------------------------
@@ -86,37 +86,53 @@ bool CompilerLocatorMinGW::Locate()
     
     // for wxRegKey
 #ifdef __WXMSW__ 
-
-    // HKEY_LOCAL_MACHINE\SOFTWARE\codelite\settings
-    wxRegKey regClMinGW(wxRegKey::HKLM, "SOFTWARE\\codelite\\settings");
-    wxString clInstallFolder;
-    if ( regClMinGW.QueryValue("MinGW", clInstallFolder) && wxDirExists(clInstallFolder)) {
-        wxFileName gccExe(clInstallFolder, "gcc.exe");
-        wxString ver;
-        regClMinGW.QueryValue("MinGW_Version", ver);
-        gccExe.AppendDir("bin");
-        if ( gccExe.FileExists() ) {
-            AddTools(gccExe.GetPath(), "CodeLite-" + ver);
+    
+    {
+        // HKEY_LOCAL_MACHINE\SOFTWARE\codelite\settings
+        wxRegKey regClMinGW(wxRegKey::HKLM, "SOFTWARE\\codelite\\settings");
+        wxString clInstallFolder;
+        if ( regClMinGW.QueryValue("MinGW", clInstallFolder) && wxDirExists(clInstallFolder)) {
+            wxFileName gccExe(clInstallFolder, "gcc.exe");
+            wxString ver;
+            regClMinGW.QueryValue("MinGW_Version", ver);
+            gccExe.AppendDir("bin");
+            if ( gccExe.FileExists() ) {
+                AddTools(gccExe.GetPath(), "CodeLite-" + ver);
+            }
         }
     }
-
-    // Check registry for TDM-GCC
-    // HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\TDM-GCC
-    wxRegKey regTDM(wxRegKey::HKLM, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TDM-GCC");
-    wxString tdmInstallFolder;
-    if ( regTDM.QueryValue("InstallLocation", tdmInstallFolder) ) {
-        wxFileName fnTDMBinFolder( tdmInstallFolder, "" );
-        fnTDMBinFolder.AppendDir("bin");
-        AddTools(fnTDMBinFolder.GetPath(), "TDM-GCC");
-    }
     
-    // 64 bit
-    // HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\TDM-GCC
-    wxRegKey regTDM_64(wxRegKey::HKLM, "SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall");
-    if ( regTDM_64.QueryValue("InstallLocation", tdmInstallFolder) ) {
+    {
+        // HKEY_LOCAL_MACHINE\SOFTWARE\codelite\settings
+        wxRegKey regClMinGW(wxRegKey::HKLM, "SOFTWARE\\Wow6432Node\\codelite\\settings");
+        wxString clInstallFolder;
+        if ( regClMinGW.QueryValue("MinGW", clInstallFolder) && wxDirExists(clInstallFolder)) {
+            wxFileName gccExe(clInstallFolder, "gcc.exe");
+            wxString ver;
+            regClMinGW.QueryValue("MinGW_Version", ver);
+            gccExe.AppendDir("bin");
+            if ( gccExe.FileExists() ) {
+                AddTools(gccExe.GetPath(), "CodeLite-" + ver);
+            }
+        }
+    }
+    // Check registry for TDM-GCC-64 
+    wxRegKey regTDM(wxRegKey::HKCU, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TDM-GCC");
+    wxString tdmInstallFolder;
+    tdmInstallFolder.Clear();
+    if ( regTDM.QueryValue("InstallLocation", tdmInstallFolder) && wxFileName::DirExists(tdmInstallFolder)) {
         wxFileName fnTDMBinFolder( tdmInstallFolder, "" );
         fnTDMBinFolder.AppendDir("bin");
         AddTools(fnTDMBinFolder.GetPath(), "TDM-GCC-64");
+    }
+    
+    // Check for 32 bit
+    wxRegKey regTDM_32(wxRegKey::HKLM, "SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TDM-GCC");
+    tdmInstallFolder.Clear();
+    if ( regTDM_32.QueryValue("InstallLocation", tdmInstallFolder) && wxFileName::DirExists(tdmInstallFolder)) {
+        wxFileName fnTDMBinFolder( tdmInstallFolder, "" );
+        fnTDMBinFolder.AppendDir("bin");
+        AddTools(fnTDMBinFolder.GetPath(), "TDM-GCC-32");
     }
     
     // locate codeblock's MinGW
@@ -249,13 +265,21 @@ void CompilerLocatorMinGW::AddTools(const wxString& binFolder, const wxString& n
             AddTool(compiler, "MAKE", toolFile.GetFullPath(), makeExtraArgs);
         }
     }
+    
+    toolFile.SetFullName("gdb.exe");
+    if(toolFile.Exists()) {
+        AddTool(compiler, "Debugger", toolFile.GetFullPath());
+    }
 }
 
 void CompilerLocatorMinGW::AddTool(CompilerPtr compiler, const wxString& toolname, const wxString& toolpath, const wxString& extraArgs)
 {
     wxString tool = toolpath;
     ::WrapWithQuotes(tool);
-    compiler->SetTool(toolname, tool + " " + extraArgs);
+    if(!extraArgs.IsEmpty()) {
+        tool << " " << extraArgs;
+    }
+    compiler->SetTool(toolname, tool);
 }
 
 wxString CompilerLocatorMinGW::FindBinFolder(const wxString& parentPath)

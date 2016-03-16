@@ -18,22 +18,30 @@ if (UNIX AND NOT APPLE)
         find_package(FLEX REQUIRED)
         
         set(CxxFlexOutput ${CMAKE_SOURCE_DIR}/CodeLite/CxxLexer.cpp)
-        set(PhpFlexOutput ${CMAKE_SOURCE_DIR}/CodeLite/PhpLexer.cpp)
-        
         set(CxxFlexInput ${CMAKE_SOURCE_DIR}/CodeLite/CxxScanner.l)
+        
+        set(PhpFlexOutput ${CMAKE_SOURCE_DIR}/CodeLite/PhpLexer.cpp)
         set(PhpFlexInput ${CMAKE_SOURCE_DIR}/CodeLite/PhpLexer.l)
+        
+        set(JSFlexOutput ${CMAKE_SOURCE_DIR}/CodeLite/JSLexer.cpp)
+        set(JSFlexInput ${CMAKE_SOURCE_DIR}/CodeLite/JSLexer.l)
         
         if(FLEX_FOUND)
             add_custom_command(
                 OUTPUT ${CxxFlexOutput}
-                COMMAND ${FLEX_EXECUTABLE} --noline --batch --outfile=${CxxFlexOutput} ${CxxFlexInput}
+                COMMAND ${FLEX_EXECUTABLE} --noline --yylineno --batch --outfile=${CxxFlexOutput} ${CxxFlexInput}
                 DEPENDS ${CxxFlexInput}
                 COMMENT "Generating ${CxxFlexOutput}")
             add_custom_command(
                 OUTPUT ${PhpFlexOutput}
-                COMMAND ${FLEX_EXECUTABLE} -Pphp --noline --batch --outfile=${PhpFlexOutput} ${PhpFlexInput}
+                COMMAND ${FLEX_EXECUTABLE} -Pphp --yylineno --noline --batch --outfile=${PhpFlexOutput} ${PhpFlexInput}
                 DEPENDS ${PhpFlexInput}
                 COMMENT "Generating ${PhpFlexOutput}")
+            add_custom_command(
+                OUTPUT ${JSFlexOutput}
+                COMMAND ${FLEX_EXECUTABLE} -Pjs --yylineno --noline --batch --outfile=${JSFlexOutput} ${JSFlexInput}
+                DEPENDS ${JSFlexInput}
+                COMMENT "Generating ${JSFlexOutput}")
         endif()
     else()
         message("-- Flex support is disabled")
@@ -71,31 +79,55 @@ if ( USE_PCH )
     add_definitions(-Winvalid-pch)
 endif ( USE_PCH )
 
+if (UNIX AND NOT APPLE)
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+endif()
+
+if ( APPLE )
+    add_definitions(-fPIC)
+endif()
+
 add_definitions(-DWXUSINGDLL_WXSQLITE3)
 
 # Add RPATH
-if (NOT MINGW)
-if ( WXC_APP )
+if (NOT MINGW AND WXC_APP)
     string( REPLACE "codelite" "wxcrafter" WXC_LIBS_DIR ${PLUGINS_DIR}) 
-    set (LINKER_OPTIONS -Wl,-rpath,"${WXC_LIBS_DIR}:${PLUGINS_DIR}")
-    message( "-- libcodelite.so is using RPATH set to ${WXC_LIBS_DIR}:${PLUGINS_DIR}")
-else ( WXC_APP )
-    set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-    message( "-- libcodelite.so is using RPATH set to ${PLUGINS_DIR}")
-endif ( WXC_APP )
-endif (NOT MINGW)
+    set (LINKER_OPTIONS -Wl,-rpath,"${WXC_LIBS_DIR}")
+    message( "-- libcodelite.so is using RPATH set to ${WXC_LIBS_DIR}")
+endif ()
 FILE(GLOB SRCS "*.cpp" "../sdk/codelite_indexer/network/*.cpp" "SocketAPI/*.cpp")
 
 # Define the output
 add_library(libcodelite SHARED ${SRCS})
 if (UNIX AND NOT APPLE )
-    target_link_libraries(libcodelite ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lsqlite3lib -lwxsqlite3 ${LIBSSH_LIB} ${ADDITIONAL_LIBRARIES})
+    target_link_libraries(libcodelite 
+                         ${LINKER_OPTIONS} 
+                         ${wxWidgets_LIBRARIES} 
+                         -L"${CL_LIBPATH}" 
+                         ${SQLITE3_LIBRARY}
+                         wxsqlite3 
+                         ${LIBSSH_LIB} 
+                         ${ADDITIONAL_LIBRARIES})
 else (UNIX AND NOT APPLE)
-    target_link_libraries(libcodelite ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lsqlite3lib -lwxsqlite3 ${LIBSSH_LIB} ${ADDITIONAL_LIBRARIES} -lz -lcrypto)
+    target_link_libraries(libcodelite 
+                          ${LINKER_OPTIONS} 
+                          ${wxWidgets_LIBRARIES} 
+                          -L"${CL_LIBPATH}" 
+                          sqlite3lib 
+                          wxsqlite3 
+                          ${LIBSSH_LIB} 
+                          ${ADDITIONAL_LIBRARIES} 
+                          -lz -lcrypto)
 endif ( UNIX AND NOT APPLE )
 
 if (NOT MINGW)
-install(TARGETS libcodelite DESTINATION ${PLUGINS_DIR})
+    if(APPLE)
+        install(TARGETS libcodelite DESTINATION ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/)
+        CL_INSTALL_NAME_TOOL_STD(${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/liblibcodelite.dylib)
+    else()
+        install(TARGETS libcodelite DESTINATION ${PLUGINS_DIR})
+    endif()
 else ()
-install(TARGETS libcodelite RUNTIME DESTINATION ${CL_PREFIX}/bin LIBRARY DESTINATION ${CL_PREFIX}/lib ARCHIVE DESTINATION ${CL_PREFIX}/lib)
+    install(TARGETS libcodelite RUNTIME DESTINATION ${CL_PREFIX}/bin LIBRARY DESTINATION ${CL_PREFIX}/lib ARCHIVE DESTINATION ${CL_PREFIX}/lib)
 endif()

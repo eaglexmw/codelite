@@ -14,11 +14,6 @@ find_package(wxWidgets COMPONENTS core base REQUIRED)
 # Include paths
 #include_directories("${CL_SRC_ROOT}/Plugin" "${CL_SRC_ROOT}/sdk/wxsqlite3/include" "${CL_SRC_ROOT}/CodeLite" "${CL_SRC_ROOT}/PCH" "${CL_SRC_ROOT}/Interfaces")
 
-# Add RPATH
-if ( UNIX )
-set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-endif ( UNIX )
-
 # we need wxWidgets flags to be set only for the c++ files, so we do it like this
 # by setting the CMAKE_CXX_FLAGS
 if ( NOT MINGW )
@@ -41,7 +36,7 @@ if ( UNIX )
     set( UTIL_LIB "-lutil")
 endif ( UNIX )
 
-target_link_libraries(codelite-make ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin ${UTIL_LIB} )
+target_link_libraries(codelite-make ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" 
+                        libcodelite plugin ${UTIL_LIB} )
 
-install(TARGETS codelite-make DESTINATION ${CL_PREFIX}/bin)
-add_dependencies(codelite-make plugin)
+CL_INSTALL_EXECUTABLE(codelite-make)

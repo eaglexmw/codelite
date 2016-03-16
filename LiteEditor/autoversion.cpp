@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : autoversion.cpp
 //
 // -------------------------------------------------------------------------
@@ -26,7 +26,6 @@
 #ifndef CL_GIT_REVISION
 #define CL_GIT_REVISION
 
-#include <wx/string.h>
-const wxChar* clGitRevision = wxT("7.0");
-#endif
+#include "autoversion.h"
 
+#endif

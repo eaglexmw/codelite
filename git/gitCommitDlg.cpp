@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitCommitDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -30,10 +30,13 @@
 #include "gitentry.h"
 #include "lexer_configuration.h"
 #include "editor_config.h"
+#include "ColoursAndFontsManager.h"
+#include "globals.h"
+#include "clSingleChoiceDialog.h"
 
-GitCommitDlg::GitCommitDlg(wxWindow* parent, const wxString& repoDir)
+GitCommitDlg::GitCommitDlg(wxWindow* parent)
     : GitCommitDlgBase(parent)
-    , m_workingDir(repoDir)
+    , m_toggleChecks(false)
 {
     // read the configuration
     clConfig conf("git.conf");
@@ -43,8 +46,14 @@ GitCommitDlg::GitCommitDlg(wxWindow* parent, const wxString& repoDir)
     m_splitterInner->SetSashPosition(data.GetGitCommitDlgHSashPos());
     m_splitterMain->SetSashPosition(data.GetGitCommitDlgVSashPos());
 
-    WindowAttrManager::Load(this, wxT("GitCommitDlg"), NULL);
-    LexerConf::Ptr_t lex = EditorConfigST::Get()->GetLexer("text");
+    LexerConf::Ptr_t diffLexer = ColoursAndFontsManager::Get().GetLexer("diff");
+    if(diffLexer) {
+        diffLexer->Apply(m_stcDiff);
+    }
+
+    SetName("GitCommitDlg");
+    WindowAttrManager::Load(this);
+    LexerConf::Ptr_t lex = ColoursAndFontsManager::Get().GetLexer("text");
     lex->Apply(m_stcCommitMessage);
 }
 
@@ -56,11 +65,11 @@ GitCommitDlg::~GitCommitDlg()
     GitEntry data;
     conf.ReadItem(&data);
 
+    wxString message = m_stcCommitMessage->GetText();
+    data.AddRecentCommit(message);
     data.SetGitCommitDlgHSashPos(m_splitterInner->GetSashPosition());
     data.SetGitCommitDlgVSashPos(m_splitterMain->GetSashPosition());
     conf.WriteItem(&data);
-
-    WindowAttrManager::Save(this, wxT("GitCommitDlg"), NULL);
 }
 
 /*******************************************************************************/
@@ -91,9 +100,9 @@ void GitCommitDlg::AppendDiff(const wxString& diff)
 
     if(m_diffMap.size() != 0) {
         std::map<wxString, wxString>::iterator it = m_diffMap.begin();
-        m_editor->SetText((*it).second);
+        m_stcDiff->SetText((*it).second);
         m_listBox->Select(0);
-        m_editor->SetReadOnly(true);
+        m_stcDiff->SetReadOnly(true);
     }
 }
 
@@ -118,9 +127,10 @@ void GitCommitDlg::OnChangeFile(wxCommandEvent& e)
 {
     int sel = m_listBox->GetSelection();
     wxString file = m_listBox->GetString(sel);
-    m_editor->SetReadOnly(false);
-    m_editor->SetText(m_diffMap[file]);
-    m_editor->SetReadOnly(true);
+    m_stcDiff->SetReadOnly(false);
+    m_stcDiff->SetText(m_diffMap[file]);
+    ::clRecalculateSTCHScrollBar(m_stcDiff);
+    m_stcDiff->SetReadOnly(true);
 }
 
 void GitCommitDlg::OnCommitOK(wxCommandEvent& event)
@@ -133,3 +143,43 @@ void GitCommitDlg::OnCommitOK(wxCommandEvent& event)
 }
 
 /*******************************************************************************/
+void GitCommitDlg::OnToggleCheckAll(wxCommandEvent& event)
+{
+    for(size_t i = 0; i < m_listBox->GetCount(); ++i) {
+        m_listBox->Check(i, m_toggleChecks);
+    }
+    m_toggleChecks = !m_toggleChecks;
+}
+
+void GitCommitDlg::OnClearGitCommitHistory(wxCommandEvent& event)
+{
+    clConfig conf("git.conf");
+    GitEntry data;
+    conf.ReadItem(&data);
+
+    data.GetRecentCommit().Clear();
+    conf.WriteItem(&data);
+}
+
+void GitCommitDlg::OnCommitHistory(wxCommandEvent& event)
+{
+    clConfig conf("git.conf");
+    GitEntry data;
+    conf.ReadItem(&data);
+    
+    const wxArrayString& options = data.GetRecentCommit();
+    
+    clSingleChoiceDialog dlg(this, options);
+    dlg.SetLabel(_("Choose a commit"));
+    if(dlg.ShowModal() != wxID_OK) return;
+    
+    m_stcCommitMessage->SetText(dlg.GetSelection());
+}
+
+void GitCommitDlg::OnCommitHistoryUI(wxUpdateUIEvent& event)
+{
+    clConfig conf("git.conf");
+    GitEntry data;
+    conf.ReadItem(&data);
+    event.Enable(!data.GetRecentCommit().IsEmpty());
+}

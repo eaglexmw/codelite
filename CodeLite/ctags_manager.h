@@ -45,6 +45,7 @@
 #include <set>
 #include "istorage.h"
 #include "codelite_exports.h"
+#include "cl_command_event.h"
 
 #ifdef USE_TRACE
 #include <wx/stopwatch.h>
@@ -875,9 +876,7 @@ protected:
     /**
      * Handler ctags process termination
      */
-    void OnIndexerTerminated(wxCommandEvent& event);
-
-    DECLARE_EVENT_TABLE()
+    void OnIndexerTerminated(clProcessEvent& event);
 
 private:
     /**
@@ -934,6 +933,7 @@ protected:
     void DoFindByNameAndScope(const wxString& name, const wxString& scope, std::vector<TagEntryPtr>& tags);
     void DoFilterDuplicatesByTagID(std::vector<TagEntryPtr>& src, std::vector<TagEntryPtr>& target);
     void DoFilterDuplicatesBySignature(std::vector<TagEntryPtr>& src, std::vector<TagEntryPtr>& target);
+    void DoFilterCtorDtorIfNeeded(std::vector<TagEntryPtr>& tags, const wxString& oper);
     void RemoveDuplicatesTips(std::vector<TagEntryPtr>& src, std::vector<TagEntryPtr>& target);
     void GetGlobalTags(const wxString& name, std::vector<TagEntryPtr>& tags, size_t flags = PartialMatch);
     void GetLocalTags(const wxString& name,

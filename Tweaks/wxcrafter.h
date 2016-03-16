@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : wxcrafter.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : wxcrafter.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef WXCRAFTER_BASE_CLASSES_H
-#define WXCRAFTER_BASE_CLASSES_H
+#ifndef CODELITE_TWEAKS_WXCRAFTER_BASE_CLASSES_H
+#define CODELITE_TWEAKS_WXCRAFTER_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -48,6 +48,12 @@
 #include <wx/propgrid/property.h>
 #include <wx/propgrid/advprops.h>
 #include <wx/button.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class TweaksSettingsDlgBase : public wxDialog
 {
@@ -79,6 +85,17 @@ protected:
     virtual void OnImageSelected(wxPropertyGridEvent& event) { event.Skip(); }
 
 public:
+    wxCheckBox* GetCheckBoxEnableTweaks() { return m_checkBoxEnableTweaks; }
+    wxBannerWindow* GetBanner136() { return m_banner136; }
+    wxPropertyGridManager* GetPgMgrTabColours() { return m_pgMgrTabColours; }
+    wxButton* GetButton124() { return m_button124; }
+    wxPanel* GetTabEditorTabsColours() { return m_tabEditorTabsColours; }
+    wxBannerWindow* GetBanner138() { return m_banner138; }
+    wxPropertyGridManager* GetPgMgr() { return m_pgMgr; }
+    wxPanel* GetTabProjectIcons() { return m_tabProjectIcons; }
+    wxNotebook* GetNotebook12() { return m_notebook12; }
+    wxButton* GetButton8() { return m_button8; }
+    wxButton* GetButton88() { return m_button88; }
     TweaksSettingsDlgBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Tweaks Setting"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
     virtual ~TweaksSettingsDlgBase();
 };

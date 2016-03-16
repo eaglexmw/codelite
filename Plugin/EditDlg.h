@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : EditDlg.h
 //
 // -------------------------------------------------------------------------
@@ -38,5 +38,5 @@ public:
     }
 };
 
-WXDLLIMPEXP_SDK wxString clGetTextFromUser(const wxString &initialValue, wxWindow* parent = NULL);
+WXDLLIMPEXP_SDK wxString clGetStringFromUser(const wxString &initialValue, wxWindow* parent = NULL);
 #endif // EDITDLG_H

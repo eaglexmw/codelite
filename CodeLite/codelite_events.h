@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C)); The CodeLite Team
+// copyright            : (C)); Eran Ifrah
 // file name            : codelite_events.h
 //
 // -------------------------------------------------------------------------
@@ -52,6 +52,9 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_WORKSPACE_CONFIG_CHANGED, wxComma
 // clientData is NULL
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_WORKSPACE_CLOSED, wxCommandEvent);
 
+// A workspace closing has started
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_WORKSPACE_CLOSING, wxCommandEvent);
+
 // clientData is NULL
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_VIEW_INIT_DONE, wxCommandEvent);
 
@@ -68,9 +71,8 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_EXP_REFRESHED, wxCommandEven
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_FILE_EXP_ITEM_EXPANDING, wxCommandEvent);
 
 // an attempt to open a file using double click / ENTER was made
-// on an item in the 'File Explorer' OR from the 'Workspace' tree
-// clientData is the full path of the file (wxString*)
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_TREE_ITEM_FILE_ACTIVATED, wxCommandEvent);
+// Use clCommandEvent.GetFileName() to get the file name
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_TREE_ITEM_FILE_ACTIVATED, clCommandEvent);
 
 // File(s) were added to the project
 // Event type: clCommandEvent
@@ -111,7 +113,7 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_RETAGGED, wxCommandEvent);
 //                               Item(1) = newName
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_RENAMED, wxCommandEvent);
 
-// clientData is active editor (IEditor*)
+// The active editor was changed
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_ACTIVE_EDITOR_CHANGED, wxCommandEvent);
 
 // clientData is closing editor (IEditor*)
@@ -156,12 +158,12 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_PROJ_SETTINGS_SAVED, clProjec
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_EXECUTE_ACTIVE_PROJECT, clExecuteEvent);
 
 // A user requested to stop the previously executed program
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_STOP_EXECUTED_PROGRAM, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_STOP_EXECUTED_PROGRAM, clExecuteEvent);
 
 // codelite sends this event to query plugins incase there is a program running
-// use evet.SetInt(1) to indicate that the plugin has launched an executable
+// use evet.SetAnswer(true) to indicate that the plugin has launched an executable
 // it is mainly used for displaying the 'Stop' button in the toolbar as active/disabled
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_IS_PROGRAM_RUNNING, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_IS_PROGRAM_RUNNING, clExecuteEvent);
 
 // ----------------------------------------------------------------------
 // Build Events
@@ -231,19 +233,19 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_PLUGIN_EXPORT_MAKEFILE, clBuildEv
  */
 // sent when the debugger is about to start
 // clientData is a pointer to a DebuggerStartupInfo structure
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_STARTING, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_STARTING, clDebugEvent);
 
 // sent right after the debugger started; program is not running yet
 // clientData is a pointer to a DebuggerStartupInfo structure
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_STARTED, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_STARTED, clDebugEvent);
 
 // sent just before the debugger stops
 // clientData is NULL
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_ENDING, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_ENDING, clDebugEvent);
 
 // sent after the debugger stopped
 // clientData is NULL
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_ENDED, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_ENDED, clDebugEvent);
 
 // set when the editor gains or loses
 // the control over the debugger
@@ -262,15 +264,10 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DEBUG_EDITOR_GOT_CONTROL, wxComma
 // event.
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CC_CODE_COMPLETE, clCodeCompletionEvent);
 
-// clientData is the selected word (wxString*)
+// User selected an entry from the code completion box. call event.Skip(false)
+// if you wish to perform something unique instead of the default "insert selection into editor"
+// The selected string can be retrieved by calling: event.GetWord()
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CCBOX_SELECTION_MADE, clCodeCompletionEvent);
-
-// A tooltip is requested for the selected entry in the completion box
-// clientData is set to the client data set by the user
-// the plugin returns the tooltip to the IDE using the:
-// evt.SetTooltip(..) method
-// Use evt.GetTagEntry() to retrieve the tag
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CC_CODE_COMPLETE_TAG_COMMENT, clCodeCompletionEvent);
 
 // A function calltip is requesed
 // clientData is set to the client data set by the user
@@ -321,11 +318,11 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CC_GENERATE_DOXY_BLOCK, clCodeCom
 /////////////////////////////////////////////////
 
 // User selected an option to create a new workspace
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_CREATE_NEW_WORKSPACE, wxCommandEvent);
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_CREATE_NEW_WORKSPACE, clCommandEvent);
 
 // Event type: clCommandEvent
 // A workspace file was selected by the user.
-// use event.GetFileName() to get the file name 
+// use event.GetFileName() to get the file name
 // If the plugin wishes to process this file, it should call
 // event.Skip(false) on the event
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_OPEN_WORKSPACE, clCommandEvent);
@@ -383,28 +380,18 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_OPEN_RESOURCE, wxCommandEvent
 // the menu
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_EDITOR_CONTEXT_MENU, wxCommandEvent);
 
-// codelite is about to display the editor's *left margin* context menu
-// A plugin can override the default menu display by catching this event and
-// handling it differently
-// event.GetEventObject() holds a pointer to the editor triggered
-// the menu
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_EDITOR_MARGIN_CONTEXT_MENU, wxCommandEvent);
-
-// Event type: clCommandEvent
-// The Find In Files dialog requests an additional file mask
-// the format should be:
-// *.a;*.b
-// and should be placed at:
-// event.GetStrings().Add("*.a;*.b");
-// In order to set the mask that will be used (there can be multiple entries), use
-// event.SetString("*.mask");
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_GET_FIND_IN_FILES_MASK, clCommandEvent);
-
 // Event type: clCommandEvent
 // Sent by the Find IN Files dialog when the dialog is dismissed
 // The information passed in the event contains the selected 'file mask'
 // used for the search. Use event.GetString() to get it
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_FIND_IN_FILES_DISMISSED, clCommandEvent);
+
+// Event type: clCommandEvent
+// Sent by CodeLite before showing the FindInFiles dialog
+// A plugin can append search directories to the FindInFiles dialog by appending them
+// to the event: clCommandEvent::GetStrings().Add(...)
+// Paths added by these event are not persistent and will be removed next time the dialog is shown
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_FIND_IN_FILES_SHOWING, clCommandEvent);
 
 /////////////////////////////////////////////////////////
 
@@ -523,41 +510,52 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_GET_TAB_BORDER_COLOUR, clColourEv
 // If a plugin wishes to override codelite's default debugger (gdb)
 // it simply needs to connect the event and avoid calling 'event.Skip();
 //----------------------------------------------------------------------
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_START, clDebugEvent);       // Start
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_CONTINUE, clDebugEvent);    // Continue
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STOP, clDebugEvent);        // Stop the debugger
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STEP_IN, clDebugEvent);     // Step into function
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STEP_OUT, clDebugEvent);    // Step out of current frame
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_NEXT, clDebugEvent);        // Next line
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_NEXT_INST, clDebugEvent);   // Next instruction
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_INTERRUPT, clDebugEvent);   // Interrupt the debugger execution
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_SHOW_CURSOR, clDebugEvent); // Set the focus to the current debugger file/line
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_RESTART, clDebugEvent);     // Restart the debug session
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_IS_RUNNING, clDebugEvent);     // Use evet.SetAnswer() method to reply
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_TOGGLE_BREAKPOINT, clDebugEvent); // Toggle breakpoint. Use event.GetFileName() / event.GetInt() for the file:line
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_START, clDebugEvent);     // Start
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_CONTINUE, clDebugEvent);  // Continue
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STOP, clDebugEvent);      // Stop the debugger
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STEP_IN, clDebugEvent);   // Step into function
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_STEP_OUT, clDebugEvent);  // Step out of current frame
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_NEXT, clDebugEvent);      // Next line
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_NEXT_INST, clDebugEvent); // Next instruction
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_INTERRUPT, clDebugEvent); // Interrupt the debugger execution
+wxDECLARE_EXPORTED_EVENT(
+    WXDLLIMPEXP_CL, wxEVT_DBG_UI_SHOW_CURSOR, clDebugEvent); // Set the focus to the current debugger file/line
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_RESTART, clDebugEvent); // Restart the debug session
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_IS_RUNNING, clDebugEvent); // Use evet.SetAnswer() method to reply
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL,
+    wxEVT_DBG_UI_TOGGLE_BREAKPOINT,
+    clDebugEvent); // Toggle breakpoint. Use event.GetFileName() / event.GetInt() for the file:line
 // Can CodeLite interact with the debugger? use event.SetAnswer(true);
 // Note: by avoid calling Skip() CodeLite will assume that the plugin is controlling the debug session
 // and it will use the event.IsAnswer() as the answer to the question to : CanDbgInteract()
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_CAN_INTERACT, clDebugEvent); 
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_CAN_INTERACT, clDebugEvent);
 // Provide a tooltip for the expression under the caret. user event.GetString() to get the expression
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_EXPR_TOOLTIP, clDebugEvent); 
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_EXPR_TOOLTIP, clDebugEvent);
 
 // This event is sent by codelite to all plugins to determine whether a plugin is actually a debugger.
 // A plugin should *always* call event.Skip() when handling this event. If the plugin is actually a debugger
 // plugin, it should add itself like this: event.GetStrings().Add("<the-debugger-name")
 // This string is later will be availe for codelite to display it in various dialogs (e.g. Quick Debug, project settings
 // etc)
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_IS_PLUGIN_DEBUGGER, clDebugEvent); 
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_IS_PLUGIN_DEBUGGER, clDebugEvent);
 
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_QUICK_DEBUG, clDebugEvent);            // User clicked on the 'Quick Debug' button. Event type is clDebugEvent
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_CORE_FILE, clDebugEvent);              // User selected to debug a core file. Event type is clDebugEvent
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_ATTACH_TO_PROCESS, clDebugEvent);      // Attach to process. Use clDebugEvent::GetInt() to get the process ID
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_DELTE_ALL_BREAKPOINTS, clDebugEvent);  // Delete all breakpoints
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_ENABLE_ALL_BREAKPOINTS, clDebugEvent); // Enable all breakpoints
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL,
+    wxEVT_DBG_UI_QUICK_DEBUG,
+    clDebugEvent); // User clicked on the 'Quick Debug' button. Event type is clDebugEvent
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL,
+    wxEVT_DBG_UI_CORE_FILE,
+    clDebugEvent); // User selected to debug a core file. Event type is clDebugEvent
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL,
+    wxEVT_DBG_UI_ATTACH_TO_PROCESS,
+    clDebugEvent); // Attach to process. Use clDebugEvent::GetInt() to get the process ID
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_DELTE_ALL_BREAKPOINTS, clDebugEvent);   // Delete all breakpoints
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_ENABLE_ALL_BREAKPOINTS, clDebugEvent);  // Enable all breakpoints
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DBG_UI_DISABLE_ALL_BREAKPOINTS, clDebugEvent); // Disable all breakpoints
 
 // -------------------Debugger events end------------------------------------------------
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CMD_OPEN_PROJ_SETTINGS, clCommandEvent); // clCommandEvent. Use event.GetString() to get the project name
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL,
+    wxEVT_CMD_OPEN_PROJ_SETTINGS,
+    clCommandEvent); // clCommandEvent. Use event.GetString() to get the project name
 
 // Workspace reload started
 // event type: clCommandEvent
@@ -624,6 +622,12 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FORMAT_FILE, clSourceFormatEvent)
 // Event type: clContextMenuEvent. You can use event.GetEditor() to get the editor
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_EDITOR, clContextMenuEvent);
 
+// codelite is about to show the context menu for the editor margin
+// Event type: clContextMenuEvent. You can use event.GetEditor() to get the editor
+// Calling event.Skip(false) will cancel the menu. A plugin may also
+// alter the context menu
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_EDITOR_MARGIN, clContextMenuEvent);
+
 // A context menu for a folder is about to be shown, you may alter the menu using event.GetMenu()
 // Use event.GetPath() to get the path of the folder
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_FOLDER, clContextMenuEvent);
@@ -633,7 +637,7 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_FOLDER, clContextMen
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_VIRTUAL_FOLDER, clContextMenuEvent);
 
 // A context menu for a file is about to be shown, you may alter the menu using event.GetMenu()
-// use event.GetStrings() to get the list of files selected (since there can be multiple items, we use 
+// use event.GetStrings() to get the list of files selected (since there can be multiple items, we use
 // event.GetStrings() a not event.GetFileName())
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_FILE, clContextMenuEvent);
 
@@ -644,6 +648,10 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_PROJECT, clContextMe
 // A context menu for a file is about to be shown, you may alter the menu using event.GetMenu()
 // use event.GetFileName() to get the workspace file (if any). event.GetString() will return the workspace name
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_WORKSPACE, clContextMenuEvent);
+
+// A context menu for the active tab label header is about to be shown. You can get the active page 
+// by calling clGetManager()->GetActivePage()
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CONTEXT_MENU_TAB_LABEL, clContextMenuEvent);
 
 // User modified the colours and font of the IDE
 // event type: clCommandEvent
@@ -657,14 +665,17 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_LOADED, clCommandEvent);
 // A plugin may alter the frame title by calling event.SetString(..)
 // To get the current frame title, a plugin may call event.GetString()
 // Event type: clCommandEvent
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CL_FRAME_TITLE, clCommandEvent); 
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CL_FRAME_TITLE, clCommandEvent);
 
 // Event: clCommandEvent
 // CodeLite is about to save a file. Use event.GetFilename() to get the file name
 // This event can be vetoed by calling event.Veto()
-// Note tis this event is sent for editor files (i.e. it is not sent for internal files like project file being saved
+// Note that this event is sent for editor files (i.e. it is not sent for internal files like project file being saved
 // etc) only for editors (hence the name)
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_BEFORE_EDITOR_SAVE, clCommandEvent);
+
+// Editor has been modified. Use event.GetFilename() to get the file name of the editor
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_EDITOR_MODIFIED, clCommandEvent);
 
 // Event: clCommandEvent
 // Sent when clang code completion encountered an error
@@ -674,11 +685,6 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_CLANG_CODE_COMPLETE_MESSAGE, clCo
 // Event: clCommandEvent
 // CodeLite is going down. This event can not be vetoed
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_GOING_DOWN, clCommandEvent);
-
-// Event: clColourEvent
-// Sent when all the colours and fonts were successfully loaded from the configuration 
-// files into the ColoursAndFonts manager
-wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_COLOURS_AND_FONTS_LOADED, clColourEvent);
 
 // Event: clCommandEvent
 // Use GetString() to get the new project name
@@ -694,5 +700,60 @@ wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_EDITOR_INITIALIZING, clCommandEve
 // Sent when the file system was modified externally (typically, this event is sent
 // after git pull, svn update etc)
 wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILE_SYSTEM_UPDATED, clFileSystemEvent);
+
+// Event: clFileSystemEvent
+// List of files were modified by the replace-in-files operation (this event will only include
+// the files that were modified on the file system directly and have no open editor)
+// Use clFileSystemEvent::GetStrings to get list of modified files
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_FILES_MODIFIED_REPLACE_IN_FILES, clFileSystemEvent);
+
+// Event: clCommandEvent
+// Sent when CodeLite requires to store the current workspace session
+// Call event.Skip(false) to instruct codelite to skip the default session-save
+// action (this is useful if the session is managed by an external plugin)
+// A good example for this is the PHP plugin which manages its own session
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_SAVE_SESSION_NEEDED, clCommandEvent);
+
+// Event: clCommandEvent
+// User modified its environment variables
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_ENVIRONMENT_VARIABLES_MODIFIED, clCommandEvent);
+
+// Event: clCommandEvent
+// user dropped a folder on the window
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DND_FOLDER_DROPPED, clCommandEvent);
+
+// Event: clCommandEvent
+// user dropped a file on the window
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_DND_FILE_DROPPED, clCommandEvent);
+
+// Event: clCommandEvent
+// a codelite restart is required
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_RESTART_CODELITE, clCommandEvent);
+
+// Event: clCommandEvent
+// Toggle workspace view tab. Use event.IsSelected() to test whether we should hide/show the tab
+// In anycase, you should not destroy the window, just hide it
+// The tab name is set in the event.GetString()
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_SHOW_WORKSPACE_TAB, clCommandEvent);
+
+// Event: clCommandEvent
+// Toggle output view tab. Use event.IsSelected() to test whether we should hide/show the tab
+// In anycase, you should not destroy the window, just hide it
+// The tab name is set in the event.GetString()
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_SHOW_OUTPUT_TAB, clCommandEvent);
+
+// Event: clCommandEvent
+// Sent by CodeLite when the active editor is _not_ an IEditor instance
+// but something else (probably provided by the plugins)
+// and CodeLite has no way of telling if the "Save" icon should be enabled or not
+// In case the window in the question is modified and owned by the plugin, the plugin should:
+//     1. Call event.SetAnswer(true)
+//     2. Call event.Skip(false);
+//
+// In case the window in the question is not owned by the plugin, the plugin should:
+//     1. Call event.Skip();
+//
+// Use: event.GetClientData() to get the pointer to the window page
+wxDECLARE_EXPORTED_EVENT(WXDLLIMPEXP_CL, wxEVT_PAGE_MODIFIED_UPDATE_UI, clCommandEvent);
 
 #endif // CODELITE_EVENTS_H

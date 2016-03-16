@@ -43,20 +43,22 @@
 #include "cl_command_event.h"
 #include <wx/thread.h>
 #include "codelite_events.h"
+#include "localworkspace.h"
 
-Workspace::Workspace()
+clCxxWorkspace::clCxxWorkspace()
     : m_saveOnExit(true)
 {
+    SetWorkspaceType(_("C++"));
 }
 
-Workspace::~Workspace()
+clCxxWorkspace::~clCxxWorkspace()
 {
     if(m_saveOnExit && m_doc.IsOk()) {
         SaveXmlFile();
     }
 }
 
-wxString Workspace::GetName() const
+wxString clCxxWorkspace::GetName() const
 {
     if(m_doc.IsOk()) {
         return XmlUtils::ReadString(m_doc.GetRoot(), wxT("Name"));
@@ -64,7 +66,7 @@ wxString Workspace::GetName() const
     return wxEmptyString;
 }
 
-void Workspace::CloseWorkspace()
+void clCxxWorkspace::CloseWorkspace()
 {
     m_buildMatrix.Reset(NULL);
     if(m_doc.IsOk()) {
@@ -79,7 +81,7 @@ void Workspace::CloseWorkspace()
     TagsManagerST::Get()->CloseDatabase();
 }
 
-bool Workspace::OpenReadOnly(const wxString& fileName, wxString& errMsg)
+bool clCxxWorkspace::OpenReadOnly(const wxString& fileName, wxString& errMsg)
 {
     m_buildMatrix.Reset(NULL);
     wxFileName workSpaceFile(fileName);
@@ -115,7 +117,7 @@ bool Workspace::OpenReadOnly(const wxString& fileName, wxString& errMsg)
     return true;
 }
 
-bool Workspace::OpenWorkspace(const wxString& fileName, wxString& errMsg)
+bool clCxxWorkspace::OpenWorkspace(const wxString& fileName, wxString& errMsg)
 {
     CloseWorkspace();
     m_buildMatrix.Reset(NULL);
@@ -152,10 +154,20 @@ bool Workspace::OpenWorkspace(const wxString& fileName, wxString& errMsg)
             wxString projectPath = child->GetPropVal(wxT("Path"), wxEmptyString);
 
             if(!DoAddProject(projectPath, errMsg)) {
-                tmperr << wxString::Format(wxT("Error occured while loading project: \"%s\"\nCodeLite has removed the "
+                tmperr << wxString::Format(wxT("Error occurred while loading project: \"%s\"\nCodeLite has removed the "
                                                "faulty project from the workspace\n"),
                                            projectPath.c_str());
                 removedChildren.push_back(child);
+            }
+        } else if((child->GetName() == wxT("WorkspaceParserPaths")) ||
+                  (child->GetName() == wxT("WorkspaceParserMacros"))) {
+            wxString swtlw = wxEmptyString;
+            swtlw = XmlUtils::ReadString(m_doc.GetRoot(), "SWTLW");
+            if(swtlw.CmpNoCase("yes") == 0) {
+                LocalWorkspaceST::Get()->SetParserFlags(LocalWorkspaceST::Get()->GetParserFlags() |
+                                                        LocalWorkspace::EnableSWTLW);
+                SyncToLocalWorkspaceSTParserPaths();
+                SyncToLocalWorkspaceSTParserMacros();
             }
         }
         child = child->GetNext();
@@ -175,17 +187,26 @@ bool Workspace::OpenWorkspace(const wxString& fileName, wxString& errMsg)
 
     // Update the build matrix
     DoUpdateBuildMatrix();
+
+    // Notify about active project changed
+    ProjectPtr activeProject = GetActiveProject();
+    if(activeProject) {
+        clProjectSettingsEvent evt(wxEVT_ACTIVE_PROJECT_CHANGED);
+        evt.SetProjectName(activeProject->GetName());
+        evt.SetFileName(activeProject->GetFileName().GetFullPath());
+        EventNotifier::Get()->AddPendingEvent(evt);
+    }
     return true;
 }
 
-BuildMatrixPtr Workspace::GetBuildMatrix() const { return m_buildMatrix; }
+BuildMatrixPtr clCxxWorkspace::GetBuildMatrix() const { return m_buildMatrix; }
 
-wxXmlNode* Workspace::GetWorkspaceEditorOptions() const
+wxXmlNode* clCxxWorkspace::GetWorkspaceEditorOptions() const
 {
     return XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("Options"));
 }
 
-void Workspace::SetWorkspaceEditorOptions(LocalOptionsConfigPtr opts)
+void clCxxWorkspace::SetWorkspaceEditorOptions(LocalOptionsConfigPtr opts)
 {
     wxXmlNode* parent = m_doc.GetRoot();
     wxXmlNode* oldOptions = XmlUtils::FindFirstByTagName(parent, wxT("Options"));
@@ -197,7 +218,7 @@ void Workspace::SetWorkspaceEditorOptions(LocalOptionsConfigPtr opts)
     SaveXmlFile();
 }
 
-void Workspace::SetBuildMatrix(BuildMatrixPtr mapping)
+void clCxxWorkspace::SetBuildMatrix(BuildMatrixPtr mapping)
 {
     wxXmlNode* parent = m_doc.GetRoot();
     wxXmlNode* oldMapping = XmlUtils::FindFirstByTagName(parent, wxT("BuildMatrix"));
@@ -216,7 +237,7 @@ void Workspace::SetBuildMatrix(BuildMatrixPtr mapping)
     DoUpdateBuildMatrix();
 }
 
-bool Workspace::CreateWorkspace(const wxString& name, const wxString& path, wxString& errMsg)
+bool clCxxWorkspace::CreateWorkspace(const wxString& name, const wxString& path, wxString& errMsg)
 {
     // If we have an open workspace, close it
     if(m_doc.IsOk()) {
@@ -253,13 +274,18 @@ bool Workspace::CreateWorkspace(const wxString& name, const wxString& path, wxSt
     m_doc.GetRoot()->AddProperty(wxT("Name"), name);
     m_doc.GetRoot()->AddProperty(wxT("Database"), dbFileName.GetFullPath(wxPATH_UNIX));
 
+    m_doc.GetRoot()->DeleteAttribute(wxT("SWTLW"));
+    if(LocalWorkspaceST::Get()->GetParserFlags() & LocalWorkspace::EnableSWTLW) {
+        m_doc.GetRoot()->AddProperty(wxT("SWTLW"), "Yes");
+    }
+
     SaveXmlFile();
     // create an empty build matrix
     DoUpdateBuildMatrix();
     return true;
 }
 
-wxString Workspace::GetStringProperty(const wxString& propName, wxString& errMsg)
+wxString clCxxWorkspace::GetStringProperty(const wxString& propName, wxString& errMsg)
 {
     if(!m_doc.IsOk()) {
         errMsg = wxT("No workspace open");
@@ -275,7 +301,7 @@ wxString Workspace::GetStringProperty(const wxString& propName, wxString& errMsg
     return rootNode->GetPropVal(propName, wxEmptyString);
 }
 
-void Workspace::AddProjectToBuildMatrix(ProjectPtr prj)
+void clCxxWorkspace::AddProjectToBuildMatrix(ProjectPtr prj)
 {
     if(!prj) {
         wxMessageBox(_("AddProjectToBuildMatrix was called with NULL project"), _("CodeLite"), wxICON_WARNING | wxOK);
@@ -337,7 +363,7 @@ void Workspace::AddProjectToBuildMatrix(ProjectPtr prj)
     SetBuildMatrix(matrix);
 }
 
-void Workspace::RemoveProjectFromBuildMatrix(ProjectPtr prj)
+void clCxxWorkspace::RemoveProjectFromBuildMatrix(ProjectPtr prj)
 {
     BuildMatrixPtr matrix = GetBuildMatrix();
     wxString selConfName = matrix->GetSelectedConfigurationName();
@@ -366,11 +392,8 @@ void Workspace::RemoveProjectFromBuildMatrix(ProjectPtr prj)
     SetBuildMatrix(matrix);
 }
 
-bool Workspace::CreateProject(const wxString& name,
-                              const wxString& path,
-                              const wxString& type,
-                              bool addToBuildMatrix,
-                              wxString& errMsg)
+bool clCxxWorkspace::CreateProject(
+    const wxString& name, const wxString& path, const wxString& type, bool addToBuildMatrix, wxString& errMsg)
 {
     if(!m_doc.IsOk()) {
         errMsg = wxT("No workspace open");
@@ -404,7 +427,7 @@ bool Workspace::CreateProject(const wxString& name,
     return true;
 }
 
-ProjectPtr Workspace::FindProjectByName(const wxString& projName, wxString& errMsg) const
+ProjectPtr clCxxWorkspace::FindProjectByName(const wxString& projName, wxString& errMsg) const
 {
     if(!m_doc.IsOk()) {
         errMsg = wxT("No workspace open");
@@ -420,9 +443,9 @@ ProjectPtr Workspace::FindProjectByName(const wxString& projName, wxString& errM
     return iter->second;
 }
 
-void Workspace::GetProjectList(wxArrayString& list)
+void clCxxWorkspace::GetProjectList(wxArrayString& list) const
 {
-    std::map<wxString, ProjectPtr>::iterator iter = m_projects.begin();
+    std::map<wxString, ProjectPtr>::const_iterator iter = m_projects.begin();
     for(; iter != m_projects.end(); iter++) {
         wxString name;
         name = iter->first;
@@ -430,7 +453,7 @@ void Workspace::GetProjectList(wxArrayString& list)
     }
 }
 
-bool Workspace::AddProject(const wxString& path, wxString& errMsg)
+bool clCxxWorkspace::AddProject(const wxString& path, wxString& errMsg)
 {
     if(!m_doc.IsOk()) {
         errMsg = wxT("No workspace open");
@@ -484,7 +507,7 @@ bool Workspace::AddProject(const wxString& path, wxString& errMsg)
     }
 }
 
-ProjectPtr Workspace::DoAddProject(ProjectPtr proj)
+ProjectPtr clCxxWorkspace::DoAddProject(ProjectPtr proj)
 {
     if(!proj) {
         return NULL;
@@ -495,7 +518,7 @@ ProjectPtr Workspace::DoAddProject(ProjectPtr proj)
     return proj;
 }
 
-ProjectPtr Workspace::DoAddProject(const wxString& path, wxString& errMsg)
+ProjectPtr clCxxWorkspace::DoAddProject(const wxString& path, wxString& errMsg)
 {
     // Add the project
     ProjectPtr proj(new Project());
@@ -518,7 +541,7 @@ ProjectPtr Workspace::DoAddProject(const wxString& path, wxString& errMsg)
     return proj;
 }
 
-bool Workspace::RemoveProject(const wxString& name, wxString& errMsg)
+bool clCxxWorkspace::RemoveProject(const wxString& name, wxString& errMsg)
 {
     ProjectPtr proj = FindProjectByName(name, errMsg);
     if(!proj) {
@@ -589,7 +612,7 @@ bool Workspace::RemoveProject(const wxString& name, wxString& errMsg)
     return SaveXmlFile();
 }
 
-wxString Workspace::GetActiveProjectName() const
+wxString clCxxWorkspace::GetActiveProjectName() const
 {
     if(!m_doc.IsOk()) {
         return wxEmptyString;
@@ -607,7 +630,7 @@ wxString Workspace::GetActiveProjectName() const
     return wxEmptyString;
 }
 
-void Workspace::SetActiveProject(const wxString& name, bool active)
+void clCxxWorkspace::SetActiveProject(const wxString& name, bool active)
 {
     if(!m_doc.IsOk()) return;
 
@@ -624,7 +647,7 @@ void Workspace::SetActiveProject(const wxString& name, bool active)
     SaveXmlFile();
 }
 
-bool Workspace::CreateVirtualDirectory(const wxString& vdFullPath, wxString& errMsg, bool mkPath)
+bool clCxxWorkspace::CreateVirtualDirectory(const wxString& vdFullPath, wxString& errMsg, bool mkPath)
 {
     wxStringTokenizer tkz(vdFullPath, wxT(":"));
     wxString projName = tkz.GetNextToken();
@@ -643,7 +666,7 @@ bool Workspace::CreateVirtualDirectory(const wxString& vdFullPath, wxString& err
     return proj->CreateVirtualDir(fixedPath, mkPath);
 }
 
-bool Workspace::RemoveVirtualDirectory(const wxString& vdFullPath, wxString& errMsg)
+bool clCxxWorkspace::RemoveVirtualDirectory(const wxString& vdFullPath, wxString& errMsg)
 {
     wxStringTokenizer tkz(vdFullPath, wxT(":"));
     wxString projName = tkz.GetNextToken();
@@ -662,8 +685,20 @@ bool Workspace::RemoveVirtualDirectory(const wxString& vdFullPath, wxString& err
     return proj->DeleteVirtualDir(fixedPath);
 }
 
-bool Workspace::SaveXmlFile()
+bool clCxxWorkspace::SaveXmlFile()
 {
+    // We first remove the Save Workspace To Local Workspace (SWTLW) attribute
+    // and then check the current state in the Code Completion tab. Then
+    // we read new path values from the LW and set the appropiate attribute value.
+    if(m_doc.GetRoot()->GetAttribute(wxT("SWTLW")) != wxEmptyString) {
+        m_doc.GetRoot()->DeleteAttribute(wxT("SWTLW"));
+    }
+    if(LocalWorkspaceST::Get()->GetParserFlags() & LocalWorkspace::EnableSWTLW) {
+        m_doc.GetRoot()->AddProperty(wxT("SWTLW"), "Yes");
+        SyncFromLocalWorkspaceSTParserPaths();
+        SyncFromLocalWorkspaceSTParserMacros();
+    }
+
     bool ok = m_doc.Save(m_fileName.GetFullPath());
     SetWorkspaceLastModifiedTime(GetFileLastModifiedTime());
     EventNotifier::Get()->PostFileSavedEvent(m_fileName.GetFullPath());
@@ -672,7 +707,101 @@ bool Workspace::SaveXmlFile()
     return ok;
 }
 
-void Workspace::Save()
+void clCxxWorkspace::SyncToLocalWorkspaceSTParserPaths()
+{
+    wxArrayString inclduePaths;
+    wxArrayString excludePaths;
+    wxXmlNode* workspaceInclPaths = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("WorkspaceParserPaths"));
+    if(workspaceInclPaths) {
+        wxXmlNode* child = workspaceInclPaths->GetChildren();
+        while(child) {
+            if(child->GetName() == wxT("Exclude")) {
+                wxString path = child->GetPropVal(wxT("Path"), wxT(""));
+                path.Trim().Trim(false);
+                if(path.IsEmpty() == false) {
+                    excludePaths.Add(path);
+                }
+            }
+
+            else if(child->GetName() == wxT("Include")) {
+                wxString path = child->GetPropVal(wxT("Path"), wxT(""));
+                path.Trim().Trim(false);
+                if(path.IsEmpty() == false) {
+                    inclduePaths.Add(path);
+                }
+            }
+
+            child = child->GetNext();
+        }
+        LocalWorkspaceST::Get()->SetParserPaths(inclduePaths, excludePaths);
+    }
+}
+
+void clCxxWorkspace::SyncFromLocalWorkspaceSTParserPaths()
+{
+    //
+    // Here we just get the parser paths from the LocalWorkspaceST and write it into the worspace project file.
+    //
+    wxXmlNode* workspaceInclPaths = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("WorkspaceParserPaths"));
+    if(workspaceInclPaths) {
+        m_doc.GetRoot()->RemoveChild(workspaceInclPaths);
+        delete workspaceInclPaths;
+    }
+
+    //
+    // Get workspace parse paths from local workspace file.
+    //
+    wxArrayString inclduePaths;
+    wxArrayString excludePaths;
+    LocalWorkspaceST::Get()->GetParserPaths(inclduePaths, excludePaths);
+
+    workspaceInclPaths = new wxXmlNode(m_doc.GetRoot(), wxXML_ELEMENT_NODE, wxT("WorkspaceParserPaths"));
+    for(size_t i = 0; i < inclduePaths.GetCount(); i++) {
+        wxXmlNode* child = new wxXmlNode(workspaceInclPaths, wxXML_ELEMENT_NODE, wxT("Include"));
+        child->AddProperty(wxT("Path"), inclduePaths.Item(i));
+    }
+
+    for(size_t i = 0; i < excludePaths.GetCount(); i++) {
+        wxXmlNode* child = new wxXmlNode(workspaceInclPaths, wxXML_ELEMENT_NODE, wxT("Exclude"));
+        child->AddProperty(wxT("Path"), excludePaths.Item(i));
+    }
+}
+
+void clCxxWorkspace::SyncToLocalWorkspaceSTParserMacros()
+{
+    wxString macros;
+    wxXmlNode* workspaceMacros = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("WorkspaceParserMacros"));
+    if(workspaceMacros) {
+        macros = workspaceMacros->GetNodeContent();
+        macros.Trim().Trim(false);
+        LocalWorkspaceST::Get()->SetParserMacros(macros);
+    }
+}
+
+void clCxxWorkspace::SyncFromLocalWorkspaceSTParserMacros()
+{
+    //
+    // Here we just get the parser macros from the LocalWorkspaceST and write it into the worspace project file.
+    //
+    wxXmlNode* workspaceMacros = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("WorkspaceParserMacros"));
+    if(workspaceMacros) {
+        m_doc.GetRoot()->RemoveChild(workspaceMacros);
+        delete workspaceMacros;
+    }
+
+    //
+    // Get workspace parse macros from local workspace file.
+    //
+    wxString macros;
+    LocalWorkspaceST::Get()->GetParserMacros(macros);
+    workspaceMacros = new wxXmlNode(m_doc.GetRoot(), wxXML_ELEMENT_NODE, wxT("WorkspaceParserMacros"));
+    if(!macros.IsEmpty()) {
+        wxXmlNode* contentNode = new wxXmlNode(wxXML_CDATA_SECTION_NODE, wxEmptyString, macros);
+        workspaceMacros->AddChild(contentNode);
+    }
+}
+
+void clCxxWorkspace::Save()
 {
     if(m_doc.IsOk()) {
         std::map<wxString, ProjectPtr>::iterator iter = m_projects.begin();
@@ -683,7 +812,7 @@ void Workspace::Save()
     }
 }
 
-bool Workspace::AddNewFile(const wxString& vdFullPath, const wxString& fileName, wxString& errMsg)
+bool clCxxWorkspace::AddNewFile(const wxString& vdFullPath, const wxString& fileName, wxString& errMsg)
 {
     wxStringTokenizer tkz(vdFullPath, wxT(":"));
 
@@ -711,7 +840,7 @@ bool Workspace::AddNewFile(const wxString& vdFullPath, const wxString& fileName,
     return proj->AddFile(fileName, fixedPath);
 }
 
-bool Workspace::RemoveFile(const wxString& vdFullPath, const wxString& fileName, wxString& errMsg)
+bool clCxxWorkspace::RemoveFile(const wxString& vdFullPath, const wxString& fileName, wxString& errMsg)
 {
     wxStringTokenizer tkz(vdFullPath, wxT(":"));
     wxString projName = tkz.GetNextToken();
@@ -743,7 +872,7 @@ bool Workspace::RemoveFile(const wxString& vdFullPath, const wxString& fileName,
     return result;
 }
 
-BuildConfigPtr Workspace::GetProjBuildConf(const wxString& projectName, const wxString& confName) const
+BuildConfigPtr clCxxWorkspace::GetProjBuildConf(const wxString& projectName, const wxString& confName) const
 {
     BuildMatrixPtr matrix = GetBuildMatrix();
     if(!matrix) {
@@ -769,7 +898,7 @@ BuildConfigPtr Workspace::GetProjBuildConf(const wxString& projectName, const wx
     return NULL;
 }
 
-void Workspace::ReloadWorkspace()
+void clCxxWorkspace::ReloadWorkspace()
 {
     m_doc = wxXmlDocument();
 
@@ -786,11 +915,11 @@ void Workspace::ReloadWorkspace()
     }
 }
 
-time_t Workspace::GetFileLastModifiedTime() const { return GetFileModificationTime(GetWorkspaceFileName()); }
+time_t clCxxWorkspace::GetFileLastModifiedTime() const { return GetFileModificationTime(GetWorkspaceFileName()); }
 
 // Singelton access
-static Workspace* gs_Workspace = NULL;
-void WorkspaceST::Free()
+static clCxxWorkspace* gs_Workspace = NULL;
+void clCxxWorkspaceST::Free()
 {
     if(gs_Workspace) {
         delete gs_Workspace;
@@ -798,15 +927,37 @@ void WorkspaceST::Free()
     gs_Workspace = NULL;
 }
 
-Workspace* WorkspaceST::Get()
+clCxxWorkspace* clCxxWorkspaceST::Get()
 {
-    if(gs_Workspace == NULL) gs_Workspace = new Workspace;
+    if(gs_Workspace == NULL) gs_Workspace = new clCxxWorkspace;
     return gs_Workspace;
 }
 
-wxString Workspace::GetEnvironmentVariabels()
+wxString clCxxWorkspace::GetParserMacros()
 {
     if(!m_doc.IsOk()) return wxEmptyString;
+
+    wxXmlNode* node = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("WorkspaceParserMacros"));
+    if(node) {
+        wxString nodeContent = node->GetNodeContent();
+        nodeContent.Trim().Trim(false);
+        return nodeContent;
+    }
+    return wxEmptyString;
+}
+
+wxString clCxxWorkspace::GetEnvironmentVariabels()
+{
+    if(!m_doc.IsOk()) return wxEmptyString;
+
+    // Use the environment variables set in the build matrix ("workspace configuration")
+    wxString env;
+    if(GetSelectedConfig()) {
+        env = GetSelectedConfig()->GetEnvironmentVariables();
+        if(!env.IsEmpty()) {
+            return env;
+        }
+    }
 
     wxXmlNode* node = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("Environment"));
     if(node) {
@@ -817,9 +968,15 @@ wxString Workspace::GetEnvironmentVariabels()
     return wxEmptyString;
 }
 
-void Workspace::SetEnvironmentVariabels(const wxString& envvars)
+void clCxxWorkspace::SetEnvironmentVariabels(const wxString& envvars)
 {
     if(!m_doc.IsOk()) return;
+    if(GetSelectedConfig()) {
+        GetSelectedConfig()->SetEnvironmentVariables(envvars);
+        SetBuildMatrix(GetBuildMatrix()); // force an XML update
+        SaveXmlFile();
+        return;
+    }
 
     wxXmlNode* node = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), wxT("Environment"));
     if(node) {
@@ -838,7 +995,7 @@ void Workspace::SetEnvironmentVariabels(const wxString& envvars)
     SaveXmlFile();
 }
 
-wxArrayString Workspace::GetAllProjectPaths()
+wxArrayString clCxxWorkspace::GetAllProjectPaths()
 {
     wxArrayString projects;
     std::map<wxString, ProjectPtr>::iterator iter = m_projects.begin();
@@ -848,9 +1005,9 @@ wxArrayString Workspace::GetAllProjectPaths()
     return projects;
 }
 
-bool Workspace::IsOpen() const { return m_doc.IsOk(); }
+bool clCxxWorkspace::IsOpen() const { return m_doc.IsOk(); }
 
-bool Workspace::IsVirtualDirectoryExists(const wxString& vdFullPath)
+bool clCxxWorkspace::IsVirtualDirectoryExists(const wxString& vdFullPath)
 {
     wxStringTokenizer tkz(vdFullPath, wxT(":"));
     wxString projName = tkz.GetNextToken();
@@ -875,7 +1032,7 @@ bool Workspace::IsVirtualDirectoryExists(const wxString& vdFullPath)
     return vdNode != NULL;
 }
 
-wxString Workspace::GetPrivateFolder() const
+wxString clCxxWorkspace::GetPrivateFolder() const
 {
     wxFileName workspacePath;
     if(IsOpen()) {
@@ -892,16 +1049,16 @@ wxString Workspace::GetPrivateFolder() const
     if(workspacePath.Exists()) {
         // append the .codelite folder
         workspacePath.AppendDir(".codelite");
-        
+
         // ensure the path exists
         workspacePath.Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-        
+
         return workspacePath.GetPath();
     }
     return "";
 }
 
-wxFileName Workspace::GetTagsFileName() const
+wxFileName clCxxWorkspace::GetTagsFileName() const
 {
     if(!IsOpen()) {
         return wxFileName();
@@ -912,13 +1069,13 @@ wxFileName Workspace::GetTagsFileName() const
     return fn_tags;
 }
 
-void Workspace::CreateCompileCommandsJSON(JSONElement& compile_commands) const
+void clCxxWorkspace::CreateCompileCommandsJSON(JSONElement& compile_commands) const
 {
-    BuildMatrixPtr matrix = WorkspaceST::Get()->GetBuildMatrix();
+    BuildMatrixPtr matrix = clCxxWorkspaceST::Get()->GetBuildMatrix();
     if(!matrix) return;
 
     wxString workspaceSelConf = matrix->GetSelectedConfigurationName();
-    Workspace::ProjectMap_t::const_iterator iter = m_projects.begin();
+    clCxxWorkspace::ProjectMap_t::const_iterator iter = m_projects.begin();
 
     for(; iter != m_projects.end(); ++iter) {
         BuildConfigPtr buildConf = iter->second->GetBuildConfiguration();
@@ -929,39 +1086,39 @@ void Workspace::CreateCompileCommandsJSON(JSONElement& compile_commands) const
     }
 }
 
-ProjectPtr Workspace::GetActiveProject() const { return GetProject(GetActiveProjectName()); }
+ProjectPtr clCxxWorkspace::GetActiveProject() const { return GetProject(GetActiveProjectName()); }
 
-ProjectPtr Workspace::GetProject(const wxString& name) const
+ProjectPtr clCxxWorkspace::GetProject(const wxString& name) const
 {
-    Workspace::ProjectMap_t::const_iterator iter = m_projects.find(name);
+    clCxxWorkspace::ProjectMap_t::const_iterator iter = m_projects.find(name);
     if(iter == m_projects.end()) {
         return NULL;
     }
     return iter->second;
 }
 
-void Workspace::GetCompilers(wxStringSet_t& compilers)
+void clCxxWorkspace::GetCompilers(wxStringSet_t& compilers)
 {
-    Workspace::ProjectMap_t::iterator iter = m_projects.begin();
+    clCxxWorkspace::ProjectMap_t::iterator iter = m_projects.begin();
     for(; iter != m_projects.end(); ++iter) {
         iter->second->GetCompilers(compilers);
     }
 }
 
-void Workspace::ReplaceCompilers(wxStringMap_t& compilers)
+void clCxxWorkspace::ReplaceCompilers(wxStringMap_t& compilers)
 {
-    Workspace::ProjectMap_t::iterator iter = m_projects.begin();
+    clCxxWorkspace::ProjectMap_t::iterator iter = m_projects.begin();
     for(; iter != m_projects.end(); ++iter) {
         iter->second->ReplaceCompilers(compilers);
     }
 }
 
-void Workspace::DoUpdateBuildMatrix()
+void clCxxWorkspace::DoUpdateBuildMatrix()
 {
     m_buildMatrix.Reset(new BuildMatrix(XmlUtils::FindFirstByTagName(m_doc.GetRoot(), "BuildMatrix")));
 }
 
-void Workspace::RenameProject(const wxString& oldname, const wxString& newname)
+void clCxxWorkspace::RenameProject(const wxString& oldname, const wxString& newname)
 {
     // Update the build matrix (we work on the XML directly here)
     wxXmlNode* buildMatrixNode = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), "BuildMatrix");
@@ -983,7 +1140,7 @@ void Workspace::RenameProject(const wxString& oldname, const wxString& newname)
             child = child->GetNext();
         }
     }
-    
+
     // Update the list of projects in the workspace
     wxXmlNode* projectNode = XmlUtils::FindFirstByTagName(m_doc.GetRoot(), "Project");
     while(projectNode) {
@@ -993,24 +1150,82 @@ void Workspace::RenameProject(const wxString& oldname, const wxString& newname)
         projectNode = projectNode->GetNext();
     }
     // Update dependenices for each project
-    Workspace::ProjectMap_t::iterator iter = m_projects.begin();
+    clCxxWorkspace::ProjectMap_t::iterator iter = m_projects.begin();
     for(; iter != m_projects.end(); ++iter) {
         iter->second->ProjectRenamed(oldname, newname);
     }
-    
-    Workspace::ProjectMap_t tmpProjects;
+
+    clCxxWorkspace::ProjectMap_t tmpProjects;
     iter = m_projects.begin();
     for(; iter != m_projects.end(); ++iter) {
         tmpProjects.insert(std::make_pair(iter->first, iter->second));
     }
     m_projects.swap(tmpProjects);
-    
+
     // Save everything
     Save();
-    
+
     // Notify about this change
     clCommandEvent event(wxEVT_PROJ_RENAMED);
     event.SetOldName(oldname);
     event.SetString(newname);
     EventNotifier::Get()->AddPendingEvent(event);
+}
+
+bool clCxxWorkspace::IsBuildSupported() const { return true; }
+bool clCxxWorkspace::IsProjectSupported() const { return true; }
+
+wxString clCxxWorkspace::GetFilesMask() const
+{
+    wxString findInFilesMask = "*.c;*.cpp;*.cxx;*.cc;*.h;*.hpp;*.inc;*.mm;*.m;*.xrc;*.ini;*.xml";
+    if(IsOpen()) {
+        wxString fifMask;
+        LocalWorkspaceST::Get()->GetSearchInFilesMask(fifMask, findInFilesMask);
+        if(fifMask.IsEmpty()) {
+            fifMask = findInFilesMask;
+        }
+    }
+    return findInFilesMask;
+}
+wxString clCxxWorkspace::GetProjectFromFile(const wxFileName& filename) const
+{
+    wxString filenameFP = filename.GetFullPath();
+    clCxxWorkspace::ProjectMap_t::const_iterator iter = m_projects.begin();
+    for(; iter != m_projects.end(); ++iter) {
+        wxStringSet_t allFiles;
+        iter->second->GetFiles(allFiles);
+        if(allFiles.count(filenameFP)) {
+            return iter->first;
+        }
+    }
+    return "";
+}
+void clCxxWorkspace::GetProjectFiles(const wxString& projectName, wxArrayString& files) const
+{
+    ProjectPtr p = GetProject(projectName.IsEmpty() ? GetActiveProjectName() : projectName);
+    CHECK_PTR_RET(p);
+
+    wxStringSet_t setFiles;
+    p->GetFiles(setFiles);
+
+    // Convert the set wxArrayString
+    std::for_each(setFiles.begin(), setFiles.end(), [&](const wxString& file) { files.Add(file); });
+}
+
+void clCxxWorkspace::GetWorkspaceFiles(wxArrayString& files) const
+{
+    std::for_each(m_projects.begin(), m_projects.end(), [&](const clCxxWorkspace::ProjectMap_t::value_type& v) {
+        wxStringSet_t setFiles;
+        v.second->GetFiles(setFiles);
+
+        // Convert the set wxArrayString
+        std::for_each(setFiles.begin(), setFiles.end(), [&](const wxString& file) { files.Add(file); });
+    });
+}
+
+WorkspaceConfigurationPtr clCxxWorkspace::GetSelectedConfig() const
+{
+    if(!GetBuildMatrix()) return NULL;
+    wxString buildConf = GetBuildMatrix()->GetSelectedConfigurationName();
+    return GetBuildMatrix()->GetConfigurationByName(buildConf);
 }

@@ -1,8 +1,34 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php_file_layout_tree.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPFILELAYOUTTREE_H
 #define PHPFILELAYOUTTREE_H
 
 #include "precompiled_header.h"
 #include "PHPEntityBase.h"
+#include "clTreeKeyboardInput.h"
 
 class IEditor;
 class IManager;
@@ -25,6 +51,7 @@ class PHPFileLayoutTree : public wxTreeCtrl
 protected:
     IEditor* m_editor;
     IManager* m_manager;
+    clTreeKeyboardInput::Ptr_t m_keyboard;
 
 protected:
     void BuildTree(wxTreeItemId parentTreeItem, PHPEntityBase::Ptr_t entity);

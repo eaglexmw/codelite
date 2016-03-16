@@ -36,6 +36,8 @@
 #include "macros.h"
 
 #include "wx_xml_compatibility.h"
+#include "codelite_events.h"
+#include "event_notifier.h"
 
 //-----------------------------------------------------------------------------
 
@@ -304,19 +306,31 @@ bool LocalWorkspace::SetProjectOptions(LocalOptionsConfigPtr opts, const wxStrin
     return SaveXmlFile();
 }
 
-bool LocalWorkspace::SaveXmlFile() { return ::SaveXmlToFile(&m_doc, m_fileName.GetFullPath()); }
+bool LocalWorkspace::SaveXmlFile()
+{
+    wxCommandEvent evt(wxEVT_EDITOR_CONFIG_CHANGED);
+    EventNotifier::Get()->AddPendingEvent(evt);
+    return ::SaveXmlToFile(&m_doc, m_fileName.GetFullPath());
+}
 
 bool LocalWorkspace::SanityCheck()
 {
     wxLogNull noLog;
-    wxString WorkspaceFullPath = WorkspaceST::Get()->GetWorkspaceFileName().GetFullPath();
-    if(WorkspaceFullPath.IsEmpty()) {
-        return false;
-    }
+    if(!clCxxWorkspaceST::Get()->IsOpen()) return false;
+
+    wxFileName workspaceFile(clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetFullPath());
+
+    workspaceFile.AppendDir(".codelite");
+    wxFileName localWspFile(m_fileName);
+    localWspFile.SetExt("");
 
     // Check that the current workspace is the same as any previous Create()
     // If so, and assuming m_doc is valid, there's nothing more to do
-    if((WorkspaceFullPath == m_fileName.GetFullPath().BeforeLast(wxT('.'))) && m_doc.IsOk()) {
+    wxString localFile, globalFile;
+    localFile = localWspFile.GetFullPath();
+    globalFile = workspaceFile.GetFullPath();
+    
+    if((localFile == globalFile) && m_doc.IsOk()) {
         return true;
     }
 
@@ -528,8 +542,9 @@ void LocalWorkspace::SetCustomData(const wxString& name, const wxString& value)
 
 wxFileName LocalWorkspace::DoGetFilePath() const
 {
-    wxFileName localWorkspaceFile(WorkspaceST::Get()->GetPrivateFolder(),
-                                  WorkspaceST::Get()->GetWorkspaceFileName().GetFullName() + "." + ::clGetUserName());
+    wxFileName localWorkspaceFile(clCxxWorkspaceST::Get()->GetPrivateFolder(),
+                                  clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetFullName() + "." +
+                                      ::clGetUserName());
     return localWorkspaceFile;
 }
 

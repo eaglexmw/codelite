@@ -20,8 +20,18 @@ if ( (LIBHUNSPELL STREQUAL "LIBHUNSPELL-NOTFOUND" OR HUNSPELL_H STREQUAL "HUNSPE
     message("    ** NOTICE ** Try installing libhunspell-dev package")
     message("    **")
 else ()
+    
+    if (UNIX AND NOT APPLE)
+        set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+        set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+    endif()
+
+    if ( APPLE )
+        add_definitions(-fPIC)
+    endif()
+
     if ( APPLE) 
-        set(LIBHUNSPELL ${CL_SRC_ROOT}/sdk/hunspell/lib/osx/libhunspell-1.3.dylib)
+        set(LIBHUNSPELL ${CL_SRC_ROOT}/sdk/hunspell/lib/osx/libhunspell-1.3.0.dylib)
         set(HUNSPELL_H ${CL_SRC_ROOT}/sdk/hunspell/include/)
     endif()
     
@@ -57,28 +67,45 @@ else ()
         add_definitions(-Winvalid-pch)
     endif ( USE_PCH )
 
-    # Add RPATH
-    set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
-
     FILE(GLOB SRCS "*.cpp")
 
     # Define the output
     add_library(${PLUGIN_NAME} SHARED ${SRCS})
 
-    # Remove the "lib" prefix from the plugin name
+    # Codelite plugins doesn't use the "lib" prefix.
     set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
-    target_link_libraries(${PLUGIN_NAME} ${LIBHUNSPELL})
-    target_link_libraries(${PLUGIN_NAME} ${LINKER_OPTIONS} ${wxWidgets_LIBRARIES} -L"${CL_LIBPATH}" -lwxsqlite3 -lsqlite3lib -llibcodelite -lplugin)
+    target_link_libraries(${PLUGIN_NAME}
+                          ${LINKER_OPTIONS}
+                          ${wxWidgets_LIBRARIES}
+                          ${LIBHUNSPELL}
+                          libcodelite
+                          plugin
+                          )
 
-    # Make sure that the plugin will not start build before 'plugin.so' is ready
-    add_dependencies(${PLUGIN_NAME} plugin)
-
-    install(TARGETS ${PLUGIN_NAME} DESTINATION ${PLUGINS_DIR})
-    install(
-      DIRECTORY ${CL_SRC_ROOT}/SpellChecker/dics
-      DESTINATION ${CL_PREFIX}/share/codelite
-      USE_SOURCE_PERMISSIONS
-      PATTERN ".svn" EXCLUDE
-      PATTERN ".git" EXCLUDE
-    )
+    # Installation destination
+    CL_INSTALL_PLUGIN(${PLUGIN_NAME})
+    
+    if(APPLE)
+        install(
+          DIRECTORY ${CL_SRC_ROOT}/SpellChecker/dics
+          DESTINATION ${CMAKE_BINARY_DIR}/codelite.app/Contents/SharedSupport/dics
+          USE_SOURCE_PERMISSIONS
+          PATTERN ".svn" EXCLUDE
+          PATTERN ".git" EXCLUDE
+        )
+        
+        # Install Hunspell library
+        install(
+          FILES ${LIBHUNSPELL}
+          DESTINATION ${CMAKE_BINARY_DIR}/codelite.app/Contents/MacOS/
+        )
+    else()
+        install(
+          DIRECTORY ${CL_SRC_ROOT}/SpellChecker/dics
+          DESTINATION ${CL_PREFIX}/share/codelite
+          USE_SOURCE_PERMISSIONS
+          PATTERN ".svn" EXCLUDE
+          PATTERN ".git" EXCLUDE
+        )
+    endif()
 endif() 

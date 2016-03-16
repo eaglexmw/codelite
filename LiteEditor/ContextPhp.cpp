@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : context_html.cpp
 //
 // -------------------------------------------------------------------------
@@ -29,7 +29,7 @@
 #include "cl_editor_tip_window.h"
 
 ContextPhp::ContextPhp(LEditor* editor)
-    : ContextBase(editor)
+    : ContextGeneric(editor, "php")
 {
     editor->SetWordChars(wxT("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"));
     m_completionTriggerStrings.insert("\\");
@@ -39,7 +39,7 @@ ContextPhp::ContextPhp(LEditor* editor)
 }
 
 ContextPhp::ContextPhp()
-    : ContextBase(wxT("php"))
+    : ContextGeneric(wxT("php"))
 {
 }
 
@@ -72,15 +72,30 @@ void ContextPhp::ApplySettings()
 void ContextPhp::AutoIndent(const wxChar& nChar)
 {
     LEditor& rCtrl = GetCtrl();
+    int curpos = rCtrl.GetCurrentPos();
 
     if(rCtrl.GetDisableSmartIndent()) {
         return;
     }
     if(rCtrl.GetLineIndentation(rCtrl.GetCurrentLine()) && nChar == wxT('\n')) {
+        int prevpos(wxNOT_FOUND);
+        int foundPos(wxNOT_FOUND);
+
+        wxString word;
+        wxChar ch = rCtrl.PreviousChar(curpos, prevpos);
+        wxUnusedVar(ch);
+        word = rCtrl.PreviousWord(curpos, foundPos);
+
+        // user hit ENTER after 'else'?
+        if(word == wxT("else")) {
+            int prevLine = rCtrl.LineFromPosition(prevpos);
+            rCtrl.SetLineIndentation(rCtrl.GetCurrentLine(), rCtrl.GetIndent() + rCtrl.GetLineIndentation(prevLine));
+            rCtrl.SetCaretAt(rCtrl.GetLineIndentPosition(rCtrl.GetCurrentLine()));
+            rCtrl.ChooseCaretX(); // set new column as "current" column
+        }
         return;
     }
 
-    int curpos = rCtrl.GetCurrentPos();
     if(IsCommentOrString(curpos) && nChar == wxT('\n')) {
         AutoAddComment();
         return;
@@ -218,12 +233,12 @@ bool ContextPhp::IsCommentOrString(long pos)
 {
     int style = GetCtrl().GetStyleAt(pos);
     return IsComment(pos) || style == wxSTC_H_DOUBLESTRING || style == wxSTC_H_SINGLESTRING ||
-           style == wxSTC_H_SGML_DOUBLESTRING || style == wxSTC_H_SGML_SIMPLESTRING || style == wxSTC_HJ_DOUBLESTRING ||
-           style == wxSTC_HJ_SINGLESTRING || style == wxSTC_HJ_STRINGEOL || style == wxSTC_HJA_DOUBLESTRING ||
-           style == wxSTC_HJA_SINGLESTRING || style == wxSTC_HJA_STRINGEOL || style == wxSTC_HB_STRING ||
-           style == wxSTC_HBA_STRING || style == wxSTC_HBA_STRINGEOL || style == wxSTC_HP_STRING ||
-           style == wxSTC_HPA_STRING || style == wxSTC_HPA_CHARACTER || style == wxSTC_HPHP_HSTRING ||
-           style == wxSTC_HPHP_SIMPLESTRING;
+        style == wxSTC_H_SGML_DOUBLESTRING || style == wxSTC_H_SGML_SIMPLESTRING || style == wxSTC_HJ_DOUBLESTRING ||
+        style == wxSTC_HJ_SINGLESTRING || style == wxSTC_HJ_STRINGEOL || style == wxSTC_HJA_DOUBLESTRING ||
+        style == wxSTC_HJA_SINGLESTRING || style == wxSTC_HJA_STRINGEOL || style == wxSTC_HB_STRING ||
+        style == wxSTC_HBA_STRING || style == wxSTC_HBA_STRINGEOL || style == wxSTC_HP_STRING ||
+        style == wxSTC_HPA_STRING || style == wxSTC_HPA_CHARACTER || style == wxSTC_HPHP_HSTRING ||
+        style == wxSTC_HPHP_SIMPLESTRING;
 }
 
 bool ContextPhp::IsDefaultContext() const { return false; }
@@ -295,10 +310,10 @@ bool ContextPhp::IsComment(long pos)
 {
     int style = GetCtrl().GetStyleAt(pos);
     return style == wxSTC_H_COMMENT || style == wxSTC_H_XCCOMMENT || style == wxSTC_H_SGML_COMMENT ||
-           style == wxSTC_HJ_COMMENT || style == wxSTC_HJ_COMMENTLINE || style == wxSTC_HJ_COMMENTDOC ||
-           style == wxSTC_HJA_COMMENT || style == wxSTC_HJA_COMMENTLINE || style == wxSTC_HJA_COMMENTDOC ||
-           style == wxSTC_HB_COMMENTLINE || style == wxSTC_HBA_COMMENTLINE || style == wxSTC_HP_COMMENTLINE ||
-           style == wxSTC_HPA_COMMENTLINE || style == wxSTC_HPHP_COMMENT || style == wxSTC_HPHP_COMMENTLINE;
+        style == wxSTC_HJ_COMMENT || style == wxSTC_HJ_COMMENTLINE || style == wxSTC_HJ_COMMENTDOC ||
+        style == wxSTC_HJA_COMMENT || style == wxSTC_HJA_COMMENTLINE || style == wxSTC_HJA_COMMENTDOC ||
+        style == wxSTC_HB_COMMENTLINE || style == wxSTC_HBA_COMMENTLINE || style == wxSTC_HP_COMMENTLINE ||
+        style == wxSTC_HPA_COMMENTLINE || style == wxSTC_HPHP_COMMENT || style == wxSTC_HPHP_COMMENTLINE;
 }
 
 #define IS_BETWEEN(style, x, y) (style >= x && style <= y)
@@ -317,7 +332,7 @@ int ContextPhp::GetActiveKeywordSet() const
     else if(IS_BETWEEN(style, wxSTC_HPHP_DEFAULT, wxSTC_HPHP_OPERATOR) || style == wxSTC_HPHP_COMPLEX_VARIABLE)
         return 4;
     else if(IS_BETWEEN(style, wxSTC_HP_START, wxSTC_HP_IDENTIFIER) ||
-            IS_BETWEEN(style, wxSTC_HPA_START, wxSTC_HPA_IDENTIFIER))
+        IS_BETWEEN(style, wxSTC_HPA_START, wxSTC_HPA_IDENTIFIER))
         return 3;
     return wxNOT_FOUND;
 }
@@ -335,3 +350,22 @@ bool ContextPhp::IsAtLineComment() const
     int cur_style = GetCtrl().GetStyleAt(curpos);
     return cur_style == wxSTC_HPHP_COMMENTLINE;
 }
+
+bool ContextPhp::IsStringTriggerCodeComplete(const wxString& str) const
+{
+    int curpos = GetCtrl().GetCurrentPos();
+    // curpos = GetCtrl().PositionBefore(curpos);
+    int style = GetCtrl().GetStyleAt(curpos);
+    if(IS_BETWEEN(style, wxSTC_HJ_START, wxSTC_HJA_REGEX)) {
+        // When in JS section, trigger CC if str is a dot
+        return str == ".";
+
+    } else if(IS_BETWEEN(style, wxSTC_H_DEFAULT, wxSTC_H_ENTITY)) {
+        return str == "</" || str == "<";
+
+    } else {
+        return (m_completionTriggerStrings.count(str) > 0);
+    }
+}
+
+void ContextPhp::ProcessIdleActions() { ContextGeneric::ProcessIdleActions(); }

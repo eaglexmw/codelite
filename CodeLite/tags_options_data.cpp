@@ -34,7 +34,7 @@
 wxString TagsOptionsData::CLANG_CACHE_LAZY = "Lazy";
 wxString TagsOptionsData::CLANG_CACHE_ON_FILE_LOAD = "On File Load";
 
-size_t TagsOptionsData::CURRENT_VERSION = 105;
+size_t TagsOptionsData::CURRENT_VERSION = 7100;
 
 static bool _IsValidCppIndetifier(const wxString& id)
 {
@@ -83,13 +83,14 @@ TagsOptionsData::TagsOptionsData()
     , m_clangOptions(0)
     , m_clangBinary(wxT(""))
     , m_clangCachePolicy(TagsOptionsData::CLANG_CACHE_ON_FILE_LOAD)
-    , m_ccNumberOfDisplayItems(MAX_SEARCH_LIMIT)
+    , m_ccNumberOfDisplayItems(500)
     , m_version(0)
 {
     // Initialize defaults
     m_languages.Add(wxT("C++"));
     m_tokens.Add(wxT("EXPORT"));
     m_tokens.Add(wxT("_GLIBCXX_NOEXCEPT"));
+    m_tokens.Add(wxT("_NOEXCEPT"));
     m_tokens.Add(wxT("WXDLLIMPEXP_CORE"));
     m_tokens.Add(wxT("WXDLLIMPEXP_BASE"));
     m_tokens.Add(wxT("WXDLLIMPEXP_XML"));
@@ -121,7 +122,7 @@ TagsOptionsData::TagsOptionsData()
     m_tokens.Add(wxT("WINAPI"));
     m_tokens.Add(wxT("__nonnull"));
     m_tokens.Add(wxT("noexcept"));
-
+    m_tokens.Add("final"); // ignore "final" keyword
 #if defined(__WXGTK__)
     m_tokens.Add(wxT("wxTopLevelWindowNative=wxTopLevelWindowGTK"));
     m_tokens.Add(wxT("wxWindow=wxWindowGTK"));
@@ -161,6 +162,7 @@ TagsOptionsData::TagsOptionsData()
     m_tokens.Add(wxT("_GLIBCXX_END_NAMESPACE=}"));
     m_tokens.Add(wxT("_GLIBCXX_BEGIN_NESTED_NAMESPACE(%0, %1)=namespace %0{"));
     m_tokens.Add(wxT("wxDECLARE_EXPORTED_EVENT(%0,%1,%2)=int %1;"));
+    m_tokens.Add(wxT("wxDECLARE_EVENT(%0,%1)=int %0;"));
     m_tokens.Add(wxT("BOOST_FOREACH(%0, %1)=%0;"));
     m_tokens.Add(wxT("DECLARE_EVENT_TYPE(%0,%1)=int %0;"));
     m_tokens.Add(wxT("_GLIBCXX_END_NESTED_NAMESPACE=}"));
@@ -177,7 +179,6 @@ TagsOptionsData::TagsOptionsData()
     m_tokens.Add(wxT("_STD_END=}"));
     m_tokens.Add(wxT("__CLRCALL_OR_CDECL"));
     m_tokens.Add(wxT("_CRTIMP2_PURE"));
-    ;
     m_tokens.Add(wxT("_GLIBCXX_CONST"));
     m_tokens.Add(wxT("_GLIBCXX_CONSTEXPR"));
     m_tokens.Add(wxT("_GLIBCXX_NORETURN"));
@@ -187,6 +188,13 @@ TagsOptionsData::TagsOptionsData()
     m_tokens.Add(wxT("_GLIBCXX_DEPRECATED"));
     m_tokens.Add("LLDB_API");
     m_tokens.Add("PYTHON_API");
+    // libcpp macros
+    m_tokens.Add("_LIBCPP_TYPE_VIS_ONLY");
+    m_tokens.Add("_LIBCPP_CONSTEXPR");
+    m_tokens.Add("_LIBCPP_CONSTEXPR_AFTER_CXX11");
+    m_tokens.Add("_LIBCPP_INLINE_VISIBILITY");
+    m_tokens.Add("_LIBCPP_BEGIN_NAMESPACE_STD=namespace std{");
+    m_tokens.Add("_LIBCPP_END_NAMESPACE_STD=}");
 
     m_types.Add(wxT("std::vector::reference=_Tp"));
     m_types.Add(wxT("std::vector::const_reference=_Tp"));
@@ -381,7 +389,7 @@ void TagsOptionsData::FromJSON(const JSONElement& json)
     m_clangSearchPaths = json.namedObject(wxT("m_clangSearchPaths")).toArrayString();
     m_clangMacros = json.namedObject(wxT("m_clangMacros")).toString();
     m_clangCachePolicy = json.namedObject(wxT("m_clangCachePolicy")).toString();
-    m_ccNumberOfDisplayItems = json.namedObject(wxT("m_ccNumberOfDisplayItems")).toSize_t();
+    m_ccNumberOfDisplayItems = json.namedObject(wxT("m_ccNumberOfDisplayItems")).toSize_t(m_ccNumberOfDisplayItems);
 
     if(!m_fileSpec.Contains("*.hxx")) {
         m_fileSpec = "*.cpp;*.cc;*.cxx;*.h;*.hpp;*.c;*.c++;*.tcc;*.hxx;*.h++";
@@ -421,8 +429,7 @@ JSONElement TagsOptionsData::ToJSON() const
 wxString TagsOptionsData::DoJoinArray(const wxArrayString& arr) const
 {
     wxString s;
-    for(size_t i = 0; i < arr.GetCount(); ++i)
-        s << arr.Item(i) << "\n";
+    for(size_t i = 0; i < arr.GetCount(); ++i) s << arr.Item(i) << "\n";
 
     if(s.IsEmpty() == false) s.RemoveLast();
 
@@ -438,6 +445,7 @@ void TagsOptionsData::Merge(const TagsOptionsData& tod)
     DoUpdateTokensWxMap();
     if(m_version != TagsOptionsData::CURRENT_VERSION) {
         m_ccFlags |= CC_WORD_ASSIST;
+        m_ccNumberOfDisplayItems = tod.m_ccNumberOfDisplayItems;
     }
     m_version = TagsOptionsData::CURRENT_VERSION;
 }

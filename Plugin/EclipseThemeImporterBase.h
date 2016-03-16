@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : EclipseThemeImporterBase.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef ECLIPSETHEMEIMPORTERBASE_H
 #define ECLIPSETHEMEIMPORTERBASE_H
 
@@ -8,6 +33,8 @@
 #include <list>
 #include "smart_ptr.h"
 #include "macros.h"
+#include "lexer_configuration.h"
+#include "json_node.h"
 
 class WXDLLIMPEXP_SDK EclipseThemeImporterBase
 {
@@ -22,7 +49,6 @@ public:
 
 protected:
     wxXmlDocument m_doc;
-    wxXmlDocument m_codeliteDoc;
 
     wxString m_keywords0;
     wxString m_keywords1;
@@ -48,7 +74,7 @@ protected:
     wxString m_langName;
 
 protected:
-    void AddProperty(wxXmlNode* properties,
+    void AddProperty(LexerConf::Ptr_t lexer,
                      const wxString& id,
                      const wxString& name,
                      const wxString& colour,
@@ -57,7 +83,7 @@ protected:
                      bool italic = false,
                      bool isEOLFilled = false);
 
-    void AddProperty(wxXmlNode* properties,
+    void AddProperty(LexerConf::Ptr_t lexer,
                      int id,
                      const wxString& name,
                      const wxString& colour,
@@ -66,23 +92,26 @@ protected:
                      bool italic = false,
                      bool isEOLFilled = false)
     {
-        AddProperty(properties, wxString::Format("%d", id), name, colour, bgColour, bold, italic, isEOLFilled);
+        AddProperty(lexer, wxString::Format("%d", id), name, colour, bgColour, bold, italic, isEOLFilled);
     }
 
-    void AddBaseProperties(wxXmlNode* node, const wxString& lang, const wxString& id);
+    void AddBaseProperties(LexerConf::Ptr_t lexer, const wxString& lang, const wxString& id);
 
-    void AddCommonProperties(wxXmlNode* propertiesNode);
+    void AddCommonProperties(LexerConf::Ptr_t lexer);
+    void DoSetKeywords(wxString& wordset, const wxString& words);
 
 public:
     const wxString& GetLangName() const { return m_langName; }
+    void SetLangName(const wxString& langName) { this->m_langName = langName; }
+    
     // Setters/Getters
     void SetFileExtensions(const wxString& fileExtensions) { this->m_fileExtensions = fileExtensions; }
     const wxString& GetFileExtensions() const { return m_fileExtensions; }
-    void SetKeywords0(const wxString& keywords0) { this->m_keywords0 = keywords0; }
-    void SetKeywords1(const wxString& keywords1) { this->m_keywords1 = keywords1; }
-    void SetKeywords2(const wxString& keywords2) { this->m_keywords2 = keywords2; }
-    void SetKeywords3(const wxString& keywords3) { this->m_keywords3 = keywords3; }
-    void SetKeywords4(const wxString& keywords4) { this->m_keywords4 = keywords4; }
+    void SetKeywords0(const wxString& keywords0) { DoSetKeywords(this->m_keywords0, keywords0); }
+    void SetKeywords1(const wxString& keywords1) { DoSetKeywords(this->m_keywords1, keywords1); }
+    void SetKeywords2(const wxString& keywords2) { DoSetKeywords(this->m_keywords2, keywords2); }
+    void SetKeywords3(const wxString& keywords3) { DoSetKeywords(this->m_keywords3, keywords3); }
+    void SetKeywords4(const wxString& keywords4) { DoSetKeywords(this->m_keywords4, keywords4); }
     const wxString& GetKeywords0() const { return m_keywords0; }
     const wxString& GetKeywords1() const { return m_keywords1; }
     const wxString& GetKeywords2() const { return m_keywords2; }
@@ -94,17 +123,14 @@ public:
     virtual ~EclipseThemeImporterBase();
     /**
      * @brief load eclispe theme (in xml format)
-     * @param eclipseXml
      */
-    wxXmlNode* InitializeImport(const wxFileName& eclipseXml, const wxString& langName, int langId);
+    LexerConf::Ptr_t InitializeImport(const wxFileName& eclipseXml, const wxString& langName, int langId);
 
     /**
      * @brief Finalize the import by adding the common lexer part (such as the fold margin, text selection etc)
      * and saving it the file system
-     * @param propertiesNode the properties node returned by calling InitializeBase();
-     * @return
      */
-    bool FinalizeImport(wxXmlNode* propertiesNode);
+    void FinalizeImport(LexerConf::Ptr_t lexer);
 
     /**
      * @brief get attributes of a given property
@@ -140,7 +166,7 @@ public:
      * @param eclipseXmlFile
      * @param codeliteXml [output] the output file name
      */
-    virtual bool Import(const wxFileName& eclipseXmlFile) = 0;
+    virtual LexerConf::Ptr_t Import(const wxFileName& eclipseXmlFile) = 0;
 };
 
 #endif // ECLIPSETHEMEIMPORTERBASE_H

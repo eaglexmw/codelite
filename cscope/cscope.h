@@ -22,58 +22,60 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
- #ifndef __Cscope__
+#ifndef __Cscope__
 #define __Cscope__
 
 #include "plugin.h"
 #include "map"
 #include "vector"
 #include "cscopeentrydata.h"
+#include "cl_command_event.h"
+#include "clTabTogglerHelper.h"
 
 class CscopeTab;
 
 class Cscope : public IPlugin
 {
-	wxEvtHandler *m_topWindow;
-	CscopeTab    *m_cscopeWin;
+    wxEvtHandler* m_topWindow;
+    CscopeTab* m_cscopeWin;
+    clTabTogglerHelper::Ptr_t m_tabHelper;
 
 public:
-	Cscope(IManager *manager);
-	~Cscope();
+    Cscope(IManager* manager);
+    ~Cscope();
 
-	//--------------------------------------------
-	//Abstract methods
-	//--------------------------------------------
-	virtual clToolBar *CreateToolBar(wxWindow *parent);
-	virtual void CreatePluginMenu(wxMenu *pluginsMenu);
-	virtual void HookPopupMenu(wxMenu *menu, MenuType type);
-	virtual void UnPlug();
+    //--------------------------------------------
+    // Abstract methods
+    //--------------------------------------------
+    virtual clToolBar* CreateToolBar(wxWindow* parent);
+    virtual void CreatePluginMenu(wxMenu* pluginsMenu);
+    virtual void UnPlug();
 
 protected:
-	//Helper
-	//------------------------------------------
-	wxMenu * CreateEditorPopMenu();
-	wxString GetCscopeExeName();
-	wxString DoCreateListFile(bool force);
-	void     DoCscopeCommand(const wxString &command, const wxString &findWhat, const wxString &endMsg);
-	void     DoFindSymbol(const wxString& word);
-	wxString GetSearchPattern() const;
+    // Helper
+    //------------------------------------------
+    wxMenu* CreateEditorPopMenu();
+    wxString GetCscopeExeName();
+    wxString DoCreateListFile(bool force);
+    void DoCscopeCommand(const wxString& command, const wxString& findWhat, const wxString& endMsg);
+    void DoFindSymbol(const wxString& word);
+    wxString GetSearchPattern() const;
 
-	//Event handlers
-	//------------------------------------------
-	void OnFindSymbol                       (wxCommandEvent &e);
-	void OnFindUserInsertedSymbol           (wxCommandEvent &e);
-	void OnFindGlobalDefinition             (wxCommandEvent &e);
-	void OnFindFunctionsCalledByThisFunction(wxCommandEvent &e);
-	void OnFindFunctionsCallingThisFunction (wxCommandEvent &e);
-	void OnFindFilesIncludingThisFname      (wxCommandEvent &e);
-	void OnCreateDB                         (wxCommandEvent &e);
-	void OnDoSettings                       (wxCommandEvent &e);
-	void OnCScopeThreadEnded                (wxCommandEvent &e);
-	void OnCScopeThreadUpdateStatus         (wxCommandEvent &e);
-	void OnCscopeUI                         (wxUpdateUIEvent &e);
-	void OnWorkspaceOpenUI                  (wxUpdateUIEvent &e);
+    // Event handlers
+    //------------------------------------------
+    void OnFindSymbol(wxCommandEvent& e);
+    void OnFindUserInsertedSymbol(wxCommandEvent& e);
+    void OnFindGlobalDefinition(wxCommandEvent& e);
+    void OnFindFunctionsCalledByThisFunction(wxCommandEvent& e);
+    void OnFindFunctionsCallingThisFunction(wxCommandEvent& e);
+    void OnFindFilesIncludingThisFname(wxCommandEvent& e);
+    void OnCreateDB(wxCommandEvent& e);
+    void OnDoSettings(wxCommandEvent& e);
+    void OnCScopeThreadEnded(wxCommandEvent& e);
+    void OnCScopeThreadUpdateStatus(wxCommandEvent& e);
+    void OnCscopeUI(wxUpdateUIEvent& e);
+    void OnWorkspaceOpenUI(wxUpdateUIEvent& e);
+    void OnEditorContentMenu(clContextMenuEvent& event);
 };
 
-#endif //Cscope
-
+#endif // Cscope

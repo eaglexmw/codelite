@@ -9,6 +9,7 @@
 #include <macros.h>
 #include "PHPLookupTable.h"
 #include <wx/tokenzr.h>
+#include "FilesCollector.h"
 
 static int TIMER_ID = 5647;
 static wxBitmap CLASS_IMG_ID = wxNullBitmap;
@@ -35,7 +36,8 @@ OpenResourceDlg::OpenResourceDlg(wxWindow* parent, const ResourceVector_t& items
 
     DoInitialize();
     DoPopulateListCtrl(m_resources);
-    WindowAttrManager::Load(this, "PHPOpenResourceDlg", NULL);
+    SetName("OpenResourceDlg");
+    WindowAttrManager::Load(this);
 }
 
 OpenResourceDlg::OpenResourceDlg(wxWindow* parent, IManager* manager)
@@ -50,6 +52,11 @@ OpenResourceDlg::OpenResourceDlg(wxWindow* parent, IManager* manager)
     std::set<wxString>::iterator iter = files.begin();
     for(; iter != files.end(); iter++) {
         wxFileName fn((*iter));
+        if(fn.GetFullName() == FOLDER_MARKER) {
+            // fake item
+            continue; 
+        }
+        
         ResourceItem fileItem;
         fileItem.displayName = fn.GetFullName();
         fileItem.filename = fn;
@@ -60,9 +67,10 @@ OpenResourceDlg::OpenResourceDlg(wxWindow* parent, IManager* manager)
 
     DoInitialize();
     m_timer = new wxTimer(this, TIMER_ID);
-    m_timer->Start(500, true);
-    WindowAttrManager::Load(this, "PHPOpenResourceDlg", NULL);
-    
+    m_timer->Start(50, true);
+    SetName("OpenResourceDlg");
+    WindowAttrManager::Load(this);
+
     if(m_mgr->GetActiveEditor()) {
         wxString sel = m_mgr->GetActiveEditor()->GetSelection();
         m_textCtrlFilter->ChangeValue(sel);
@@ -81,8 +89,9 @@ void OpenResourceDlg::DoInitialize()
     DEFINE_IMG_ID = bmpLoader->LoadBitmap(wxT("cc/16/macro"));
     VARIABLE_IMG_ID = bmpLoader->LoadBitmap(wxT("cc/16/member_public"));
     NAMESPACE_IMG_ID = bmpLoader->LoadBitmap(wxT("cc/16/namespace"));
-    
-    WindowAttrManager::Load(this, wxT("OpenResourceDlg"), NULL);
+
+    SetName("OpenResourceDlg");
+    WindowAttrManager::Load(this);
     SetSelectedItem(NULL);
 }
 
@@ -96,7 +105,6 @@ OpenResourceDlg::~OpenResourceDlg()
         wxDELETE(data);
     }
     m_dvListCtrl->DeleteAllItems();
-    WindowAttrManager::Save(this, wxT("OpenResourceDlg"), NULL);
 }
 
 void OpenResourceDlg::OnFilterEnter(wxCommandEvent& event)
@@ -119,7 +127,7 @@ void OpenResourceDlg::OnTimer(wxTimerEvent& event)
 
         m_dvListCtrl->DeleteAllItems();
         if(m_lastFilter.IsEmpty()) {
-            m_timer->Start(500, true);
+            m_timer->Start(50, true);
             return;
         }
 
@@ -134,7 +142,7 @@ void OpenResourceDlg::OnTimer(wxTimerEvent& event)
         allVec.insert(allVec.end(), m_resources.begin(), m_resources.end());
         DoPopulateListCtrl(allVec);
     }
-    m_timer->Start(500, true);
+    m_timer->Start(50, true);
 }
 
 void OpenResourceDlg::DoPopulateListCtrl(const ResourceVector_t& items)
@@ -160,10 +168,10 @@ void OpenResourceDlg::DoPopulateListCtrl(const ResourceVector_t& items)
 void OpenResourceDlg::DoGetResources(const wxString& filter)
 {
     m_resources.clear();
-    
+
     PHPEntityBase::List_t matches;
     m_table.LoadAllByFilter(matches, filter);
-    
+
     // Convert the PHP matches into resources
     PHPEntityBase::List_t::iterator iter = matches.begin();
     m_resources.reserve(matches.size());
@@ -281,10 +289,12 @@ bool OpenResourceDlg::IsMatchesFilter(const wxString& filter, const wxString& ke
 {
     wxString lcKey = key.Lower();
     wxArrayString filters = ::wxStringTokenize(filter, " ", wxTOKEN_STRTOK);
-    for(size_t i=0; i<filters.GetCount(); ++i) {
+    for(size_t i = 0; i < filters.GetCount(); ++i) {
         wxString lcFilter = filters.Item(i).Lower();
-        if(lcKey.Contains(lcFilter)) continue;
-        else return false;
+        if(lcKey.Contains(lcFilter))
+            continue;
+        else
+            return false;
     }
     return true;
 }

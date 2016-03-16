@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CMakeGenerator.cpp
 //
 // -------------------------------------------------------------------------
@@ -120,7 +120,7 @@ static void WriteContent(const wxFileName& filename, const wxString& content)
 /* ************************************************************************ */
 
 bool
-CMakeGenerator::Generate(Workspace* workspace)
+CMakeGenerator::Generate(clCxxWorkspace* workspace)
 {
     if ( !workspace )
         return false;
@@ -237,7 +237,7 @@ CMakeGenerator::Generate(ProjectPtr project, bool topProject)
     if ( topProject ) {
         wxArrayString depsProjects = project->GetDependencies( buildConf->GetName() );
         for(size_t i=0; i<depsProjects.GetCount(); ++i) {
-            ProjectPtr pProj = WorkspaceST::Get()->GetProject( depsProjects.Item(i) );
+            ProjectPtr pProj = clCxxWorkspaceST::Get()->GetProject( depsProjects.Item(i) );
             if ( pProj ) {
                 if ( Generate( pProj, false ) ) {
                     wxString depProjFilePath = pProj->GetFileName().GetFullPath();
@@ -341,6 +341,9 @@ CMakeGenerator::Generate(ProjectPtr project, bool topProject)
             lib_paths << ";" << compiler->GetGlobalLibPath();
         }
 
+		// to replace all instances of backslashes with forward slashes issue #1073
+		lib_paths.Replace("\\", "/");
+		lib_paths.Trim(false).Trim();
         // Get list of library paths
         wxArrayString lib_paths_list = wxStringTokenize(lib_paths, ";", wxTOKEN_STRTOK);
 

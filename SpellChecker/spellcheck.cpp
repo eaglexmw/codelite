@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : spellcheck.cpp
 //
 // -------------------------------------------------------------------------
@@ -53,15 +53,15 @@
 
 #include "res/spellcheck16.b2c"
 #include "res/spellcheck22.b2c"
-#include "res/contCheck16.b2c"
-#include "res/contCheck22.b2c"
+//#include "res/contCheck16.b2c"
+//#include "res/contCheck22.b2c"
 
 static SpellCheck* thePlugin = NULL;
 #define SPC_BASEID 10000
 #define PARSE_TIME 500
 // ------------------------------------------------------------
 // Define the plugin entry point
-extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
     if(thePlugin == 0) {
         thePlugin = new SpellCheck(manager);
@@ -69,17 +69,17 @@ extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
     return thePlugin;
 }
 // ------------------------------------------------------------
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
+    static PluginInfo info;
     info.SetAuthor(wxT("Frank Lichtner"));
     info.SetName(wxT("SpellCheck"));
-    info.SetDescription(wxT("CodeLite spell checker"));
+    info.SetDescription(_("CodeLite spell checker"));
     info.SetVersion(wxT("v1.6"));
-    return info;
+    return &info;
 }
 // ------------------------------------------------------------
-extern "C" EXPORT int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 // ------------------------------------------------------------
 SpellCheck::SpellCheck(IManager* manager)
     : IPlugin(manager)
@@ -112,7 +112,7 @@ void SpellCheck::Init()
 {
     m_topWin = NULL;
     m_pEngine = NULL;
-    m_longName = wxT("CodeLite spell-checker");
+    m_longName = _("CodeLite spell-checker");
     m_shortName = s_plugName;
     m_sepItem = NULL;
     m_pToolbar = NULL;
@@ -123,7 +123,7 @@ void SpellCheck::Init()
 
     if(m_pEngine) {
         LoadSettings();
-        wxString userDictPath = wxStandardPaths::Get().GetUserDataDir();
+        wxString userDictPath = clStandardPaths::Get().GetUserDataDir();
         userDictPath << wxFILE_SEP_PATH << wxT("spellcheck") << wxFILE_SEP_PATH;
 
         if(!wxFileName::DirExists(userDictPath)) wxFileName::Mkdir(userDictPath);
@@ -144,36 +144,17 @@ clToolBar* SpellCheck::CreateToolBar(wxWindow* parent)
 {
     if(m_mgr->AllowToolbar()) {
         int size = m_mgr->GetToolbarIconSize();
-
-        m_pToolbar = new clToolBar(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, clTB_DEFAULT_STYLE);
+        m_pToolbar = new clToolBar(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, clTB_DEFAULT_STYLE_PLUGIN);
         m_pToolbar->SetToolBitmapSize(wxSize(size, size));
-
-        if(size == 24) {
-            SpellCheckerImages24 images;
-            m_pToolbar->AddTool(XRCID(s_doCheckID.ToUTF8()),
-                                _("Check spelling..."),
-                                images.Bitmap("spellChecker24"),
-                                _("Run spell-checker"));
-            m_pToolbar->AddTool(XRCID(s_contCheckID.ToUTF8()),
-                                _("Check continuous"),
-                                images.Bitmap("spellChecker24Cont"),
-                                _("Run continuous check"),
-                                wxITEM_CHECK);
-        } else {
-            SpellCheckerImages16 images;
-            m_pToolbar->AddTool(XRCID(s_doCheckID.ToUTF8()),
-                                _("Check spelling..."),
-                                images.Bitmap("spellChecker16"),
-                                _("Run spell-checker"));
-            m_pToolbar->AddTool(XRCID(s_contCheckID.ToUTF8()),
-                                _("Check continuous"),
-                                images.Bitmap("spellChecker16Cont"),
-                                _("Start continuous check"),
-                                wxITEM_CHECK);
-        }
-#if defined(__WXMAC__)
-        m_pToolbar->AddSeparator();
-#endif
+        m_pToolbar->AddTool(XRCID(s_doCheckID.ToUTF8()),
+                            _("Check spelling..."),
+                            m_mgr->GetStdIcons()->LoadBitmap("spellcheck", size),
+                            _("Run spell-checker"));
+        m_pToolbar->AddTool(XRCID(s_contCheckID.ToUTF8()),
+                            _("Check continuous"),
+                            m_mgr->GetStdIcons()->LoadBitmap("repeat", size),
+                            _("Run continuous check"),
+                            wxITEM_CHECK);
         m_pToolbar->Realize();
     }
     parent->Connect(XRCID(s_doCheckID.ToUTF8()),
@@ -368,7 +349,7 @@ void SpellCheck::OnContinousCheck(wxCommandEvent& e)
                 m_pEngine->CheckCppSpelling(text);
             }
         } break;
-        case 1: { // wxSCI_LEX_NULL
+        default: { // wxSCI_LEX_NULL
             m_pEngine->CheckSpelling(text);
         } break;
         }
@@ -393,7 +374,7 @@ void SpellCheck::OnTimer(wxTimerEvent& e)
                 m_pEngine->CheckCppSpelling(editor->GetEditorText());
             }
         } break;
-        case 1: { // wxSCI_LEX_NULL
+        default: { // wxSCI_LEX_NULL
             m_pEngine->CheckSpelling(editor->GetEditorText());
         } break;
         }
@@ -410,10 +391,10 @@ void SpellCheck::OnContextMenu(wxCommandEvent& e)
     }
 
     wxPoint pt = wxGetMousePosition();
-    pt = editor->GetSTC()->ScreenToClient(pt);
-    int pos = editor->GetSTC()->PositionFromPoint(pt);
+    pt = editor->GetCtrl()->ScreenToClient(pt);
+    int pos = editor->GetCtrl()->PositionFromPoint(pt);
 
-    if(editor->GetSTC()->IndicatorValueAt(3, pos) == 1) {
+    if(editor->GetCtrl()->IndicatorValueAt(3, pos) == 1) {
         wxMenu popUp;
         m_timer.Stop();
 
@@ -434,7 +415,7 @@ void SpellCheck::OnContextMenu(wxCommandEvent& e)
         popUp.Append(SPC_BASEID - 1, _("Ignore"), "");
         popUp.Append(SPC_BASEID - 2, _("Add"), "");
 
-        int index = editor->GetSTC()->GetPopupMenuSelectionFromUser(popUp);
+        int index = editor->GetCtrl()->GetPopupMenuSelectionFromUser(popUp);
 
         if(index != wxID_NONE) {
             if(index >= SPC_BASEID) {

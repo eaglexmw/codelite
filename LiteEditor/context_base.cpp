@@ -37,6 +37,7 @@
 #include "commentconfigdata.h"
 #include "editor_config.h"
 #include <wx/tokenzr.h>
+#include <wx/regex.h>
 
 // static wxColor GetInactiveColor(const wxColor& col)
 //{
@@ -68,7 +69,7 @@ void ContextBase::AutoIndent(const wxChar& ch)
     int prevpos(wxNOT_FOUND);
     int curpos = rCtrl.GetCurrentPos();
     int line = rCtrl.LineFromPosition(curpos);
-    
+
     if(ch == wxT('\n')) {
         wxChar prevCh = rCtrl.PreviousChar(curpos, prevpos);
         if(prevCh == '{') {
@@ -76,7 +77,7 @@ void ContextBase::AutoIndent(const wxChar& ch)
             int prevLine = rCtrl.LineFromPosition(prevpos);
             rCtrl.SetLineIndentation(line, rCtrl.GetIndent() + rCtrl.GetLineIndentation(prevLine));
             rCtrl.SetCaretAt(rCtrl.GetLineIndentPosition(line));
-            
+
         } else {
             // just copy the previous line indentation
             int line = rCtrl.LineFromPosition(rCtrl.GetCurrentPos());
@@ -84,9 +85,8 @@ void ContextBase::AutoIndent(const wxChar& ch)
             // place the caret at the end of the line
             rCtrl.SetCaretAt(rCtrl.GetLineIndentPosition(line));
             rCtrl.ChooseCaretX();
-            
         }
-    } else if (ch == '}') {
+    } else if(ch == '}' && !IsCommentOrString(curpos)) {
         long matchPos = wxNOT_FOUND;
         if(!rCtrl.MatchBraceBack(wxT('}'), rCtrl.PositionBefore(curpos), matchPos)) return;
         int secondLine = rCtrl.LineFromPosition(matchPos);
@@ -157,11 +157,9 @@ int ContextBase::DoGetCalltipParamterIndex()
 
         // loop over the text from pos -> current position and count the number of commas found
         int depth(0);
-        bool exit_loop(false);
-
-        while(pos < ctrl.GetCurrentPos() && !exit_loop) {
+        while(pos < ctrl.GetCurrentPos()) {
             wxChar ch = ctrl.SafeGetChar(pos);
-            wxChar ch_before = ctrl.SafeGetChar(ctrl.PositionBefore(pos));
+            // wxChar ch_before = ctrl.SafeGetChar(ctrl.PositionBefore(pos));
 
             if(IsCommentOrString(pos)) {
                 pos = ctrl.PositionAfter(pos);
@@ -172,32 +170,10 @@ int ContextBase::DoGetCalltipParamterIndex()
             case wxT(','):
                 if(depth == 0) index++;
                 break;
-            case wxT('{'):
-            case wxT('}'):
-            case wxT(';'):
-                // error?
-                exit_loop = true;
-                break;
-            case wxT('<'):
-                if(ch_before == '<') {
-                    // operator <<
-                    // dont count this as depth ++
-                    break;
-                }
-            // fall thru
             case wxT('('):
-            case wxT('['):
                 depth++;
                 break;
-
-            case wxT('>'):
-                if(ch_before == wxT('-')) {
-                    // operator noting to do
-                    break;
-                }
-            // fall through
             case wxT(')'):
-            case wxT(']'):
                 depth--;
                 break;
             default:
@@ -205,61 +181,35 @@ int ContextBase::DoGetCalltipParamterIndex()
             }
             pos = ctrl.PositionAfter(pos);
         }
+    } else {
+        return wxNOT_FOUND;
     }
     return index;
 }
 
 void ContextBase::OnUserTypedXChars(const wxString& word)
 {
-    // user typed more than 3 chars, display completion box with C++ keywords
+    // user typed more than X chars
+    // trigger code complete event (as if the user typed ctrl-space)
+    // if no one handles this event, fire a word completion event
     if(IsCommentOrString(GetCtrl().GetCurrentPos())) {
         return;
     }
 
-    TagEntryPtrVector_t tags;
-    if(TagsManagerST::Get()->GetCtagsOptions().GetFlags() & CC_CPP_KEYWORD_ASISST) {
-        clCodeCompletionEvent ccEvt(wxEVT_CC_CODE_COMPLETE_LANG_KEYWORD);
+    const TagsOptionsData& options = TagsManagerST::Get()->GetCtagsOptions();
+    if(options.GetFlags() & CC_WORD_ASSIST) {
+        // Try to call code completion
+        clCodeCompletionEvent ccEvt(wxEVT_CC_CODE_COMPLETE);
         ccEvt.SetEditor(&GetCtrl());
+        ccEvt.SetPosition(GetCtrl().GetCurrentPos());
         ccEvt.SetWord(word);
 
-        if(EventNotifier::Get()->ProcessEvent(ccEvt)) {
-            tags = ccEvt.GetTags();
-
-        } else if(GetActiveKeywordSet() != wxNOT_FOUND) {
-
-            // the default action is to use the lexer keywords
-            LexerConf::Ptr_t lexPtr;
-            // Read the configuration file
-            if(EditorConfigST::Get()->IsOk()) {
-                lexPtr = EditorConfigST::Get()->GetLexer(GetName());
-            }
-
-            if(!lexPtr) return;
-
-            wxString Words = lexPtr->GetKeyWords(GetActiveKeywordSet());
-
-            wxString s1(word);
-            wxStringSet_t uniqueWords;
-            wxArrayString wordsArr = ::wxStringTokenize(Words, wxT(" \r\t\n"));
-            for(size_t i = 0; i < wordsArr.GetCount(); i++) {
-
-                // Dont add duplicate words
-                if(uniqueWords.count(wordsArr.Item(i))) continue;
-
-                uniqueWords.insert(wordsArr.Item(i));
-                wxString s2(wordsArr.Item(i));
-                if(s2.StartsWith(s1) || s2.Lower().StartsWith(s1.Lower())) {
-                    TagEntryPtr tag(new TagEntry());
-                    tag->SetName(wordsArr.Item(i));
-                    tag->SetKind("cpp_keyword");
-                    tags.push_back(tag);
-                }
-            }
-        }
-
-        if(tags.empty() == false) {
-            GetCtrl().ShowCompletionBox(tags,  // list of tags
-                                        word); // do not automatically insert word if there is only single choice
+        if(!EventNotifier::Get()->ProcessEvent(ccEvt)) {
+            // This is ugly, since CodeLite should not be calling
+            // the plugins... we take comfort in the fact that it
+            // merely fires an event and not calling it directly
+            wxCommandEvent wordCompleteEvent(wxEVT_MENU, XRCID("word_complete_no_single_insert"));
+            wxTheApp->ProcessEvent(wordCompleteEvent);
         }
     }
 }
@@ -308,6 +258,8 @@ void ContextBase::AutoAddComment()
                 clCodeCompletionEvent event(wxEVT_CC_GENERATE_DOXY_BLOCK);
                 event.SetEditor(&rCtrl);
                 if(EventNotifier::Get()->ProcessEvent(event) && !event.GetTooltip().IsEmpty()) {
+                    rCtrl.BeginUndoAction();
+
                     // To make the doxy block fit in, we need to prepend each line
                     // with the exact whitespace of the line that starts with "/**"
                     int lineStartPos = rCtrl.PositionFromLine(rCtrl.LineFromPos(startPos));
@@ -319,12 +271,29 @@ void ContextBase::AutoAddComment()
                             lines.Item(i).Prepend(whitespace);
                         }
                     }
-                    
+
                     // Join the lines back
                     wxString doxyBlock = ::wxJoin(lines, '\n');
 
                     rCtrl.SetSelection(startPos, curpos);
                     rCtrl.ReplaceSelection(doxyBlock);
+
+                    // Try to place the caret after the @brief
+                    wxRegEx reBrief("[@\\]brief[ \t]*");
+                    if(reBrief.IsValid() && reBrief.Matches(doxyBlock)) {
+                        wxString match = reBrief.GetMatch(doxyBlock);
+                        // Get the index
+                        int where = doxyBlock.Find(match);
+                        if(where != wxNOT_FOUND) {
+                            where += match.length();
+                            int caretPos = startPos + where;
+                            rCtrl.SetCaretAt(caretPos);
+                            
+                            // Remove the @brief as its non standard in the PHP world
+                            rCtrl.DeleteRange(caretPos - match.length(), match.length());
+                        }
+                    }
+                    rCtrl.EndUndoAction();
                     return;
                 }
             }
@@ -342,4 +311,46 @@ void ContextBase::AutoAddComment()
         rCtrl.SetCaretAt(insertPos + toInsert.Length());
         rCtrl.ChooseCaretX(); // set new column as "current" column
     }
+}
+
+bool ContextBase::IsStringTriggerCodeComplete(const wxString& str) const
+{
+    // default behavior is to check if 'str' exists in the m_completionTriggerStrings container
+    if(GetCtrl().GetLexer() == wxSTC_LEX_XML) {
+        return str == "<" || str == "</";
+    } else if(GetCtrl().GetLexer() == wxSTC_LEX_CSS) {
+        return str == ":";
+    } else {
+        return (m_completionTriggerStrings.count(str) > 0);
+    }
+}
+
+int ContextBase::FindNext(const wxString& what, int& pos)
+{
+    wxStyledTextCtrl* ctrl = GetCtrl().GetCtrl();
+    int startpos = ctrl->PositionFromLine(ctrl->GetFirstVisibleLine());
+    int lastLine = ctrl->GetFirstVisibleLine() + ctrl->LinesOnScreen();
+    int endpos = ctrl->GetLineEndPosition(lastLine);
+
+    if((pos < startpos) || (pos > endpos)) return wxNOT_FOUND;
+    int where = ctrl->FindText(pos, endpos, what);
+    if(where != wxNOT_FOUND) {
+        pos = where + what.length();
+    }
+    return where;
+}
+
+int ContextBase::FindPrev(const wxString& what, int& pos)
+{
+    wxStyledTextCtrl* ctrl = GetCtrl().GetCtrl();
+    int startpos = ctrl->PositionFromLine(ctrl->GetFirstVisibleLine());
+    int lastLine = ctrl->GetFirstVisibleLine() + ctrl->LinesOnScreen();
+    int endpos = ctrl->GetLineEndPosition(lastLine);
+
+    if((pos < startpos) || (pos > endpos)) return wxNOT_FOUND;
+    int where = ctrl->FindText(pos, startpos, what);
+    if(where != wxNOT_FOUND) {
+        pos = where;
+    }
+    return where;
 }

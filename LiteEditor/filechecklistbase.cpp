@@ -69,11 +69,19 @@ FileCheckListBase::FileCheckListBase(wxWindow* parent, wxWindowID id, const wxSt
     m_stdBtnSizer2->AddButton(m_buttonCancel);
     m_stdBtnSizer2->Realize();
     
+    SetName(wxT("FileCheckListBase"));
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_clearAll->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FileCheckListBase::OnClearAll), NULL, this);
     m_checkAllButton->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FileCheckListBase::OnCheckAll), NULL, this);
@@ -116,7 +124,7 @@ FilesModifiedDlgBase::FilesModifiedDlgBase(wxWindow* parent, wxWindowID id, cons
     
     boxSizer26->Add(m_cmdLnkBtn28, 1, wxALL|wxEXPAND, 5);
     
-    m_cmdLnkBtnNone = new wxCommandLinkButton(this, wxID_CANCEL, _("Ignore."), _("Don't reload any the externally modified files"), wxDefaultPosition, wxSize(-1,-1), wxBU_LEFT);
+    m_cmdLnkBtnNone = new wxCommandLinkButton(this, ID_BUTTON_IGNORE, _("Ignore."), _("Don't reload any the externally modified files"), wxDefaultPosition, wxSize(-1,-1), wxBU_LEFT);
     
     boxSizer26->Add(m_cmdLnkBtnNone, 1, wxALL|wxEXPAND, 5);
     
@@ -125,14 +133,23 @@ FilesModifiedDlgBase::FilesModifiedDlgBase(wxWindow* parent, wxWindowID id, cons
     
     boxSizer26->Add(m_checkBoxRemember, 0, wxALL, 5);
     
+    SetName(wxT("FilesModifiedDlgBase"));
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_cmdLnkBtn30->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnLoad), NULL, this);
     m_cmdLnkBtn28->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnChoose), NULL, this);
+    m_cmdLnkBtnNone->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnIgnore), NULL, this);
     
 }
 
@@ -140,5 +157,6 @@ FilesModifiedDlgBase::~FilesModifiedDlgBase()
 {
     m_cmdLnkBtn30->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnLoad), NULL, this);
     m_cmdLnkBtn28->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnChoose), NULL, this);
+    m_cmdLnkBtnNone->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(FilesModifiedDlgBase::OnIgnore), NULL, this);
     
 }

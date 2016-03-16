@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : memcheck.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 /**
  * @file
  * @author pavel.iqx
@@ -14,8 +39,9 @@
 
 #include "memcheckui.h"
 #include "imemcheckprocessor.h"
+#include "TerminalEmulator.h"
+#include "clTabTogglerHelper.h"
 
-class IProcess;
 class AsyncExeCmd;
 class MemCheckOutputView;
 
@@ -23,7 +49,7 @@ class MemCheckPlugin : public IPlugin
 {
 public:
     MemCheckPlugin(IManager* manager);
-    ~MemCheckPlugin();
+    virtual ~MemCheckPlugin();
 
     //--------------------------------------------
     // Abstract methods
@@ -35,9 +61,15 @@ public:
     virtual void UnHookPopupMenu(wxMenu* menu, MenuType type);
     virtual void UnPlug();
 
-    MemCheckSettings* const GetSettings() { return m_settings; };
+    MemCheckSettings* const GetSettings()
+    {
+        return m_settings;
+    };
 
-    virtual IMemCheckProcessor* GetProcessor() { return m_memcheckProcessor; }
+    virtual IMemCheckProcessor* GetProcessor()
+    {
+        return m_memcheckProcessor;
+    }
 
     /**
      * @brief true if test is not runnging and GUI can respond, otherwise if test is runnign user can't listing errors
@@ -55,7 +87,11 @@ public:
      * @brief return true if a test is currently running
      * @return
      */
-    bool IsRunning() const { return m_process != NULL; }
+    //    bool IsRunning() const { return m_process != NULL; }
+    bool IsRunning() const
+    {
+        return m_terminal.IsRunning();
+    }
 
 protected:
     MemCheckIcons16 m_icons16;
@@ -63,9 +99,11 @@ protected:
 
     IMemCheckProcessor* m_memcheckProcessor;
     MemCheckSettings* m_settings;
-    IProcess* m_process;              ///< Test is run as external tool.
+    TerminalEmulator m_terminal;
     MemCheckOutputView* m_outputView; ///< Main plugin UI pane.
+    clTabTogglerHelper::Ptr_t m_tabHelper;
 
+protected:
     void OnWorkspaceLoaded(wxCommandEvent& event);
     void OnWorkspaceClosed(wxCommandEvent& event);
 
@@ -84,14 +122,14 @@ protected:
      * @param event
      */
     void OnCheckAtiveProject(wxCommandEvent& event);
-    
+
     /**
      * @brief stop the currently running process
      * @param event
      */
-    void OnStopProcess(wxCommandEvent &event);
-    
-    void OnStopProcessUI(wxUpdateUIEvent &event);
+    void OnStopProcess(wxCommandEvent& event);
+
+    void OnStopProcessUI(wxUpdateUIEvent& event);
     /**
      * @brief User wants test some project in workspace tree.
      * @param event
@@ -110,8 +148,8 @@ protected:
      */
     void CheckProject(const wxString& projectName);
 
-    void OnProcessOutput(wxCommandEvent& event);
-    void OnProcessTerminated(wxCommandEvent& event);
+    void OnProcessOutput(clCommandEvent& event);
+    void OnProcessTerminated(clCommandEvent& event);
 
     /**
      * @brief Analyse can be made independent of CodeLite and log can be load from file.
@@ -125,8 +163,6 @@ protected:
      */
     void OnSettings(wxCommandEvent& event);
     void OnMemCheckUI(wxUpdateUIEvent& event);
-
-    DECLARE_EVENT_TABLE();
 };
 
 #endif // memcheck

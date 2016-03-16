@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : LLDBLocalsView.h
 //
 // -------------------------------------------------------------------------
@@ -60,6 +60,7 @@ protected:
     
     // UI events
     void OnItemExpanding(wxTreeEvent &event);
+    void OnLocalsContextMenu(wxContextMenuEvent &event);
     
 public:
     LLDBLocalsView(wxWindow* parent, LLDBPlugin* plugin);

@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : new_quick_watch_dlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -37,6 +37,8 @@
 #include <wx/cursor.h>
 #include "clDebuggerEditItemDlg.h"
 #include <cmath>
+#include "wx/popupwin.h"
+#include "wx/persist/window.h"
 
 static wxRect s_Rect;
 
@@ -59,10 +61,16 @@ DisplayVariableDlg::DisplayVariableDlg( wxWindow* parent)
     Hide();
     Centre();
     MSWSetNativeTheme(m_treeCtrl);
-    WindowAttrManager::Load(this, "DebuggerTooltip", NULL);
     m_timer2 = new wxTimer(this);
     m_mousePosTimer = new wxTimer(this);
 
+    SetName("clDebuggerEditItemDlgBase");
+    
+    bool sizeSet(false);
+    if (!wxPersistenceManager::Get().Find(this)) {
+        sizeSet = wxPersistentRegisterAndRestore(this, "CLDebuggerTip");
+    }
+    wxUnusedVar(sizeSet);
     if (GetSize().x < 100 || GetSize().y < 100 ) {
         SetSize( wxRect(GetPosition(), wxSize(100, 100) ) );
     }
@@ -83,7 +91,7 @@ DisplayVariableDlg::~DisplayVariableDlg()
     wxDELETE(m_timer2);
     wxDELETE(m_mousePosTimer);
 
-    WindowAttrManager::Save(this, "DebuggerTooltip", NULL);
+    
 }
 
 void DisplayVariableDlg::OnExpandItem( wxTreeEvent& event )
@@ -248,7 +256,7 @@ void DisplayVariableDlg::DoCleanUp()
 
 void DisplayVariableDlg::HideDialog()
 {
-    WindowAttrManager::Save(this, "DebuggerTooltip", NULL);
+    
     DoCleanUp();
     //asm("int3");
     wxPopupWindow::Hide();
@@ -274,9 +282,6 @@ void DisplayVariableDlg::OnKeyDown(wxKeyEvent& event)
 
 void DisplayVariableDlg::ShowDialog(bool center)
 {
-    // Pass the focus back to the main editor
-    WindowAttrManager::Load(this, "DebuggerTooltip", NULL);
-    
     if ( !center ) {
         wxPopupWindow::Show();
         DoAdjustPosition();
@@ -657,4 +662,33 @@ void DisplayVariableDlg::DoUpdateSize(bool performClean)
             wxSetCursor( wxNullCursor );
         }
     }
+}
+
+
+
+
+void CLPersistentDebuggerTip::Save() const
+{
+    const wxPopupWindow* const puw = Get();
+    const wxSize size = puw->GetSize();
+    SaveValue("w", size.x);
+    SaveValue("h", size.y);
+}
+
+bool CLPersistentDebuggerTip::Restore()
+{
+    wxPopupWindow* const puw = Get();
+
+    long w(-1), h(-1);
+    const bool hasSize = RestoreValue("w", &w) && RestoreValue("h", &h);
+
+    if (hasSize)
+        puw->SetSize(w, h);
+
+    return hasSize;
+}
+
+inline wxPersistentObject* wxCreatePersistentObject(wxPopupWindow* puw)
+{
+    return new CLPersistentDebuggerTip(puw);
 }

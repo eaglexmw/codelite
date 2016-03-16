@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cl_aui_tb_are.cpp
 //
 // -------------------------------------------------------------------------
@@ -30,12 +30,12 @@
 #include "codelite_events.h"
 #include "event_notifier.h"
 
-#if USE_AUI_TOOLBAR
 // these constants were copied from src/aui/auibar.cpp
 const int BUTTON_DROPDOWN_WIDTH = 10;
 static const unsigned char DISABLED_TEXT_GREY_HUE = wxColour::AlphaBlend(0, 255, 0.4);
 const wxColour DISABLED_TEXT_COLOR(DISABLED_TEXT_GREY_HUE, DISABLED_TEXT_GREY_HUE, DISABLED_TEXT_GREY_HUE);
 
+#if 0
 static wxBitmap CreateDisabledBitmap(const wxBitmap& bmp)
 {
     wxImage img = bmp.ConvertToImage();
@@ -48,6 +48,7 @@ static wxBitmap CreateDisabledBitmap(const wxBitmap& bmp)
         return greyBmp.ConvertToDisabled(150);
     }
 }
+#endif
 
 CLMainAuiTBArt::CLMainAuiTBArt()
 {
@@ -63,16 +64,29 @@ CLMainAuiTBArt::~CLMainAuiTBArt()
 
 void CLMainAuiTBArt::DrawPlainBackground(wxDC& dc, wxWindow* wnd, const wxRect& rect)
 {
+#ifdef __WXMSW__
+    wxAuiDefaultToolBarArt::DrawPlainBackground(dc, wnd, rect);
+#else
     wxUnusedVar(wnd);
     dc.SetPen(*wxTRANSPARENT_PEN);
-    dc.SetBrush( DrawingUtils::GetAUIPaneBGColour() );
+    dc.SetBrush(DrawingUtils::GetAUIPaneBGColour());
     dc.DrawRectangle(rect);
+#endif
 }
 
-void CLMainAuiTBArt::DrawBackground(wxDC& dc, wxWindow* wnd, const wxRect& rect) { DrawPlainBackground(dc, wnd, rect); }
+void CLMainAuiTBArt::DrawBackground(wxDC& dc, wxWindow* wnd, const wxRect& rect)
+{
+#ifdef __WXMSW__
+    wxAuiDefaultToolBarArt::DrawBackground(dc, wnd, rect);
+#else
+    DrawPlainBackground(dc, wnd, rect);
+#endif
+}
 
 void CLMainAuiTBArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& item, const wxRect& rect)
 {
+    wxAuiDefaultToolBarArt::DrawButton(dc, wnd, item, rect);
+#if 0
     // if(!DrawingUtils::IsThemeDark()) {
     //     wxAuiDefaultToolBarArt::DrawButton(dc, wnd, item, rect);
     //     return;
@@ -148,15 +162,13 @@ void CLMainAuiTBArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem&
     if((m_flags & wxAUI_TB_TEXT) && !item.GetLabel().empty()) {
         dc.DrawText(item.GetLabel(), textX, textY);
     }
+#endif
 }
 
 void CLMainAuiTBArt::DrawDropDownButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& item, const wxRect& rect)
 {
-    // if(!DrawingUtils::IsThemeDark()) {
-    //     wxAuiDefaultToolBarArt::DrawDropDownButton(dc, wnd, item, rect);
-    //     return;
-    // }
-
+    wxAuiDefaultToolBarArt::DrawDropDownButton(dc, wnd, item, rect);
+#if 0
     // Dark theme
     int textWidth = 0, textHeight = 0, textX = 0, textY = 0;
     int bmpX = 0, bmpY = 0, dropBmpX = 0, dropBmpY = 0;
@@ -238,17 +250,18 @@ void CLMainAuiTBArt::DrawDropDownButton(wxDC& dc, wxWindow* wnd, const wxAuiTool
     if((m_flags & wxAUI_TB_TEXT) && !item.GetLabel().empty()) {
         dc.DrawText(item.GetLabel(), textX, textY);
     }
+#endif
 }
 
 void CLMainAuiTBArt::OnThemeChanged(wxCommandEvent& event)
 {
     event.Skip();
+#if 0
     if(DrawingUtils::IsThemeDark()) {
         m_gripperPen3 = *wxBLACK;
     } else {
         m_gripperPen3 = *wxWHITE;
     }
     m_baseColour = DrawingUtils::GetAUIPaneBGColour();
-}
-
 #endif
+}

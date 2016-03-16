@@ -91,9 +91,7 @@ public:
                 if (line.find_first_of('#') != std::string::npos)
                     continue;
 
-                // strip spaces
-                line.erase( std::remove(line.begin(), line.end(), ' '), line.end() );
-
+                
                 split(line);
             }
             file.close();
@@ -112,6 +110,10 @@ protected:
         if (sep != std::string::npos) {
             std::string key = line.substr(0, sep);
             std::string val = line.substr(sep+1, line.size()-sep-1);
+            
+            // trim whitespaces
+            val.erase(val.find_last_not_of(" \n\r\t\v")+1);
+            val.erase(0, val.find_first_not_of(" \n\r\v\t"));
             m_vars[key] = val;
         }
     }
@@ -734,6 +736,10 @@ public:
 
         po["__LIB_COMCTL32_p"] = addLib("comctl32");
 
+        po["__LIB_VERSION_p"] = addLib("version");
+
+        po["__LIB_SHLWAPI_p"] = addLib("shlwapi");
+
         if (sho["wxUSE_OLE"])
             po["__LIB_OLE32_p"] = addLib("ole32");
 
@@ -777,6 +783,8 @@ public:
                     <sys-lib>winmm</sys-lib>
                     <sys-lib>shell32</sys-lib>
                     <sys-lib>comctl32</sys-lib>
+                    <sys-lib>version</sys-lib>
+                    <sys-lib>shlwapi</sys-lib>
                     <sys-lib>ole32</sys-lib>
                     <sys-lib>oleaut32</sys-lib>
                     <sys-lib>uuid</sys-lib>
@@ -809,6 +817,7 @@ public:
         libs += po["__LIB_KERNEL32_p"] + po["__LIB_USER32_p"] + po["__LIB_GDI32_p"];
         libs += po["__LIB_COMDLG32_p"] + po["__LIB_REGEX_p"] + po["__LIB_WINSPOOL_p"];
         libs += po["__LIB_WINMM_p"] + po["__LIB_SHELL32_p"] + po["__LIB_COMCTL32_p"];
+        libs += po["__LIB_VERSION_p"] + po["__LIB_SHLWAPI_p"];
         libs += po["__LIB_OLE32_p"] + po["__LIB_OLEAUT32_p"] + po["__LIB_UUID_p"];
         libs += po["__LIB_RPCRT4_p"] + po["__LIB_ADVAPI32_p"] + po["__LIB_WSOCK32_p"];
         libs += po["__LIB_ODBC32_p"];
@@ -1056,7 +1065,7 @@ public:
         po["libs"] += addLib("wxzlib" + po["WXDEBUGFLAG"]) + addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
         po["libs"] += addLib("wxexpat" + po["WXDEBUGFLAG"]) + po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
         po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool");
-        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
+        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("version") + addLib("shlwapi") + addLib("ole32") + addLib("oleaut32");
         po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
         */
         po["rcflags"]  = addFlag("--use-temp-file") + addResDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p_1"];

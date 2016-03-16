@@ -39,15 +39,15 @@ AbbreviationsSettingsBase::AbbreviationsSettingsBase(wxWindow* parent, wxWindowI
     
     mainSizer->Add(m_auibar9, 0, wxEXPAND, 5);
     
-    m_auibar9->AddTool(ID_TOOL_NEW, _("New..."), wxXmlResource::Get()->LoadBitmap(wxT("abb-add")), wxNullBitmap, wxITEM_NORMAL, _("Create a new abbreviation"), _("Create a new abbreviation"), NULL);
+    m_auibar9->AddTool(ID_TOOL_NEW, _("New..."), wxXmlResource::Get()->LoadBitmap(wxT("16-plus")), wxNullBitmap, wxITEM_NORMAL, _("Create a new abbreviation"), _("Create a new abbreviation"), NULL);
     
-    m_auibar9->AddTool(ID_TOOL_DELETE, _("Delete"), wxXmlResource::Get()->LoadBitmap(wxT("abb-delete")), wxNullBitmap, wxITEM_NORMAL, _("Delete the currently selected abbreviation"), _("Delete the currently selected abbreviation"), NULL);
+    m_auibar9->AddTool(ID_TOOL_DELETE, _("Delete"), wxXmlResource::Get()->LoadBitmap(wxT("16-minus")), wxNullBitmap, wxITEM_NORMAL, _("Delete the currently selected abbreviation"), _("Delete the currently selected abbreviation"), NULL);
     
     m_auibar9->AddSeparator();
     
-    m_auibar9->AddTool(ID_TOOL_IMPORT, _("Import"), wxXmlResource::Get()->LoadBitmap(wxT("abb-import")), wxNullBitmap, wxITEM_NORMAL, _("Import abbreviations from the file system..."), _("Import abbreviations from the file system..."), NULL);
+    m_auibar9->AddTool(ID_TOOL_IMPORT, _("Import"), wxXmlResource::Get()->LoadBitmap(wxT("16-down")), wxNullBitmap, wxITEM_NORMAL, _("Import abbreviations from the file system..."), _("Import abbreviations from the file system..."), NULL);
     
-    m_auibar9->AddTool(ID_TOOL_EXPORT, _("Export"), wxXmlResource::Get()->LoadBitmap(wxT("abb-export")), wxNullBitmap, wxITEM_NORMAL, _("Export abbreviations to the file system..."), _("Export abbreviations to the file system..."), NULL);
+    m_auibar9->AddTool(ID_TOOL_EXPORT, _("Export"), wxXmlResource::Get()->LoadBitmap(wxT("16-file_save")), wxNullBitmap, wxITEM_NORMAL, _("Export abbreviations to the file system..."), _("Export abbreviations to the file system..."), NULL);
     m_auibar9->Realize();
     
     wxBoxSizer* mainSizer_Inner = new wxBoxSizer(wxHORIZONTAL);
@@ -75,7 +75,7 @@ AbbreviationsSettingsBase::AbbreviationsSettingsBase(wxWindow* parent, wxWindowI
     
     m_staticText1 = new wxStaticText(this, wxID_ANY, _("Name:"), wxDefaultPosition, wxSize(-1, -1), 0);
     
-    bSizer5->Add(m_staticText1, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    bSizer5->Add(m_staticText1, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5);
     
     m_textCtrlName = new wxTextCtrl(this, wxID_ANY, wxT(""), wxDefaultPosition, wxSize(-1, -1), 0);
     #if wxVERSION_NUMBER >= 3000
@@ -146,7 +146,7 @@ AbbreviationsSettingsBase::AbbreviationsSettingsBase(wxWindow* parent, wxWindowI
     
     m_stdBtnSizer24 = new wxStdDialogButtonSizer();
     
-    mainSizer->Add(m_stdBtnSizer24, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5);
+    mainSizer->Add(m_stdBtnSizer24, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 10);
     
     m_buttonSave = new wxButton(this, wxID_SAVE, wxT(""), wxDefaultPosition, wxSize(-1, -1), 0);
     m_buttonSave->SetToolTip(_("Save changes"));
@@ -163,11 +163,23 @@ AbbreviationsSettingsBase::AbbreviationsSettingsBase(wxWindow* parent, wxWindowI
     m_stdBtnSizer24->AddButton(m_buttonHelp);
     m_stdBtnSizer24->Realize();
     
-    SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    SetName(wxT("AbbreviationsSettingsBase"));
+    SetSize(-1,-1);
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    if(GetParent()) {
+        CentreOnParent(wxBOTH);
+    } else {
+        CentreOnScreen(wxBOTH);
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     this->Connect(ID_TOOL_NEW, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(AbbreviationsSettingsBase::OnNew), NULL, this);
     this->Connect(ID_TOOL_DELETE, wxEVT_UPDATE_UI, wxUpdateUIEventHandler(AbbreviationsSettingsBase::OnDeleteUI), NULL, this);

@@ -26,33 +26,58 @@
 #include "editor_config.h"
 #include "windowattrmanager.h"
 #include <wx/settings.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist.h>
 
-void WindowAttrManager::Load(wxWindow* win, const wxString& name, IConfigTool* conf)
+void WindowAttrManager::Load(wxTopLevelWindow* win)
 {
-    if(conf == NULL) {
-        conf = EditorConfigST::Get();
+    if(win->GetName().IsEmpty()) {
+        return;
     }
-
-    SimpleRectValue val;
-    if(conf->ReadObject(name, &val)) {
-        int screenX = wxSystemSettings::GetMetric(wxSYS_SCREEN_X);
-        int screenY = wxSystemSettings::GetMetric(wxSYS_SCREEN_Y);
-        if ((val.GetRect().GetLeft() < screenX) && (val.GetRect().GetTop() < screenY)) {
-            win->Move(val.GetRect().GetTopLeft());
-            win->SetSize(val.GetRect().GetSize());
-        }
-    }
-
+    
+    // Is this object already registered?
+    if(wxPersistenceManager::Get().Find(win)) {
+        wxPersistenceManager::Get().Restore(win);
+    } else {
+        // Register and restore the object and recurse into its children
+        wxPersistenceManager::Get().RegisterAndRestore(win);
+    }    
+    DoLoad(win, win->GetName(), 0);
 }
 
-void WindowAttrManager::Save(wxWindow* win, const wxString& name, IConfigTool* conf)
+void WindowAttrManager::DoLoad(wxWindow* win, const wxString& parentName, int depth)
 {
-    if(conf == NULL) {
-        conf = EditorConfigST::Get();
+    if(!win) return;
+    int childIndex(0);
+    wxWindowList::compatibility_iterator pclNode = win->GetChildren().GetFirst();
+    while(pclNode) {
+        ++childIndex;
+        wxWindow* pclChild = pclNode->GetData();
+        if(pclChild) {
+            // Load the state of a notebook
+            wxBookCtrlBase* bookbase = dynamic_cast<wxBookCtrlBase*>(pclChild);
+            if(bookbase) {
+                // Make sure that the book control has a name (which is needed by the wxPersistenceManager)
+                wxString controlName;
+                if(bookbase->GetName().IsEmpty()) {
+                    controlName << parentName << "_book_" << depth << "_" << childIndex;
+                    bookbase->SetName(controlName);
+                } else {
+                    controlName = bookbase->GetName();
+                }
+                if(wxPersistenceManager::Get().Find(bookbase)) {
+                    wxPersistenceManager::Get().Restore(bookbase);
+                } else {
+                    // Register and restore the object and recurse into its children
+                    wxPersistenceManager::Get().RegisterAndRestore(bookbase);
+                }
+            }
+
+            // Recurse into this window children
+            DoLoad(pclChild, parentName, depth + 1);
+        }
+        // Move on to the next sibling
+        pclNode = pclNode->GetNext();
     }
-
-    SimpleRectValue val;
-    val.SetRect(wxRect(win->GetPosition(), win->GetSize()));
-
-    conf->WriteObject(name, &val);
 }

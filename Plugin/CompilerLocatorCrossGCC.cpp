@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CompilerLocatorCrossGCC.cpp
 //
 // -------------------------------------------------------------------------
@@ -133,7 +133,7 @@ void CompilerLocatorCrossGCC::AddTools(CompilerPtr compiler,
 
     toolFile.SetFullName(prefix + "-g++");
     toolFile.SetExt(suffix);
-    AddTool(compiler, "CXX", toolFile.GetFullPath(), suffix);
+    AddTool(compiler, "CXX", toolFile.GetFullPath());
     AddTool(compiler, "LinkerName", toolFile.GetFullPath());
     AddTool(compiler, "SharedObjectLinkerName", toolFile.GetFullPath(), "-shared -fPIC");
 
@@ -178,6 +178,9 @@ void CompilerLocatorCrossGCC::AddTool(CompilerPtr compiler,
 {
     wxString tool = toolpath;
     ::WrapWithQuotes(tool);
-    compiler->SetTool(toolname, tool + " " + extraArgs);
+    if(!extraArgs.IsEmpty()) {
+        tool << " " << extraArgs;
+    }
+    compiler->SetTool(toolname, tool);
     CL_DEBUG("Adding tool: %s => %s", toolname, tool);
 }

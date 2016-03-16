@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : diff_dialog.cpp
 //
 // -------------------------------------------------------------------------
@@ -32,12 +32,13 @@ DiffDialog::DiffDialog( wxWindow* parent, IManager *manager )
     , m_manager(manager)
 {
     m_textCtrlFromRev->SetFocus();
-    WindowAttrManager::Load(this, wxT("DiffDialog"), m_manager->GetConfigTool());
+    SetName("DiffDialog");
+    WindowAttrManager::Load(this);
 }
 
 DiffDialog::~DiffDialog()
 {
-    WindowAttrManager::Save(this, wxT("DiffDialog"), m_manager->GetConfigTool());
+    
 }
 
 wxString DiffDialog::GetFromRevision() const

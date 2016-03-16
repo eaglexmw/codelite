@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : SqliteDbAdapter.cpp
 //
 // -------------------------------------------------------------------------
@@ -110,7 +110,7 @@ wxArrayString* SQLiteDbAdapter::GetDbTypes() {
 }
 
 bool SQLiteDbAdapter::IsConnected() {
-	return false;
+	return CanConnect();
 }
 wxString SQLiteDbAdapter::GetDefaultSelect(const wxString& dbName, const wxString& tableName) {
 	return wxString::Format(wxT("SELECT * FROM '%s'.'%s' LIMIT 0, 100;"),dbName.c_str(),tableName.c_str());

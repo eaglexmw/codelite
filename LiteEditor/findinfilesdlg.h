@@ -28,13 +28,18 @@
 #include "findinfiles_dlg.h"
 #include "findreplacedlg.h"
 #include "search_thread.h"
+#include "macros.h"
 
 class FindInFilesDialog : public FindInFilesDialogBase
 {
     FindReplaceData m_data;
     wxArrayString m_pluginFileMask;
-
+    wxStringSet_t m_nonPersistentSearchPaths;
+    
 protected:
+    virtual void OnReplaceUI(wxUpdateUIEvent& event);
+    virtual void OnClearSelectedPathUI(wxUpdateUIEvent& event);
+    virtual void OnClearSelectedPath(wxCommandEvent& event);
     virtual void OnButtonClose(wxCommandEvent& event);
     virtual void OnFind(wxCommandEvent& event);
     virtual void OnReplace(wxCommandEvent& event);
@@ -46,13 +51,13 @@ protected:
     void DoSaveOpenFiles();
     void DoSetFileMask();
 
+    // Append new search path, ensure singularity
+    void DoAddSearchPath(const wxString& path);
+    void DoAddSearchPaths(const wxArrayString& paths);
+
     // Event Handlers
     virtual void OnClose(wxCloseEvent& event);
     virtual void OnAddPath(wxCommandEvent& event);
-    virtual void OnRemovePath(wxCommandEvent& event);
-    virtual void OnClearPaths(wxCommandEvent& event);
-    virtual void OnClearPathsUI(wxUpdateUIEvent& event);
-    virtual void OnRemovePathUI(wxUpdateUIEvent& event);
 
     virtual void OnFindWhatUI(wxUpdateUIEvent& event);
 
@@ -60,14 +65,13 @@ protected:
     size_t GetSearchFlags();
 
 public:
-    FindInFilesDialog(wxWindow* parent, const wxString& dataName);
+    FindInFilesDialog(wxWindow* parent, const wxString& dataName, const wxArrayString& additionalSearchPaths);
     virtual ~FindInFilesDialog();
-    void SetRootDir(const wxString& rootDir);
     void SetSearchPaths(const wxArrayString& paths);
     FindReplaceData& GetData() { return m_data; }
 
     const FindReplaceData& GetData() const { return m_data; }
-    virtual bool Show();
+    int ShowDialog();
 };
 
 #endif // FIND_IN_FILES_DLG_H

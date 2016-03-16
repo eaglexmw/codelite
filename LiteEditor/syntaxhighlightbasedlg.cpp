@@ -36,36 +36,36 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     wxBoxSizer* bSizer1 = new wxBoxSizer(wxVERTICAL);
     this->SetSizer(bSizer1);
     
-    m_auibar = new wxAuiToolBar(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxAUI_TB_PLAIN_BACKGROUND|wxAUI_TB_DEFAULT_STYLE);
+    m_auibar = new wxAuiToolBar(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxAUI_TB_DEFAULT_STYLE);
     m_auibar->SetToolBitmapSize(wxSize(16,16));
     
     bSizer1->Add(m_auibar, 0, wxEXPAND, 5);
     
-    m_auibar->AddTool(wxID_NEW, _("New Theme..."), wxArtProvider::GetBitmap(wxART_NEW, wxART_TOOLBAR, wxSize(16, 16)), wxNullBitmap, wxITEM_NORMAL, _("New Theme..."), _("New Theme..."), NULL);
+    m_auibar->AddTool(XRCID("ID_TOOL_NEW_THEME"), _("New Theme..."), wxXmlResource::Get()->LoadBitmap(wxT("16-file_new")), wxNullBitmap, wxITEM_NORMAL, _("New Theme..."), _("New Theme..."), NULL);
     
-    m_auibar->AddTool(wxID_SAVE, _("Export"), wxArtProvider::GetBitmap(wxART_FILE_SAVE, wxART_TOOLBAR, wxSize(16, 16)), wxNullBitmap, wxITEM_NORMAL, _("Export syntax highlight settings to zip file"), _("Export syntax highlight settings to zip file"), NULL);
+    m_auibar->AddTool(XRCID("ID_TOOL_SAVE"), _("Export"), wxXmlResource::Get()->LoadBitmap(wxT("16-file_save")), wxNullBitmap, wxITEM_NORMAL, _("Export syntax highlight settings to zip file"), _("Export syntax highlight settings to zip file"), NULL);
     wxAuiToolBarItem* m_toolbarItemSave = m_auibar->FindToolByIndex(m_auibar->GetToolCount()-1);
     if (m_toolbarItemSave) {
         m_toolbarItemSave->SetHasDropDown(true);
         m_menu142 = new wxMenu;
-        m_menuItemExportAll = new wxMenuItem(m_menu142, ID_EXPORT_ALL, _("Export All"), _("Export All"), wxITEM_NORMAL);
+        m_menuItemExportAll = new wxMenuItem(m_menu142, XRCID("ID_EXPORT_ALL"), _("Export All"), _("Export All"), wxITEM_NORMAL);
         m_menu142->Append(m_menuItemExportAll);
-        m_menuItemExportSelective = new wxMenuItem(m_menu142, ID_EXPORT_SELECTIVE, _("Export..."), _("Export specific lexers"), wxITEM_NORMAL);
+        m_menuItemExportSelective = new wxMenuItem(m_menu142, XRCID("ID_EXPORT_SELECTIVE"), _("Export..."), _("Export specific lexers"), wxITEM_NORMAL);
         m_menu142->Append(m_menuItemExportSelective);
         
         m_dropdownMenus.insert(std::make_pair( m_toolbarItemSave->GetId(), m_menu142) );
     }
     
-    m_auibar->AddTool(wxID_OPEN, _("Import settings from a zip archive"), wxArtProvider::GetBitmap(wxART_FILE_OPEN, wxART_TOOLBAR, wxSize(16, 16)), wxNullBitmap, wxITEM_NORMAL, _("Import settings from a zip archive"), _("Import settings from a zip archive"), NULL);
+    m_auibar->AddTool(XRCID("ID_TOOL_OPEN"), _("Import settings from a zip archive"), wxXmlResource::Get()->LoadBitmap(wxT("16-file_open")), wxNullBitmap, wxITEM_NORMAL, _("Import settings from a zip archive"), _("Import settings from a zip archive"), NULL);
     
-    m_auibar->AddTool(wxID_REVERT, _("Revert to default settings"), wxXmlResource::Get()->LoadBitmap(wxT("document-revert")), wxNullBitmap, wxITEM_NORMAL, _("Revert to default settings"), _("Revert to default settings"), NULL);
+    m_auibar->AddTool(XRCID("ID_TOOL_REVERT"), _("Revert to default settings"), wxXmlResource::Get()->LoadBitmap(wxT("16-file_reload")), wxNullBitmap, wxITEM_NORMAL, _("Revert to default settings"), _("Revert to default settings"), NULL);
     
-    m_auibar->AddTool(ID_TOOL_IMPORT_ECLIPSE_THEME, _("Import Eclipse Theme"), wxXmlResource::Get()->LoadBitmap(wxT("eclipse")), wxNullBitmap, wxITEM_NORMAL, _("Import Eclipse Theme"), _("Import Eclipse Theme"), NULL);
+    m_auibar->AddTool(XRCID("ID_TOOL_IMPORT_ECLIPSE_THEME"), _("Import Eclipse Theme"), wxXmlResource::Get()->LoadBitmap(wxT("16-eclipse")), wxNullBitmap, wxITEM_NORMAL, _("Import Eclipse Theme"), _("Import Eclipse Theme"), NULL);
     wxAuiToolBarItem* m_toolbarItem150 = m_auibar->FindToolByIndex(m_auibar->GetToolCount()-1);
     if (m_toolbarItem150) {
         m_toolbarItem150->SetHasDropDown(true);
         m_menu151 = new wxMenu;
-        m_menuItem153 = new wxMenuItem(m_menu151, ID_MENU_ECLIPSE_WEBSITE, _("Load eclipse theme website"), _("Load eclipse theme website"), wxITEM_NORMAL);
+        m_menuItem153 = new wxMenuItem(m_menu151, XRCID("ID_MENU_ECLIPSE_WEBSITE"), _("Load eclipse theme website"), _("Load eclipse theme website"), wxITEM_NORMAL);
         m_menu151->Append(m_menuItem153);
         
         m_dropdownMenus.insert(std::make_pair( m_toolbarItem150->GetId(), m_menu151) );
@@ -73,11 +73,106 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     m_auibar->Realize();
     
     m_notebook76 = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxBK_DEFAULT);
+    m_notebook76->SetName(wxT("m_notebook76"));
     
     bSizer1->Add(m_notebook76, 1, wxALL|wxEXPAND, 5);
     
+    m_panelGlobalColours = new wxPanel(m_notebook76, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
+    m_panelGlobalColours->SetToolTip(_("Set global colours and fonts"));
+    m_notebook76->AddPage(m_panelGlobalColours, _("General"), true);
+    
+    wxBoxSizer* boxSizer82 = new wxBoxSizer(wxVERTICAL);
+    m_panelGlobalColours->SetSizer(boxSizer82);
+    
+    wxFlexGridSizer* fgSizer4 = new wxFlexGridSizer(0, 2, 0, 0);
+    fgSizer4->SetFlexibleDirection( wxBOTH );
+    fgSizer4->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+    fgSizer4->AddGrowableCol(1);
+    
+    boxSizer82->Add(fgSizer4, 0, wxALL|wxEXPAND, 5);
+    
+    m_staticText159 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global font:"), wxDefaultPosition, wxSize(-1,-1), 0);
+    
+    fgSizer4->Add(m_staticText159, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    
+    m_fontPickerGlobal = new wxFontPickerCtrl(m_panelGlobalColours, wxID_ANY, wxNullFont, wxDefaultPosition, wxSize(-1,-1), wxFNTP_DEFAULT_STYLE);
+    m_fontPickerGlobal->SetToolTip(_("Set a global font for all the  supported languages"));
+    
+    fgSizer4->Add(m_fontPickerGlobal, 0, wxALL|wxEXPAND, 5);
+    
+    m_staticText155 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global theme:"), wxDefaultPosition, wxSize(-1,-1), 0);
+    
+    fgSizer4->Add(m_staticText155, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    
+    wxArrayString m_choiceGlobalThemeArr;
+    m_choiceGlobalTheme = new wxChoice(m_panelGlobalColours, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_choiceGlobalThemeArr, 0);
+    m_choiceGlobalTheme->SetToolTip(_("Set a global theme for all the supported languages.\nIf the theme is not available for a given language, CodeLite will use the next available theme from\nthe same family"));
+    
+    fgSizer4->Add(m_choiceGlobalTheme, 0, wxALL|wxEXPAND, 5);
+    
+    m_staticText91 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global foreground Colour:"), wxDefaultPosition, wxSize(-1, -1), 0);
+    
+    fgSizer4->Add(m_staticText91, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    
+    m_colourPickerOutputPanesFgColour = new wxColourPickerCtrl(m_panelGlobalColours, wxID_ANY, *wxBLACK, wxDefaultPosition, wxSize(-1, -1), wxCLRP_SHOW_LABEL|wxCLRP_USE_TEXTCTRL|wxCLRP_DEFAULT_STYLE);
+    m_colourPickerOutputPanesFgColour->SetToolTip(_("This is where you can set the foreground colour for the Output View panes (where you can see the output from e.g. 'Build' or 'Debug') and terminal (where you see the trace output while debugging)"));
+    
+    fgSizer4->Add(m_colourPickerOutputPanesFgColour, 0, wxALL|wxEXPAND, 5);
+    
+    m_staticText911 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global background Colour:"), wxDefaultPosition, wxSize(-1, -1), 0);
+    
+    fgSizer4->Add(m_staticText911, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    
+    m_colourPickerOutputPanesBgColour = new wxColourPickerCtrl(m_panelGlobalColours, wxID_ANY, *wxBLACK, wxDefaultPosition, wxSize(-1, -1), wxCLRP_SHOW_LABEL|wxCLRP_USE_TEXTCTRL|wxCLRP_DEFAULT_STYLE);
+    m_colourPickerOutputPanesBgColour->SetToolTip(_("This is where you can set the background colour for the Output View panes (where you can see the output from e.g. 'Build' or 'Debug') and terminal (where you see the trace output while debugging)"));
+    
+    fgSizer4->Add(m_colourPickerOutputPanesBgColour, 0, wxALL|wxEXPAND, 5);
+    
+    m_staticText165 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Preview:"), wxDefaultPosition, wxSize(-1,-1), 0);
+    
+    boxSizer82->Add(m_staticText165, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5);
+    
+    m_stcPreview = new wxStyledTextCtrl(m_panelGlobalColours, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), 0);
+    // Configure the fold margin
+    m_stcPreview->SetMarginType     (4, wxSTC_MARGIN_SYMBOL);
+    m_stcPreview->SetMarginMask     (4, wxSTC_MASK_FOLDERS);
+    m_stcPreview->SetMarginSensitive(4, true);
+    m_stcPreview->SetMarginWidth    (4, 0);
+    
+    // Configure the tracker margin
+    m_stcPreview->SetMarginWidth(1, 0);
+    
+    // Configure the symbol margin
+    m_stcPreview->SetMarginType (2, wxSTC_MARGIN_SYMBOL);
+    m_stcPreview->SetMarginMask (2, ~(wxSTC_MASK_FOLDERS));
+    m_stcPreview->SetMarginWidth(2, 0);
+    m_stcPreview->SetMarginSensitive(2, true);
+    
+    // Configure the line numbers margin
+    m_stcPreview->SetMarginType(0, wxSTC_MARGIN_NUMBER);
+    m_stcPreview->SetMarginWidth(0,0);
+    
+    // Configure the line symbol margin
+    m_stcPreview->SetMarginType(3, wxSTC_MARGIN_FORE);
+    m_stcPreview->SetMarginMask(3, 0);
+    m_stcPreview->SetMarginWidth(3,0);
+    // Select the lexer
+    m_stcPreview->SetLexer(wxSTC_LEX_NULL);
+    // Set default font / styles
+    m_stcPreview->StyleClearAll();
+    m_stcPreview->SetWrapMode(0);
+    m_stcPreview->SetIndentationGuides(0);
+    m_stcPreview->SetKeyWords(0, wxT(""));
+    m_stcPreview->SetKeyWords(1, wxT(""));
+    m_stcPreview->SetKeyWords(2, wxT(""));
+    m_stcPreview->SetKeyWords(3, wxT(""));
+    m_stcPreview->SetKeyWords(4, wxT(""));
+    
+    boxSizer82->Add(m_stcPreview, 1, wxALL|wxEXPAND, 5);
+    
     m_panelSyntaxHighlight = new wxPanel(m_notebook76, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
-    m_notebook76->AddPage(m_panelSyntaxHighlight, _("Syntax Highlight"), false);
+    m_panelSyntaxHighlight->SetToolTip(_("Customize your colours and font per language"));
+    m_notebook76->AddPage(m_panelSyntaxHighlight, _("Customize"), false);
     
     wxBoxSizer* boxSizer21 = new wxBoxSizer(wxHORIZONTAL);
     m_panelSyntaxHighlight->SetSizer(boxSizer21);
@@ -95,6 +190,7 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     m_panel25->SetSizer(bSizer3);
     
     m_notebook2 = new wxNotebook(m_panel25, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxBK_DEFAULT);
+    m_notebook2->SetName(wxT("m_notebook2"));
     
     bSizer3->Add(m_notebook2, 1, wxEXPAND, 5);
     
@@ -155,7 +251,7 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     fgSizer2->Add(m_fileSpec, 0, wxALL|wxEXPAND, 5);
     
     m_panelCustomize = new wxPanel(m_notebook2, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
-    m_notebook2->AddPage(m_panelCustomize, _("Customize"), false);
+    m_notebook2->AddPage(m_panelCustomize, _("Styles"), false);
     
     wxBoxSizer* bSizer51 = new wxBoxSizer(wxVERTICAL);
     m_panelCustomize->SetSizer(bSizer51);
@@ -293,44 +389,13 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     
     fgSizer3->Add(m_colourPickerSelTextFgColour, 0, wxALL|wxEXPAND, 5);
     
-    m_panelGlobalColours = new wxPanel(m_notebook76, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
-    m_notebook76->AddPage(m_panelGlobalColours, _("Global Colours"), false);
-    
-    wxBoxSizer* boxSizer82 = new wxBoxSizer(wxVERTICAL);
-    m_panelGlobalColours->SetSizer(boxSizer82);
-    
-    wxFlexGridSizer* fgSizer4 = new wxFlexGridSizer(0, 2, 0, 0);
-    fgSizer4->SetFlexibleDirection( wxBOTH );
-    fgSizer4->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
-    fgSizer4->AddGrowableCol(1);
-    
-    boxSizer82->Add(fgSizer4, 0, wxALL|wxEXPAND, 5);
-    
-    m_staticText91 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global foreground Colour:"), wxDefaultPosition, wxSize(-1, -1), 0);
-    
-    fgSizer4->Add(m_staticText91, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
-    
-    m_colourPickerOutputPanesFgColour = new wxColourPickerCtrl(m_panelGlobalColours, wxID_ANY, *wxBLACK, wxDefaultPosition, wxSize(-1, -1), wxCLRP_SHOW_LABEL|wxCLRP_USE_TEXTCTRL|wxCLRP_DEFAULT_STYLE);
-    m_colourPickerOutputPanesFgColour->SetToolTip(_("This is where you can set the foreground colour for the Output View panes (where you can see the output from e.g. 'Build' or 'Debug') and terminal (where you see the trace output while debugging)"));
-    
-    fgSizer4->Add(m_colourPickerOutputPanesFgColour, 0, wxALL|wxEXPAND, 5);
-    
-    m_staticText911 = new wxStaticText(m_panelGlobalColours, wxID_ANY, _("Global background Colour:"), wxDefaultPosition, wxSize(-1, -1), 0);
-    
-    fgSizer4->Add(m_staticText911, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
-    
-    m_colourPickerOutputPanesBgColour = new wxColourPickerCtrl(m_panelGlobalColours, wxID_ANY, *wxBLACK, wxDefaultPosition, wxSize(-1, -1), wxCLRP_SHOW_LABEL|wxCLRP_USE_TEXTCTRL|wxCLRP_DEFAULT_STYLE);
-    m_colourPickerOutputPanesBgColour->SetToolTip(_("This is where you can set the background colour for the Output View panes (where you can see the output from e.g. 'Build' or 'Debug') and terminal (where you see the trace output while debugging)"));
-    
-    fgSizer4->Add(m_colourPickerOutputPanesBgColour, 0, wxALL|wxEXPAND, 5);
-    
     wxBoxSizer* boxSizer19 = new wxBoxSizer(wxHORIZONTAL);
     
     bSizer1->Add(boxSizer19, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     
     m_stdBtnSizer10 = new wxStdDialogButtonSizer();
     
-    boxSizer19->Add(m_stdBtnSizer10, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5);
+    boxSizer19->Add(m_stdBtnSizer10, 0, wxALL, 5);
     
     m_buttonOk = new wxButton(this, wxID_OK, wxT(""), wxDefaultPosition, wxSize(-1, -1), 0);
     m_buttonOk->SetDefault();
@@ -343,20 +408,53 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     m_stdBtnSizer10->AddButton(m_buttonApply);
     m_stdBtnSizer10->Realize();
     
-    SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    
+    #if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(m_notebook76)){
+        wxPersistenceManager::Get().RegisterAndRestore(m_notebook76);
+    } else {
+        wxPersistenceManager::Get().Restore(m_notebook76);
+    }
+    #endif
+    
+    #if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(m_notebook2)){
+        wxPersistenceManager::Get().RegisterAndRestore(m_notebook2);
+    } else {
+        wxPersistenceManager::Get().Restore(m_notebook2);
+    }
+    #endif
+    
+    SetName(wxT("SyntaxHighlightBaseDlg"));
+    SetSize(-1,-1);
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    if(GetParent()) {
+        CentreOnParent(wxBOTH);
+    } else {
+        CentreOnScreen(wxBOTH);
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
-    this->Connect(wxID_NEW, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnNewTheme), NULL, this);
-    this->Connect(wxID_SAVE, wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnToolExportAll), NULL, this);
+    this->Connect(XRCID("ID_TOOL_NEW_THEME"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnNewTheme), NULL, this);
+    this->Connect(XRCID("ID_TOOL_SAVE"), wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnToolExportAll), NULL, this);
     this->Connect(m_menuItemExportAll->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnExportAll), NULL, this);
     this->Connect(m_menuItemExportSelective->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnExportSelective), NULL, this);
-    this->Connect(wxID_OPEN, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnImport), NULL, this);
-    this->Connect(wxID_REVERT, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnRestoreDefaults), NULL, this);
-    this->Connect(ID_TOOL_IMPORT_ECLIPSE_THEME, wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnImportEclipseTheme), NULL, this);
+    this->Connect(XRCID("ID_TOOL_OPEN"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnImport), NULL, this);
+    this->Connect(XRCID("ID_TOOL_REVERT"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnRestoreDefaults), NULL, this);
+    this->Connect(XRCID("ID_TOOL_IMPORT_ECLIPSE_THEME"), wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnImportEclipseTheme), NULL, this);
     this->Connect(m_menuItem153->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnLoadEclipseThemeWebsite), NULL, this);
+    m_fontPickerGlobal->Connect(wxEVT_COMMAND_FONTPICKER_CHANGED, wxFontPickerEventHandler(SyntaxHighlightBaseDlg::OnGlobalFontSelected), NULL, this);
+    m_choiceGlobalTheme->Connect(wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnGlobalThemeSelected), NULL, this);
+    m_colourPickerOutputPanesFgColour->Connect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
+    m_colourPickerOutputPanesBgColour->Connect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
     m_listBox->Connect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnLexerSelected), NULL, this);
     m_choiceLexerThemes->Connect(wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnThemeChanged), NULL, this);
     m_globalFontPicker->Connect(wxEVT_COMMAND_FONTPICKER_CHANGED, wxFontPickerEventHandler(SyntaxHighlightBaseDlg::OnFontChanged), NULL, this);
@@ -379,8 +477,6 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
     m_staticText84->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(SyntaxHighlightBaseDlg::OnTextSelFgUI), NULL, this);
     m_colourPickerSelTextFgColour->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(SyntaxHighlightBaseDlg::OnTextSelFgUI), NULL, this);
     m_colourPickerSelTextFgColour->Connect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnSelTextFgChanged), NULL, this);
-    m_colourPickerOutputPanesFgColour->Connect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
-    m_colourPickerOutputPanesBgColour->Connect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
     m_buttonOk->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonOK), NULL, this);
     m_buttonCancel->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonCancel), NULL, this);
     m_buttonApply->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonApply), NULL, this);
@@ -391,14 +487,18 @@ SyntaxHighlightBaseDlg::SyntaxHighlightBaseDlg(wxWindow* parent, wxWindowID id, 
 
 SyntaxHighlightBaseDlg::~SyntaxHighlightBaseDlg()
 {
-    this->Disconnect(wxID_NEW, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnNewTheme), NULL, this);
-    this->Disconnect(wxID_SAVE, wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnToolExportAll), NULL, this);
+    this->Disconnect(XRCID("ID_TOOL_NEW_THEME"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnNewTheme), NULL, this);
+    this->Disconnect(XRCID("ID_TOOL_SAVE"), wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnToolExportAll), NULL, this);
     this->Disconnect(m_menuItemExportAll->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnExportAll), NULL, this);
     this->Disconnect(m_menuItemExportSelective->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnExportSelective), NULL, this);
-    this->Disconnect(wxID_OPEN, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnImport), NULL, this);
-    this->Disconnect(wxID_REVERT, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnRestoreDefaults), NULL, this);
-    this->Disconnect(ID_TOOL_IMPORT_ECLIPSE_THEME, wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnImportEclipseTheme), NULL, this);
+    this->Disconnect(XRCID("ID_TOOL_OPEN"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnImport), NULL, this);
+    this->Disconnect(XRCID("ID_TOOL_REVERT"), wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnRestoreDefaults), NULL, this);
+    this->Disconnect(XRCID("ID_TOOL_IMPORT_ECLIPSE_THEME"), wxEVT_COMMAND_AUITOOLBAR_TOOL_DROPDOWN, wxAuiToolBarEventHandler(SyntaxHighlightBaseDlg::OnImportEclipseTheme), NULL, this);
     this->Disconnect(m_menuItem153->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnLoadEclipseThemeWebsite), NULL, this);
+    m_fontPickerGlobal->Disconnect(wxEVT_COMMAND_FONTPICKER_CHANGED, wxFontPickerEventHandler(SyntaxHighlightBaseDlg::OnGlobalFontSelected), NULL, this);
+    m_choiceGlobalTheme->Disconnect(wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnGlobalThemeSelected), NULL, this);
+    m_colourPickerOutputPanesFgColour->Disconnect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
+    m_colourPickerOutputPanesBgColour->Disconnect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
     m_listBox->Disconnect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnLexerSelected), NULL, this);
     m_choiceLexerThemes->Disconnect(wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnThemeChanged), NULL, this);
     m_globalFontPicker->Disconnect(wxEVT_COMMAND_FONTPICKER_CHANGED, wxFontPickerEventHandler(SyntaxHighlightBaseDlg::OnFontChanged), NULL, this);
@@ -421,8 +521,6 @@ SyntaxHighlightBaseDlg::~SyntaxHighlightBaseDlg()
     m_staticText84->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(SyntaxHighlightBaseDlg::OnTextSelFgUI), NULL, this);
     m_colourPickerSelTextFgColour->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(SyntaxHighlightBaseDlg::OnTextSelFgUI), NULL, this);
     m_colourPickerSelTextFgColour->Disconnect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnSelTextFgChanged), NULL, this);
-    m_colourPickerOutputPanesFgColour->Disconnect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
-    m_colourPickerOutputPanesBgColour->Disconnect(wxEVT_COMMAND_COLOURPICKER_CHANGED, wxColourPickerEventHandler(SyntaxHighlightBaseDlg::OnOutputViewColourChanged), NULL, this);
     m_buttonOk->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonOK), NULL, this);
     m_buttonCancel->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonCancel), NULL, this);
     m_buttonApply->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(SyntaxHighlightBaseDlg::OnButtonApply), NULL, this);
@@ -522,11 +620,23 @@ NewThemeDialogBase::NewThemeDialogBase(wxWindow* parent, wxWindowID id, const wx
     m_stdBtnSizer117->AddButton(m_buttonCancel);
     m_stdBtnSizer117->Realize();
     
-    SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    SetName(wxT("NewThemeDialogBase"));
+    SetSize(-1,-1);
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    if(GetParent()) {
+        CentreOnParent(wxBOTH);
+    } else {
+        CentreOnScreen(wxBOTH);
+    }
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
     // Connect events
     m_choiceLanguage->Connect(wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler(NewThemeDialogBase::OnLexerSelected), NULL, this);
     m_buttonOK->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(NewThemeDialogBase::OnOkUI), NULL, this);

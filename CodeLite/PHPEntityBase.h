@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : PHPEntityBase.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPENTITYIMPL_H
 #define PHPENTITYIMPL_H
 
@@ -19,6 +44,8 @@ enum eEntityType {
     kEntityTypeFunction = 1,
     kEntityTypeClass = 2,
     kEntityTypeNamespace = 3,
+    kEntityTypeKeyword = 4,
+    kEntityTypeFunctionAlias = 5,
 };
 
 // Variable flags
@@ -42,6 +69,7 @@ enum {
     kFunc_Final = (1 << 4),
     kFunc_Static = (1 << 5),
     kFunc_Abstract = (1 << 6),
+    kFunc_ReturnReference = (1 << 7),
 };
 
 // Class flags

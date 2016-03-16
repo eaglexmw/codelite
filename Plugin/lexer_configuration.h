@@ -34,28 +34,46 @@
 #include <wx/stc/stc.h>
 #include <wx/sharedptr.h>
 #include <smart_ptr.h>
+#include "json_node.h"
 
 #define ANNOTATION_STYLE_WARNING 210
 #define ANNOTATION_STYLE_ERROR 211
+#define ANNOTATION_STYLE_CC_ERROR 212
 
 class WXDLLIMPEXP_SDK LexerConf
 {
-    StyleProperty::List_t m_properties;
+    StyleProperty::Map_t m_properties;
     int m_lexerId;
     wxString m_name;
     wxString m_extension;
     wxString m_keyWords[10];
-    bool m_styleWithinPreProcessor;
     wxString m_themeName;
-    bool m_isActive;
-    bool m_useCustomTextSelectionFgColour;
+    size_t m_flags;
 
 public:
     typedef SmartPtr<LexerConf> Ptr_t;
 
-public:
-    struct FindByNameAndTheme
+protected:
+    enum eLexerConfFlags {
+        kNone = 0,
+        kStyleInPP = (1 << 0),
+        kIsActive = (1 << 1),
+        kUseCustomTextSelectionFgColour = (1 << 2),
+    };
+
+    inline void EnableFlag(eLexerConfFlags flag, bool b)
     {
+        if(b) {
+            m_flags |= flag;
+        } else {
+            m_flags &= ~flag;
+        }
+    }
+
+    inline bool HasFlag(eLexerConfFlags flag) const { return m_flags & flag; }
+
+public:
+    struct FindByNameAndTheme {
         wxString m_name;
         wxString m_theme;
         FindByNameAndTheme(const wxString& name, const wxString& theme)
@@ -77,20 +95,31 @@ public:
     // Parse lexer object from xml node
     void FromXml(wxXmlNode* node);
 
+    /**
+     * @brief convert the lexer settings into a JSON object
+     */
+    JSONElement ToJSON() const;
+
+    /**
+     * @brief construt this object from a JSON object
+     * @param json
+     */
+    void FromJSON(const JSONElement& json);
+
 public:
     LexerConf();
     virtual ~LexerConf();
 
-    void SetUseCustomTextSelectionFgColour(bool useCustomTextSelectionFgColour)
-    {
-        this->m_useCustomTextSelectionFgColour = useCustomTextSelectionFgColour;
-    }
-    bool IsUseCustomTextSelectionFgColour() const { return m_useCustomTextSelectionFgColour; }
-    void SetIsActive(bool isActive) { this->m_isActive = isActive; }
+    void SetUseCustomTextSelectionFgColour(bool b) { EnableFlag(kUseCustomTextSelectionFgColour, b); }
+    bool IsUseCustomTextSelectionFgColour() const { return HasFlag(kUseCustomTextSelectionFgColour); }
+    void SetStyleWithinPreProcessor(bool b) { EnableFlag(kStyleInPP, b); }
+    bool GetStyleWithinPreProcessor() const { return HasFlag(kStyleInPP); }
+    void SetIsActive(bool b) { EnableFlag(kIsActive, b); }
+    bool IsActive() const { return HasFlag(kIsActive); }
+
     void SetThemeName(const wxString& themeName) { this->m_themeName = themeName; }
-    bool IsActive() const { return m_isActive; }
     const wxString& GetThemeName() const { return m_themeName; }
-    
+
     /**
      * @brief return true if the colours represented by this lexer are a "dark" theme
      */
@@ -107,13 +136,6 @@ public:
      */
     int GetLexerId() const { return m_lexerId; }
 
-    void SetStyleWithinPreProcessor(bool styleWithinPreProcessor)
-    {
-        this->m_styleWithinPreProcessor = styleWithinPreProcessor;
-    }
-
-    bool GetStyleWithinPreProcessor() const { return m_styleWithinPreProcessor; }
-
     /**
      * Set the lexer ID
      * \param id
@@ -124,13 +146,15 @@ public:
      * Return the lexer description as described in the XML file
      */
     const wxString& GetName() const { return m_name; }
+
+    void SetName(const wxString& name) { m_name = name; }
     /**
      * Return the lexer keywords
      * \return
      */
     const wxString& GetKeyWords(int set) const { return m_keyWords[set]; }
 
-    void SetKeyWords(const wxString& keywords, int set) { m_keyWords[set] = keywords; }
+    void SetKeyWords(const wxString& keywords, int set);
 
     /**
      * File patterns that this lexer should apply to
@@ -140,13 +164,13 @@ public:
      * Return a list of the lexer properties
      * \return
      */
-    const StyleProperty::List_t& GetLexerProperties() const { return m_properties; }
+    const StyleProperty::Map_t& GetLexerProperties() const { return m_properties; }
 
     /**
      * Return a list of the lexer properties
      * \return
      */
-    StyleProperty::List_t& GetLexerProperties() { return m_properties; }
+    StyleProperty::Map_t& GetLexerProperties() { return m_properties; }
 
     /**
      * @brief return property. Check for IsNull() to make sure we got a valid property
@@ -155,22 +179,22 @@ public:
      */
     StyleProperty& GetProperty(int propertyId);
     const StyleProperty& GetProperty(int propertyId) const;
-    
+
     /**
      * @brief set the line numbers colour
      */
     void SetLineNumbersFgColour(const wxColour& colour);
-    
+
     /**
      * @brief set the default fg colour
      */
     void SetDefaultFgColour(const wxColour& colour);
-    
+
     /**
      * Set the lexer properties
      * \param &properties
      */
-    void SetProperties(StyleProperty::List_t& properties) { m_properties = properties; }
+    void SetProperties(StyleProperty::Map_t& properties) { m_properties.swap(properties); }
     /**
      * Set file spec for the lexer
      * \param &spec
@@ -179,7 +203,7 @@ public:
 
     /**
      * @brief return the font for a given style id
-     * @return return wxNullFont if error occured or could locate the style
+     * @return return wxNullFont if error occurred or could locate the style
      */
     wxFont GetFontForSyle(int styleId) const;
 };

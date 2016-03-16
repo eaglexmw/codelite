@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : macromanager.cpp
 //
 // -------------------------------------------------------------------------
@@ -30,6 +30,7 @@
 #include "workspace.h"
 #include "imanager.h"
 #include <wx/regex.h>
+#include "globals.h"
 
 MacroManager::MacroManager() {}
 
@@ -41,102 +42,14 @@ MacroManager* MacroManager::Instance()
     return &ms_instance;
 }
 
-wxString MacroManager::Expand(const wxString& expression,
-                              IManager* manager,
-                              const wxString& project,
-                              const wxString& confToBuild)
+wxString MacroManager::Expand(
+    const wxString& expression, IManager* manager, const wxString& project, const wxString& confToBuild)
 {
-    wxString expandedString(expression);
-    Workspace* workspace = WorkspaceST::Get();
-
-    DollarEscaper de(expandedString);
-
-    if(workspace) {
-        expandedString.Replace(wxT("$(WorkspaceName)"), workspace->GetName());
-        ProjectPtr proj = workspace->GetProject(project);
-        if(proj) {
-            wxString prjBuildWd;
-            wxString prjRunWd;
-
-            wxString project_name(proj->GetName());
-
-            // make sure that the project name does not contain any spaces
-            project_name.Replace(wxT(" "), wxT("_"));
-
-            BuildConfigPtr bldConf = workspace->GetProjBuildConf(proj->GetName(), confToBuild);
-            if(bldConf) {
-                bool isCustom = bldConf->IsCustomBuild();
-                expandedString.Replace(wxT("$(ProjectOutputFile)"), bldConf->GetOutputFileName());
-
-                // When custom build project, use the working directory set in the
-                // custom build tab, otherwise use the project file's path
-                prjBuildWd = isCustom ? bldConf->GetCustomBuildWorkingDir() : proj->GetFileName().GetPath();
-                prjRunWd = bldConf->GetWorkingDirectory();
-            }
-
-            expandedString.Replace(wxT("$(ProjectWorkingDirectory)"), prjBuildWd);
-            expandedString.Replace(wxT("$(ProjectRunWorkingDirectory)"), prjRunWd);
-            expandedString.Replace(wxT("$(ProjectPath)"),
-                                   proj->GetFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-            expandedString.Replace(wxT("$(WorkspacePath)"),
-                                   workspace->GetWorkspaceFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-            expandedString.Replace(wxT("$(ProjectName)"), project_name);
-
-            if(bldConf) {
-                expandedString.Replace(wxT("$(IntermediateDirectory)"), bldConf->GetIntermediateDirectory());
-                expandedString.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
-                expandedString.Replace(wxT("$(OutDir)"), bldConf->GetIntermediateDirectory());
-            }
-
-            if(expandedString.Find(wxT("$(ProjectFiles)")) != wxNOT_FOUND)
-                expandedString.Replace(wxT("$(ProjectFiles)"), proj->GetFiles());
-
-            if(expandedString.Find(wxT("$(ProjectFilesAbs)")) != wxNOT_FOUND)
-                expandedString.Replace(wxT("$(ProjectFilesAbs)"), proj->GetFiles(true));
-        }
-    }
-
-    if(manager) {
-        IEditor* editor = manager->GetActiveEditor();
-        if(editor) {
-            wxFileName fn(editor->GetFileName());
-
-            expandedString.Replace(wxT("$(CurrentFileName)"), fn.GetName());
-
-            wxString fpath(fn.GetPath());
-            fpath.Replace(wxT("\\"), wxT("/"));
-            expandedString.Replace(wxT("$(CurrentFilePath)"), fpath);
-            expandedString.Replace(wxT("$(CurrentFileExt)"), fn.GetExt());
-
-            wxString ffullpath(fn.GetFullPath());
-            ffullpath.Replace(wxT("\\"), wxT("/"));
-            expandedString.Replace(wxT("$(CurrentFileFullPath)"), ffullpath);
-            expandedString.Replace(wxT("$(CurrentSelection)"), editor->GetSelection());
-            if(expandedString.Find(wxT("$(CurrentSelectionRange)")) != wxNOT_FOUND) {
-                int start = editor->GetSelectionStart(), end = editor->GetSelectionEnd();
-
-                wxString output = wxString::Format(wxT("%i:%i"), start, end);
-                expandedString.Replace(wxT("$(CurrentSelectionRange)"), output);
-            }
-        }
-    }
-
-    // exapand common macros
-    wxDateTime now = wxDateTime::Now();
-    expandedString.Replace(wxT("$(User)"), wxGetUserName());
-    expandedString.Replace(wxT("$(Date)"), now.FormatDate());
-
-    if(manager) {
-        expandedString.Replace(wxT("$(CodeLitePath)"), manager->GetInstallDirectory());
-        expandedString = manager->GetEnv()->ExpandVariables(expandedString, true);
-    }
-    return expandedString;
+    return DoExpand(expression, manager, project, true, confToBuild);
 }
 
-wxString MacroManager::Replace(const wxString& inString,
-                               const wxString& variableName,
-                               const wxString& replaceWith,
-                               bool bIgnoreCase)
+wxString MacroManager::Replace(
+    const wxString& inString, const wxString& variableName, const wxString& replaceWith, bool bIgnoreCase)
 {
     size_t flags = wxRE_DEFAULT;
     if(bIgnoreCase) flags |= wxRE_ICASE;
@@ -218,4 +131,111 @@ bool MacroManager::FindVariable(const wxString& inString, wxString& name, wxStri
         return true;
     }
     return false;
+}
+
+wxString MacroManager::ExpandNoEnv(const wxString& expression, const wxString& project, const wxString& confToBuild)
+{
+    return DoExpand(expression, NULL, project, false, confToBuild);
+}
+
+wxString MacroManager::DoExpand(
+    const wxString& expression, IManager* manager, const wxString& project, bool applyEnv, const wxString& confToBuild)
+{
+    wxString expandedString(expression);
+    clCxxWorkspace* workspace = clCxxWorkspaceST::Get();
+
+    if(!manager) {
+        manager = clGetManager();
+    }
+
+    size_t retries = 0;
+    wxString dummyname, dummfullname;
+    while((retries < 5) && FindVariable(expandedString, dummyname, dummyname)) {
+        ++retries;
+        DollarEscaper de(expandedString);
+        if(workspace) {
+            expandedString.Replace(wxT("$(WorkspaceName)"), workspace->GetName());
+            ProjectPtr proj = workspace->GetProject(project);
+            if(proj) {
+                wxString prjBuildWd;
+                wxString prjRunWd;
+
+                wxString project_name(proj->GetName());
+
+                // make sure that the project name does not contain any spaces
+                project_name.Replace(wxT(" "), wxT("_"));
+
+                BuildConfigPtr bldConf = workspace->GetProjBuildConf(proj->GetName(), confToBuild);
+                if(bldConf) {
+                    bool isCustom = bldConf->IsCustomBuild();
+                    expandedString.Replace(wxT("$(ProjectOutputFile)"), bldConf->GetOutputFileName());
+                    // An alias
+                    expandedString.Replace(wxT("$(OutputFile)"), bldConf->GetOutputFileName());
+
+                    // When custom build project, use the working directory set in the
+                    // custom build tab, otherwise use the project file's path
+                    prjBuildWd = isCustom ? bldConf->GetCustomBuildWorkingDir() : proj->GetFileName().GetPath();
+                    prjRunWd = bldConf->GetWorkingDirectory();
+                }
+
+                expandedString.Replace(wxT("$(ProjectWorkingDirectory)"), prjBuildWd);
+                expandedString.Replace(wxT("$(ProjectRunWorkingDirectory)"), prjRunWd);
+                expandedString.Replace(wxT("$(ProjectPath)"), proj->GetFileName().GetPath());
+                expandedString.Replace(wxT("$(WorkspacePath)"), workspace->GetWorkspaceFileName().GetPath());
+                expandedString.Replace(wxT("$(ProjectName)"), project_name);
+
+                if(bldConf) {
+                    expandedString.Replace(wxT("$(IntermediateDirectory)"), bldConf->GetIntermediateDirectory());
+                    expandedString.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
+                    expandedString.Replace(wxT("$(OutDir)"), bldConf->GetIntermediateDirectory());
+                }
+
+                if(expandedString.Find(wxT("$(ProjectFiles)")) != wxNOT_FOUND)
+                    expandedString.Replace(wxT("$(ProjectFiles)"), proj->GetFiles());
+
+                if(expandedString.Find(wxT("$(ProjectFilesAbs)")) != wxNOT_FOUND)
+                    expandedString.Replace(wxT("$(ProjectFilesAbs)"), proj->GetFiles(true));
+            }
+        }
+
+        if(manager) {
+            IEditor* editor = manager->GetActiveEditor();
+            if(editor) {
+                wxFileName fn(editor->GetFileName());
+
+                expandedString.Replace(wxT("$(CurrentFileName)"), fn.GetName());
+
+                wxString fpath(fn.GetPath());
+                fpath.Replace(wxT("\\"), wxT("/"));
+                expandedString.Replace(wxT("$(CurrentFilePath)"), fpath);
+                expandedString.Replace(wxT("$(CurrentFileExt)"), fn.GetExt());
+                expandedString.Replace(wxT("$(CurrentFileFullName)"), fn.GetFullName());
+
+                wxString ffullpath(fn.GetFullPath());
+                ffullpath.Replace(wxT("\\"), wxT("/"));
+                expandedString.Replace(wxT("$(CurrentFileFullPath)"), ffullpath);
+                expandedString.Replace(wxT("$(CurrentSelection)"), editor->GetSelection());
+                if(expandedString.Find(wxT("$(CurrentSelectionRange)")) != wxNOT_FOUND) {
+                    int start = editor->GetSelectionStart(), end = editor->GetSelectionEnd();
+
+                    wxString output = wxString::Format(wxT("%i:%i"), start, end);
+                    expandedString.Replace(wxT("$(CurrentSelectionRange)"), output);
+                }
+            }
+        }
+
+        // exapand common macros
+        wxDateTime now = wxDateTime::Now();
+        expandedString.Replace(wxT("$(User)"), wxGetUserName());
+        expandedString.Replace(wxT("$(Date)"), now.FormatDate());
+
+        if(manager && applyEnv) {
+            expandedString.Replace(wxT("$(CodeLitePath)"), manager->GetInstallDirectory());
+
+            // Apply the environment and expand the variables
+            EnvSetter es(NULL, NULL, project, confToBuild);
+            expandedString = manager->GetEnv()->ExpandVariables(expandedString, false);
+        }
+    }
+    return expandedString;
 }

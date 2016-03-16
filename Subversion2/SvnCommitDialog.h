@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : SvnCommitDialog.h
 //
 // -------------------------------------------------------------------------
@@ -28,41 +28,44 @@
 
 #include "wxcrafter.h"
 #include "macros.h"
+#include "cl_command_event.h"
 
 class Subversion2;
 class IProcess;
 class SvnCommitDialog : public SvnCommitDialogBaseClass
 {
-    Subversion2 * m_plugin;
-    wxString      m_url;
-    wxString      m_repoPath;
-    IProcess*     m_process;
-    wxString      m_output;
+    Subversion2* m_plugin;
+    wxString m_url;
+    wxString m_repoPath;
+    IProcess* m_process;
+    wxString m_output;
     wxStringMap_t m_cache;
-    wxString      m_currentFile;
-    
+    wxString m_currentFile;
+
 public:
-    static wxString NormalizeMessage(const wxString &message);
-    void OnChoiceMessage(wxCommandEvent &e);
+    static wxString NormalizeMessage(const wxString& message);
 
 public:
     SvnCommitDialog(wxWindow* parent, Subversion2* plugin);
-    SvnCommitDialog(wxWindow* parent, const wxArrayString &paths, const wxString &url, Subversion2 *plugin, const wxString &repoPath);
+    SvnCommitDialog(wxWindow* parent,
+                    const wxArrayString& paths,
+                    const wxString& url,
+                    Subversion2* plugin,
+                    const wxString& repoPath);
     virtual ~SvnCommitDialog();
 
     wxString GetMesasge();
     wxArrayString GetPaths();
-    
-protected:  
-    void DoShowDiff(int selection);
-    
+
 protected:
-    DECLARE_EVENT_TABLE()
-    
+    virtual void OnShowCommitHistory(wxCommandEvent& event);
+    virtual void OnShowCommitHistoryUI(wxUpdateUIEvent& event);
+    void DoShowDiff(int selection);
+
+protected:
     virtual void OnFileSelected(wxCommandEvent& event);
-    void OnProcessOutput(wxCommandEvent &e);
-    void OnProcessTerminatd(wxCommandEvent &e);
-    
+    void OnProcessOutput(clProcessEvent& e);
+    void OnProcessTerminatd(clProcessEvent& e);
 };
 
 #endif // SVNCOMMITDIALOG_H

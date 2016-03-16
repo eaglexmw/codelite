@@ -143,9 +143,9 @@ public:
     void SetRepositionEditor(bool b) { m_repositionEditor = b; }
 
     void SetCodeLiteLauncherPath(const wxString& path);
-    void OnRestart(wxCommandEvent& event);
+    void OnRestart(clCommandEvent& event);
+    void OnCmdRestart(wxCommandEvent& event);
     void GenerateCompileCommands();
-    void OnGetFindInFilesMask(clCommandEvent &event);
     void OnFindInFilesDismissed(clCommandEvent &event);
     
     
@@ -707,7 +707,13 @@ public:
      * @param conf [output]
      */
     void GetActiveProjectAndConf(wxString& project, wxString& conf);
-
+    /**
+     * @brief return true if debugger view is visible
+     * This can be true incase the view is the selected tab in the debuggger pane notebook
+     * or incase it is detached and visible
+     */
+    bool IsDebuggerViewVisible(const wxString& name);
+    
 protected:
     void DoBuildProject(const QueueCommand& buildInfo);
     void DoCleanProject(const QueueCommand& buildInfo);

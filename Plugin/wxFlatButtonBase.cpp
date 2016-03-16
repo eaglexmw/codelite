@@ -23,11 +23,12 @@ wxFlatButtonBase::wxFlatButtonBase(wxWindow* parent, wxWindowID id, const wxPoin
         bBitmapLoaded = true;
     }
     
+    SetName(wxT("wxFlatButtonBase"));
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     this->Connect(wxEVT_ENTER_WINDOW, wxMouseEventHandler(wxFlatButtonBase::OnEnterWindow), NULL, this);
     this->Connect(wxEVT_LEAVE_WINDOW, wxMouseEventHandler(wxFlatButtonBase::OnLeaveWindow), NULL, this);
@@ -63,14 +64,19 @@ wxFlatButtonBarBase::wxFlatButtonBarBase(wxWindow* parent, wxWindowID id, const 
         bBitmapLoaded = true;
     }
     
-    m_mainSizer = new wxBoxSizer(wxHORIZONTAL);
+    m_mainSizer = new wxFlexGridSizer(0, 2, 0, 0);
+    m_mainSizer->SetFlexibleDirection( wxBOTH );
+    m_mainSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
     this->SetSizer(m_mainSizer);
     
+    m_mainSizer->Add(0, 0, 1, wxALL, 5);
+    
+    SetName(wxT("wxFlatButtonBarBase"));
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     this->Connect(wxEVT_PAINT, wxPaintEventHandler(wxFlatButtonBarBase::OnPaint), NULL, this);
     this->Connect(wxEVT_SIZE, wxSizeEventHandler(wxFlatButtonBarBase::OnSize), NULL, this);

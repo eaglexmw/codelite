@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cl_aui_notebook_art.cpp
 //
 // -------------------------------------------------------------------------
@@ -32,34 +32,20 @@
 clAuiGlossyTabArt::clAuiGlossyTabArt()
     : clAuiMainNotebookTabArt(NULL)
 {
-#ifdef __WXGTK__
-    m_tabRadius = 2.5;
-#endif
 }
 
 clAuiGlossyTabArt::~clAuiGlossyTabArt() {}
 
 void clAuiGlossyTabArt::DoSetColours()
 {
-    // Set the colours
-    // based on the selected book theme
-    DoInitializeColoursFromTheme();
-#ifdef __WXMSW__
-    wxColour baseColour = wxSystemSettings::GetColour(wxSYS_COLOUR_GRADIENTACTIVECAPTION);
-    if(!DrawingUtils::IsDark(baseColour)) {
-        m_tabBgColour = baseColour.ChangeLightness(150);
-        m_penColour = m_tabBgColour.ChangeLightness(80);
-        m_activeTabPenColour = baseColour.ChangeLightness(90);
-        m_innerPenColour = m_tabBgColour;
+    // adjust some colours
+    wxColour panelColour = DrawingUtils::GetPanelBgColour();
+    if(DrawingUtils::IsDark(panelColour)) {
+        SetDarkColours();
     } else {
-        m_tabBgColour = baseColour.ChangeLightness(165);
-        m_penColour = m_tabBgColour.ChangeLightness(80);
-        m_activeTabPenColour = m_tabBgColour.ChangeLightness(60);
-        m_innerPenColour = m_tabBgColour;
+        SetLightColours();
     }
-#else
-    m_tabTextColour = wxColour("rgb(60, 60, 60)");
-#endif
+    
     // And finally let the plugins override the colours
     clColourEvent tabColourEvent(wxEVT_COLOUR_TAB);
     if(EventNotifier::Get()->ProcessEvent(tabColourEvent)) {

@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : svn_command_handlers.cpp
 //
 // -------------------------------------------------------------------------
@@ -38,6 +38,7 @@
 #include "ieditor.h"
 #include "event_notifier.h"
 #include "SvnBlameFrame.h"
+#include "globals.h"
 
 void SvnCommitHandler::Process(const wxString& output)
 {
@@ -153,11 +154,11 @@ void SvnLogHandler::Process(const wxString& output)
         // remove non interesting lines
         changeLog = Compact(changeLog);
     }
-
-    ChangeLogPage *page = new ChangeLogPage(GetPlugin()->GetManager()->GetTheApp()->GetTopWindow(), GetPlugin());
-    page->SetUrl(m_url);
-    page->AppendText( changeLog );
-    GetPlugin()->GetManager()->AddPage( page, _("Change Log"), _("Change Log"), wxNullBitmap, true );
+    
+    IEditor* editor = clGetManager()->NewEditor();
+    editor->GetCtrl()->SetText(changeLog);
+    editor->GetCtrl()->SetFirstVisibleLine(0);
+    editor->SetCaretAt(0);
 }
 
 wxString SvnLogHandler::Compact(const wxString& message)
@@ -202,7 +203,7 @@ void SvnCheckoutHandler::Process(const wxString& output)
 void SvnBlameHandler::Process(const wxString& output)
 {
     if(output.StartsWith(wxT("svn:"))) {
-        // error occured
+        // error occurred
         GetPlugin()->GetConsole()->AppendText(output);
         GetPlugin()->GetConsole()->AppendText(wxT("--------\n"));
         return;
@@ -217,7 +218,7 @@ void SvnBlameHandler::Process(const wxString& output)
 void SvnRepoListHandler::Process(const wxString& output)
 {
     if(output.StartsWith(wxT("svn:"))) {
-        // error occured
+        // error occurred
         GetPlugin()->GetConsole()->AppendText(output);
         GetPlugin()->GetConsole()->AppendText(wxT("--------\n"));
         return;

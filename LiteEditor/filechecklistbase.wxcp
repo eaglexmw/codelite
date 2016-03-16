@@ -72,6 +72,10 @@
      "m_label": "Style:",
      "m_value": ""
     }, {
+     "type": "bool",
+     "m_label": "Enable Window Persistency:",
+     "m_value": true
+    }, {
      "type": "string",
      "m_label": "Title:",
      "m_value": "Select Files"
@@ -127,6 +131,10 @@
      "m_styles": [],
      "m_sizerFlags": [],
      "m_properties": [{
+       "type": "string",
+       "m_label": "Minimum Size:",
+       "m_value": "-1,-1"
+      }, {
        "type": "string",
        "m_label": "Name:",
        "m_value": "bSizer1"
@@ -226,6 +234,10 @@
        "m_sizerFlags": ["wxEXPAND"],
        "m_properties": [{
          "type": "string",
+         "m_label": "Minimum Size:",
+         "m_value": "-1,-1"
+        }, {
+         "type": "string",
          "m_label": "Name:",
          "m_value": "bSizer3"
         }, {
@@ -319,6 +331,10 @@
          "m_styles": [],
          "m_sizerFlags": ["wxEXPAND"],
          "m_properties": [{
+           "type": "string",
+           "m_label": "Minimum Size:",
+           "m_value": "-1,-1"
+          }, {
            "type": "string",
            "m_label": "Name:",
            "m_value": "bSizer4"
@@ -798,6 +814,10 @@
      "m_label": "Style:",
      "m_value": ""
     }, {
+     "type": "bool",
+     "m_label": "Enable Window Persistency:",
+     "m_value": true
+    }, {
      "type": "string",
      "m_label": "Title:",
      "m_value": "Files were modified outside the editor"
@@ -853,6 +873,10 @@
      "m_styles": [],
      "m_sizerFlags": ["wxALL", "wxLEFT", "wxRIGHT", "wxTOP", "wxBOTTOM", "wxEXPAND"],
      "m_properties": [{
+       "type": "string",
+       "m_label": "Minimum Size:",
+       "m_value": "-1,-1"
+      }, {
        "type": "string",
        "m_label": "Name:",
        "m_value": "boxSizer26"
@@ -1133,7 +1157,7 @@
        "m_properties": [{
          "type": "winid",
          "m_label": "ID:",
-         "m_winid": "wxID_CANCEL"
+         "m_winid": "ID_BUTTON_IGNORE"
         }, {
          "type": "string",
          "m_label": "Size:",
@@ -1203,7 +1227,14 @@
          "m_label": "Default Button",
          "m_value": false
         }],
-       "m_events": [],
+       "m_events": [{
+         "m_eventName": "wxEVT_COMMAND_BUTTON_CLICKED",
+         "m_eventClass": "wxCommandEvent",
+         "m_eventHandler": "wxCommandEventHandler",
+         "m_functionNameAndSignature": "OnIgnore(wxCommandEvent& event)",
+         "m_description": "Process a wxEVT_COMMAND_BUTTON_CLICKED event, when the button is clicked.",
+         "m_noBody": false
+        }],
        "m_children": []
       }, {
        "m_type": 4415,

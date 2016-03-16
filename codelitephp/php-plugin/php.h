@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : php.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef __PHP__
 #define __PHP__
 
@@ -31,7 +56,8 @@ protected:
     EvalPane* m_xdebugEvalPane;
     bool m_showWelcomePage;
     PHPLint::Ptr_t m_lint;
-    
+    bool m_toggleToolbar;
+
 public:
     enum {
         wxID_PHP_SETTINGS = 2000,
@@ -47,15 +73,16 @@ public:
     void SafelyDetachAndDestroyPane(wxWindow* pane, const wxString& name);
     void EnsureAuiPaneIsVisible(const wxString& paneName, bool update = false);
     void FinalizeStartup();
-    void PhpLintDone(const wxString &lintOutput, const wxString &filename);
-    
+    void PhpLintDone(const wxString& lintOutput, const wxString& filename);
+
     PHPDebugPane* GetDebuggerPane() { return m_debuggerPane; }
 
 protected:
     bool IsWorkspaceViewDetached();
-    void DoOpenWorkspace(const wxString& filename, bool createIfMissing = false);
+    void DoOpenWorkspace(const wxString& filename, bool createIfMissing = false, bool createProjectFromSources = false);
     void DoPlaceMenuBar(wxMenuBar* menuBar);
     void DoEnsureXDebugPanesVisible(const wxString& selectWindow = "");
+    void DoSyncFileWithRemote(const wxFileName& localFile);
 
 public:
     //--------------------------------------------
@@ -67,12 +94,12 @@ public:
     virtual void UnHookPopupMenu(wxMenu* menu, MenuType type);
     virtual void UnPlug();
     void RunXDebugDiagnostics();
-    
+
     IManager* GetManager() { return m_mgr; }
     // Event handlers
-    
+
     void SetEditorActive(IEditor* editor);
-    
+
     //////////////////////////////////////////////
     // Code completion related events
     //////////////////////////////////////////////
@@ -81,7 +108,7 @@ public:
     //////////////////////////////////////////////
     // Other common codelite events
     //////////////////////////////////////////////
-    void OnNewWorkspace(wxCommandEvent& e);
+    void OnNewWorkspace(clCommandEvent& e);
     void OnIsWorkspaceOpen(clCommandEvent& e);
     void OnCloseWorkspace(clCommandEvent& e);
     void OnOpenWorkspace(clCommandEvent& e);
@@ -92,7 +119,6 @@ public:
     void OnGetActiveProjectFiles(wxCommandEvent& e);
     void OnNewProject(clNewProjectEvent& e);
     void OnNewProjectFinish(clNewProjectEvent& e);
-    void OnGetFiFMask(clCommandEvent& e);
     void OnFindInFilesDismissed(clCommandEvent& e);
     void OnRunXDebugDiagnostics(wxCommandEvent& e);
     void OnMenuCommand(wxCommandEvent& e);
@@ -105,7 +131,9 @@ public:
     void OnGoingDown(clCommandEvent& event);
     void OnDebugStarted(XDebugEvent& e);
     void OnDebugEnded(XDebugEvent& e);
-    void OnFileSysetmUpdated(clFileSystemEvent &event);
+    void OnFileSysetmUpdated(clFileSystemEvent& event);
+    void OnSaveSession(clCommandEvent& event);
+    void OnReplaceInFiles(clFileSystemEvent& e);
 };
 
 #endif // PHP

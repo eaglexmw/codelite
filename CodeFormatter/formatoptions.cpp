@@ -26,10 +26,12 @@
 #include "clClangFormatLocator.h"
 #include "editor_config.h"
 #include "PHPFormatterBuffer.h"
+#include "globals.h"
 
 FormatOptions::FormatOptions()
     : m_astyleOptions(AS_DEFAULT | AS_INDENT_USES_TABS)
     , m_engine(kFormatEngineClangFormat)
+    , m_phpEngine(kPhpFormatEngineBuiltin)
     , m_clangFormatOptions(kClangFormatWebKit | kAlignTrailingComments | kBreakConstructorInitializersBeforeComma |
                            kSpaceBeforeAssignmentOperators |
                            kAlignEscapedNewlinesLeft)
@@ -50,24 +52,25 @@ void FormatOptions::DeSerialize(Archive& arch)
 {
     arch.Read(wxT("m_options"), m_astyleOptions);
     arch.Read(wxT("m_customFlags"), m_customFlags);
-    
+
     // By default, use clang-format as it is more robust and advanced
     int engine = kFormatEngineClangFormat;
     arch.Read("m_engine", engine);
     m_engine = static_cast<FormatterEngine>(engine);
 
+    engine = kPhpFormatEngineBuiltin;
+    arch.Read("m_phpEngine", engine);
+    m_phpEngine = static_cast<PHPFormatterEngine>(engine);
+
     arch.Read("m_clangFormatOptions", m_clangFormatOptions);
-
-    wxString clangFormat;
-    arch.Read("m_clangFormatExe", clangFormat);
-    if(!clangFormat.IsEmpty()) {
-        m_clangFormatExe.swap(clangFormat);
-    }
-
+    arch.Read("m_clangFormatExe", m_clangFormatExe);
     arch.Read("m_clangBreakBeforeBrace", m_clangBreakBeforeBrace);
     arch.Read("m_clangColumnLimit", m_clangColumnLimit);
     arch.Read("m_phpFormatOptions", m_phpFormatOptions);
     arch.Read("m_generalFlags", m_generalFlags);
+    arch.Read("m_phpExecutable", m_phpExecutable);
+    arch.Read("m_PHPCSFixerPhar", m_PHPCSFixerPhar);
+    arch.Read("m_PHPCSFixerPharOptions", m_PHPCSFixerPharOptions);
 }
 
 void FormatOptions::Serialize(Archive& arch)
@@ -75,12 +78,16 @@ void FormatOptions::Serialize(Archive& arch)
     arch.Write(wxT("m_options"), m_astyleOptions);
     arch.Write(wxT("m_customFlags"), m_customFlags);
     arch.Write("m_engine", static_cast<int>(m_engine));
+    arch.Write("m_phpEngine", static_cast<int>(m_phpEngine));
     arch.Write("m_clangFormatOptions", m_clangFormatOptions);
     arch.Write("m_clangFormatExe", m_clangFormatExe);
     arch.Write("m_clangBreakBeforeBrace", m_clangBreakBeforeBrace);
     arch.Write("m_clangColumnLimit", m_clangColumnLimit);
     arch.Write("m_phpFormatOptions", m_phpFormatOptions);
     arch.Write("m_generalFlags", m_generalFlags);
+    arch.Write("m_phpExecutable", m_phpExecutable);
+    arch.Write("m_PHPCSFixerPhar", m_PHPCSFixerPhar);
+    arch.Write("m_PHPCSFixerPharOptions", m_PHPCSFixerPharOptions);
 }
 
 wxString FormatOptions::AstyleOptionsAsString() const
@@ -178,21 +185,23 @@ wxString FormatOptions::AstyleOptionsAsString() const
     return options;
 }
 
-wxString FormatOptions::ClangFormatOptionsAsString(const wxFileName& filename) const
+wxString FormatOptions::ClangFormatOptionsAsString(const wxFileName& filename, double clangFormatVersion) const
 {
     wxString options, forceLanguage;
-    
+
     // Try to autodetect the file type
-    if(FileExtManager::IsJavascriptFile(filename)) {
-        forceLanguage << "Language : JavaScript";
-        
-    } else if(FileExtManager::IsCxxFile(filename)) {
-        forceLanguage << "Language : Cpp";
-        
-    } else if(FileExtManager::IsJavaFile(filename)) {
-        forceLanguage << "Language : Java";
+    if(clangFormatVersion >= 3.5) {
+        if(FileExtManager::IsJavascriptFile(filename)) {
+            forceLanguage << "Language : JavaScript";
+
+        } else if(FileExtManager::IsCxxFile(filename)) {
+            forceLanguage << "Language : Cpp";
+
+        } else if(FileExtManager::IsJavaFile(filename)) {
+            forceLanguage << "Language : Java";
+        }
     }
-    
+
     options << " -style=\"{ BasedOnStyle: ";
     if(m_clangFormatOptions & kClangFormatChromium) {
         options << "Chromium";
@@ -208,7 +217,7 @@ wxString FormatOptions::ClangFormatOptionsAsString(const wxFileName& filename) c
 
     // add tab width and space vs tabs based on the global editor settings
     options << ClangGlobalSettings();
-    
+
     // Language
     if(!forceLanguage.IsEmpty()) {
         options << ", " << forceLanguage << " ";
@@ -217,8 +226,10 @@ wxString FormatOptions::ClangFormatOptionsAsString(const wxFileName& filename) c
     options << ", AlignTrailingComments : " << ClangFlagToBool(kAlignTrailingComments);
     options << ", AllowAllParametersOfDeclarationOnNextLine : "
             << ClangFlagToBool(kAllowAllParametersOfDeclarationOnNextLine);
-    options << ", AllowShortFunctionsOnASingleLine : " << ClangFlagToBool(kAllowShortFunctionsOnASingleLine);
-    options << ", AllowShortBlocksOnASingleLine : " << ClangFlagToBool(kAllowShortBlocksOnASingleLine);
+    if(clangFormatVersion >= 3.5) {
+        options << ", AllowShortFunctionsOnASingleLine : " << ClangFlagToBool(kAllowShortFunctionsOnASingleLine);
+        options << ", AllowShortBlocksOnASingleLine : " << ClangFlagToBool(kAllowShortBlocksOnASingleLine);
+    }
     options << ", AllowShortLoopsOnASingleLine : " << ClangFlagToBool(kAllowShortLoopsOnASingleLine);
     options << ", AllowShortIfStatementsOnASingleLine : " << ClangFlagToBool(kAllowShortIfStatementsOnASingleLine);
     options << ", AlwaysBreakBeforeMultilineStrings : " << ClangFlagToBool(kAlwaysBreakBeforeMultilineStrings);
@@ -231,11 +242,15 @@ wxString FormatOptions::ClangFormatOptionsAsString(const wxFileName& filename) c
     options << ", IndentCaseLabels : " << ClangFlagToBool(kIndentCaseLabels);
     options << ", IndentFunctionDeclarationAfterType : " << ClangFlagToBool(kIndentFunctionDeclarationAfterType);
     options << ", SpaceBeforeAssignmentOperators : " << ClangFlagToBool(kSpaceBeforeAssignmentOperators);
-    options << ", SpaceBeforeParens : " << (m_clangFormatOptions & kSpaceBeforeParens ? "Always" : "Never");
+    if(clangFormatVersion >= 3.5) {
+        options << ", SpaceBeforeParens : " << (m_clangFormatOptions & kSpaceBeforeParens ? "Always" : "Never");
+    }
     options << ", SpacesInParentheses : " << ClangFlagToBool(kSpacesInParentheses);
     options << ", BreakBeforeBraces : " << ClangBreakBeforeBrace();
     options << ", ColumnLimit : " << m_clangColumnLimit;
-    options << ", PointerAlignment : " << (m_clangFormatOptions & kPointerAlignmentRight ? "Right" : "Left");
+    if(clangFormatVersion >= 3.5) {
+        options << ", PointerAlignment : " << (m_clangFormatOptions & kPointerAlignmentRight ? "Right" : "Left");
+    }
     options << " }\" ";
     return options;
 }
@@ -273,4 +288,19 @@ wxString FormatOptions::ClangGlobalSettings() const
     options << ", IndentWidth: " << indentWidth;
     options << ", UseTab: " << (useTabs ? "ForIndentation" : "Never");
     return options;
+}
+
+wxString FormatOptions::GetPhpFixerCommand() const
+{
+    wxString command, phar, php, options;
+    php << GetPhpExecutable();
+    ::WrapWithQuotes(php);
+    
+    phar << GetPHPCSFixerPhar();
+    ::WrapWithQuotes(phar);
+    
+    options << GetPHPCSFixerPharOptions();
+    options.Trim().Trim(false);
+    command << php << " " << phar << " fix " << options;
+    return command;
 }

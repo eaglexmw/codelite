@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CMake.cpp
 //
 // -------------------------------------------------------------------------
@@ -49,6 +49,7 @@
 
 // Declaration
 #include "CMake.h"
+#include "cl_standard_paths.h"
 
 // C++
 #include <utility>
@@ -101,7 +102,7 @@ static wxString CreateHtml(const wxArrayString& array)
 CMake::CMake(const wxFileName& path)
     : m_path(path)
     , m_version("?")
-    , m_dbFileName(wxStandardPaths::Get().GetUserDataDir(), "cmake.db")
+    , m_dbFileName(clStandardPaths::Get().GetUserDataDir(), "cmake.db")
 {
     // Prepare database
     PrepareDatabase();
@@ -382,7 +383,7 @@ CMake::LoadFromDatabase()
         }
 
     } catch (const wxSQLite3Exception& e) {
-        CL_ERROR("Error occured while loading data from CMake database: %s", e.GetMessage());
+        CL_ERROR("Error occurred while loading data from CMake database: %s", e.GetMessage());
     }
 
     // Everything is loaded
@@ -467,7 +468,7 @@ CMake::StoreIntoDatabase()
         db.Commit();
 
     } catch (wxSQLite3Exception &e) {
-        CL_ERROR("An error occured while storing CMake data into database: %s", e.GetMessage());
+        CL_ERROR("An error occurred while storing CMake data into database: %s", e.GetMessage());
     }
 }
 

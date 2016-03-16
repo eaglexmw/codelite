@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CMakeGenerator.h
 //
 // -------------------------------------------------------------------------
@@ -79,7 +79,7 @@ public:
      *
      * @param workspace Exported workspace.
      */
-    static bool Generate(Workspace* workspace);
+    static bool Generate(clCxxWorkspace* workspace);
 
 
     /**

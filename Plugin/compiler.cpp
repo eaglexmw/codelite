@@ -36,6 +36,7 @@
 #include <wx/tokenzr.h>
 #include "file_logger.h"
 #include "CxxPreProcessor.h"
+#include "asyncprocess.h"
 
 Compiler::Compiler(wxXmlNode* node, Compiler::eRegexType regexType)
     : m_objectNameIdenticalToFileName(false)
@@ -99,7 +100,9 @@ Compiler::Compiler(wxXmlNode* node, Compiler::eRegexType regexType)
             }
 
             else if(child->GetName() == wxT("Tool")) {
-                m_tools[XmlUtils::ReadString(child, wxT("Name"))] = XmlUtils::ReadString(child, wxT("Value"));
+                wxString toolpath = XmlUtils::ReadString(child, wxT("Value"));
+                toolpath.Trim();
+                m_tools[XmlUtils::ReadString(child, wxT("Name"))] = toolpath;
             }
 
             else if(child->GetName() == wxT("Option")) {
@@ -194,11 +197,11 @@ Compiler::Compiler(wxXmlNode* node, Compiler::eRegexType regexType)
         }
 
         // For backward compatibility, if the compiler / linker options are empty - add them
-        if(IsGnuCompatibleCompiler() && m_compilerOptions.empty()) {
+        if(IsGnuCompatibleCompiler()) {
             AddDefaultGnuComplierOptions();
         }
 
-        if(IsGnuCompatibleCompiler() && m_linkerOptions.empty()) {
+        if(IsGnuCompatibleCompiler()) {
             AddDefaultGnuLinkerOptions();
         }
 
@@ -224,7 +227,7 @@ Compiler::Compiler(wxXmlNode* node, Compiler::eRegexType regexType)
         if(regexType == kRegexGNU) {
             AddPattern(eErrorPattern,
                        "^([^ ][a-zA-Z:]{0,2}[ a-zA-Z\\.0-9_/\\+\\-]+ *)(:)([0-9]*)([:0-9]*)(: )((fatal "
-                       "error)|(error)|(undefined reference))",
+                       "error)|(error)|(undefined reference)|([\\t ]*required from))",
                        1,
                        3,
                        4);
@@ -621,6 +624,7 @@ void Compiler::AddDefaultGnuComplierOptions()
     AddCompilerOption("-w", "Inhibit all warning messages");
     AddCompilerOption("-std=c99", "Enable ANSI C99 features");
     AddCompilerOption("-std=c++11", "Enable C++11 features");
+    AddCompilerOption("-std=c++14", "Enable C++14 features");
 }
 
 void Compiler::AddDefaultGnuLinkerOptions()
@@ -632,27 +636,21 @@ void Compiler::AddDefaultGnuLinkerOptions()
     AddLinkerOption("-s", "Remove all symbol table and relocation information from the executable");
 }
 
-wxArrayString Compiler::GetDefaultIncludePaths() const
+wxArrayString Compiler::GetDefaultIncludePaths()
 {
     wxArrayString defaultPaths;
-    if(GetCompilerFamily() == COMPILER_FAMILY_MINGW) {
-        wxString ver = GetGCCVersion();
-        if(ver.IsEmpty()) {
-            return defaultPaths;
-        }
-
-        // FIXME : support 64 bit compilers
-        defaultPaths.Add(GetIncludePath("lib/gcc/mingw32/" + ver + "/include/c++"));
-        defaultPaths.Add(GetIncludePath("lib/gcc/mingw32/" + ver + "/include/c++/mingw32"));
-        defaultPaths.Add(GetIncludePath("lib/gcc/mingw32/" + ver + "/include/c++/backward"));
-        defaultPaths.Add(GetIncludePath("lib/gcc/mingw32/" + ver + "/include"));
-        defaultPaths.Add(GetIncludePath("include"));
-        defaultPaths.Add(GetIncludePath("lib/gcc/mingw32/" + ver + "/include-fixed"));
-
-    } else if(GetCompilerFamily() == COMPILER_FAMILY_CLANG || GetCompilerFamily() == COMPILER_FAMILY_GCC) {
-#ifndef __WXMSW__
+    wxArrayString gccCompilers;
+    gccCompilers.Add(COMPILER_FAMILY_MINGW);
+    gccCompilers.Add(COMPILER_FAMILY_CLANG);
+    gccCompilers.Add(COMPILER_FAMILY_GCC);
+    
+    // Only add the cygwin 
+    if(::clIsCygwinEnvironment()) {
+        gccCompilers.Add(COMPILER_FAMILY_CYGWIN);
+    }
+    
+    if(gccCompilers.Index(GetCompilerFamily()) != wxNOT_FOUND) {
         defaultPaths = POSIXGetIncludePaths();
-#endif
     }
     return defaultPaths;
 }
@@ -686,9 +684,19 @@ wxString Compiler::GetIncludePath(const wxString& pathSuffix) const
 wxArrayString Compiler::POSIXGetIncludePaths() const
 {
     wxString command;
+#ifdef __WXMSW__
+    if(::clIsCygwinEnvironment()) {
+        command << GetTool("CXX") << " -v -x c++ /dev/null -fsyntax-only";
+    } else {
+        command << GetTool("CXX") << " -v -x c++ nul -fsyntax-only";
+    }
+#else
     command << GetTool("CXX") << " -v -x c++ /dev/null -fsyntax-only";
-
-    wxString outputStr = ::wxShellExec(command, wxEmptyString);
+#endif
+    
+    wxString outputStr;
+    IProcess::Ptr_t proc(::CreateSyncProcess(command));
+    proc->WaitForTerminate(outputStr);
 
     wxArrayString arr;
     wxArrayString outputArr = ::wxStringTokenize(outputStr, wxT("\n\r"), wxTOKEN_STRTOK);
@@ -713,10 +721,25 @@ wxArrayString Compiler::POSIXGetIncludePaths() const
             // but it is harmless to use it under all OSs
             file.Replace(wxT("(framework directory)"), wxT(""));
             file.Trim().Trim(false);
+            
+            // Fix cygwin paths to use Windows native paths
+#ifdef __WXMSW__
+            if(GetCompilerFamily() == COMPILER_FAMILY_CYGWIN) {
+                const wxString& cygdriveRoot = GetInstallationPath();
+                
+                // For reasons beyond me, /usr/lib is mapped to /lib
+                if(file.StartsWith("/usr/lib")) {
+                    file.Replace("/usr/lib", "/lib");
+                }
+                file.Prepend(cygdriveRoot + "/");
+            }
+#endif
 
             wxFileName includePath(file, "");
             includePath.Normalize();
 
+            
+            
             arr.Add(includePath.GetPath());
         }
     }

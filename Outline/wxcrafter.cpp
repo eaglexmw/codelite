@@ -35,6 +35,7 @@ OutlineTabBaseClass::OutlineTabBaseClass(wxWindow* parent, wxWindowID id, const 
     boxSizer1->Add(m_textCtrlSearch, 0, wxALL|wxEXPAND, 2);
     
     m_simpleBook = new wxSimplebook(this, wxID_ANY, wxDefaultPosition, wxSize(150,300), wxBK_DEFAULT);
+    m_simpleBook->SetName(wxT("m_simpleBook"));
     m_simpleBook->SetEffect(wxSHOW_EFFECT_NONE);
     
     boxSizer1->Add(m_simpleBook, 1, wxALL|wxEXPAND, 2);
@@ -55,15 +56,26 @@ OutlineTabBaseClass::OutlineTabBaseClass(wxWindow* parent, wxWindowID id, const 
     
     boxSizer13->Add(m_treeCtrlPhp, 1, wxEXPAND, 5);
     
+    m_panelPlaceHolder = new wxPanel(m_simpleBook, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
+    m_simpleBook->AddPage(m_panelPlaceHolder, _("Page"), false);
+    
+    wxBoxSizer* boxSizer19 = new wxBoxSizer(wxVERTICAL);
+    m_panelPlaceHolder->SetSizer(boxSizer19);
+    
+    m_panelEmpty = new wxPanel(m_panelPlaceHolder, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
+    
+    boxSizer19->Add(m_panelEmpty, 1, wxEXPAND, 5);
+    
+    SetName(wxT("OutlineTabBaseClass"));
     SetSizeHints(-1,-1);
-    if ( GetSizer() ) {
+    if (GetSizer()) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
     // Connect events
     m_textCtrlSearch->Connect(wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler(OutlineTabBaseClass::OnSearchSymbol), NULL, this);
     m_textCtrlSearch->Connect(wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler(OutlineTabBaseClass::OnSearchEnter), NULL, this);
     m_treeCtrlPhp->Connect(wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler(OutlineTabBaseClass::OnPhpItemSelected), NULL, this);
+    m_treeCtrlPhp->Connect(wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler(OutlineTabBaseClass::OnPhpItemActivated), NULL, this);
     
 }
 
@@ -72,5 +84,6 @@ OutlineTabBaseClass::~OutlineTabBaseClass()
     m_textCtrlSearch->Disconnect(wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler(OutlineTabBaseClass::OnSearchSymbol), NULL, this);
     m_textCtrlSearch->Disconnect(wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler(OutlineTabBaseClass::OnSearchEnter), NULL, this);
     m_treeCtrlPhp->Disconnect(wxEVT_COMMAND_TREE_SEL_CHANGED, wxTreeEventHandler(OutlineTabBaseClass::OnPhpItemSelected), NULL, this);
+    m_treeCtrlPhp->Disconnect(wxEVT_COMMAND_TREE_ITEM_ACTIVATED, wxTreeEventHandler(OutlineTabBaseClass::OnPhpItemActivated), NULL, this);
     
 }

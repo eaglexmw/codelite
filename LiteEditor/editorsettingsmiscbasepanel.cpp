@@ -27,6 +27,7 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     this->SetSizer(bSizer1);
     
     m_notebook2 = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxBK_DEFAULT);
+    m_notebook2->SetName(wxT("m_notebook2"));
     
     bSizer1->Add(m_notebook2, 1, wxEXPAND, 5);
     
@@ -211,7 +212,7 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     wxArrayString m_fileEncodingArr;
     m_fileEncoding = new wxChoice(m_panel2, wxID_ANY, wxDefaultPosition, wxSize(-1, -1), m_fileEncodingArr, 0);
     
-    fgSizer1->Add(m_fileEncoding, 0, wxALL|wxEXPAND|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    fgSizer1->Add(m_fileEncoding, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
     
     fgSizer1->Add(0, 0, 1, wxEXPAND, 5);
     
@@ -229,7 +230,7 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     m_AvailableLocales = new wxChoice(m_panel2, wxID_ANY, wxDefaultPosition, wxSize(-1, -1), m_AvailableLocalesArr, 0);
     m_AvailableLocales->SetToolTip(_("These are the locales that are available on your system. There won't necessarily be CodeLite translations for all of them."));
     
-    fgSizer1->Add(m_AvailableLocales, 0, wxALL|wxEXPAND|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    fgSizer1->Add(m_AvailableLocales, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
     
     m_panel3 = new wxPanel(m_notebook2, wxID_ANY, wxDefaultPosition, wxSize(-1, -1), wxTAB_TRAVERSAL);
     m_notebook2->AddPage(m_panel3, _("History"), false);
@@ -253,23 +254,23 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     
     fgSizer2->Add(m_staticText3, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
     
-    m_spinCtrlMaxOpenTabs = new wxTextCtrl(m_panel3, wxID_ANY, wxT("15"), wxDefaultPosition, wxSize(-1, -1), 0);
-    #if wxVERSION_NUMBER >= 3000
-    m_spinCtrlMaxOpenTabs->SetHint(wxT(""));
-    #endif
-    
-    fgSizer2->Add(m_spinCtrlMaxOpenTabs, 0, wxALL|wxEXPAND|wxALIGN_LEFT, 5);
-    
-    m_staticText4 = new wxStaticText(m_panel3, wxID_ANY, _("Maximum number of tabs opened in the editor:"), wxDefaultPosition, wxSize(-1, -1), 0);
-    
-    fgSizer2->Add(m_staticText4, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
-    
-    m_maxItemsFindReplace = new wxTextCtrl(m_panel3, wxID_ANY, wxT("10"), wxDefaultPosition, wxSize(-1, -1), 0);
+    m_maxItemsFindReplace = new wxTextCtrl(m_panel3, wxID_ANY, wxT("15"), wxDefaultPosition, wxSize(-1, -1), 0);
     #if wxVERSION_NUMBER >= 3000
     m_maxItemsFindReplace->SetHint(wxT(""));
     #endif
     
     fgSizer2->Add(m_maxItemsFindReplace, 0, wxALL|wxEXPAND|wxALIGN_LEFT, 5);
+    
+    m_staticText4 = new wxStaticText(m_panel3, wxID_ANY, _("Maximum number of tabs opened in the editor:"), wxDefaultPosition, wxSize(-1, -1), 0);
+    
+    fgSizer2->Add(m_staticText4, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    
+    m_spinCtrlMaxOpenTabs = new wxTextCtrl(m_panel3, wxID_ANY, wxT("10"), wxDefaultPosition, wxSize(-1, -1), 0);
+    #if wxVERSION_NUMBER >= 3000
+    m_spinCtrlMaxOpenTabs->SetHint(wxT(""));
+    #endif
+    
+    fgSizer2->Add(m_spinCtrlMaxOpenTabs, 0, wxALL|wxEXPAND|wxALIGN_LEFT, 5);
     
     m_staticText53 = new wxStaticText(m_panel3, wxID_ANY, _("Reset annoying dialogs answers:"), wxDefaultPosition, wxSize(-1,-1), 0);
     
@@ -306,12 +307,12 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     m_choice4->SetToolTip(_("codelite logs to file various events, this option controls the logging verbosity"));
     m_choice4->SetSelection(0);
     
-    flexGridSizer13->Add(m_choice4, 0, wxALL|wxEXPAND|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    flexGridSizer13->Add(m_choice4, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
     
     m_buttonOpenLog = new wxButton(m_panel4, wxID_ANY, _("Open.."), wxDefaultPosition, wxSize(-1, -1), 0);
     m_buttonOpenLog->SetToolTip(_("Open the log file into an editor"));
     
-    flexGridSizer13->Add(m_buttonOpenLog, 0, wxALL|wxEXPAND|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    flexGridSizer13->Add(m_buttonOpenLog, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
     
     m_redirectLogOutput = new wxCheckBox(m_panel4, wxID_ANY, _("GTK only: Redirect stdout/stderr output to a log file"), wxDefaultPosition, wxSize(-1,-1), 0);
     m_redirectLogOutput->SetValue(true);
@@ -319,11 +320,12 @@ EditorSettingsMiscBasePanel::EditorSettingsMiscBasePanel(wxWindow* parent, wxWin
     
     boxSizer11->Add(m_redirectLogOutput, 0, wxALL, 10);
     
+    SetName(wxT("EditorSettingsMiscBasePanel"));
     SetSizeHints(449,382);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     m_checkBoxEnableMSWTheme->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(EditorSettingsMiscBasePanel::OnEnableThemeUI), NULL, this);
     m_SetLocale->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(EditorSettingsMiscBasePanel::LocaleChkUpdateUI), NULL, this);

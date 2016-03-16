@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : CompilerLocatorGCC.cpp
 //
 // -------------------------------------------------------------------------
@@ -177,6 +177,11 @@ void CompilerLocatorGCC::AddTools(CompilerPtr compiler,
 
     toolFile.SetFullName("as");
     AddTool(compiler, "AS", toolFile.GetFullPath(), "");
+    
+    toolFile.SetFullName("gdb");
+    if(toolFile.Exists()) {
+        AddTool(compiler, "Debugger", toolFile.GetFullPath(), "");
+    }
 }
 
 void CompilerLocatorGCC::AddTool(CompilerPtr compiler, const wxString& toolname, const wxString& toolpath, const wxString& suffix, const wxString& extraArgs)
@@ -187,8 +192,11 @@ void CompilerLocatorGCC::AddTool(CompilerPtr compiler, const wxString& toolname,
     }
 
     ::WrapWithQuotes(tool);
-    tool << " " << extraArgs;
+    if(!extraArgs.IsEmpty()) {
+        tool << " " << extraArgs;
+    }
     compiler->SetTool(toolname, tool);
+
     CL_DEBUG("Adding tool: %s => %s", toolname, tool);
 }
 

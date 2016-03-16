@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : messagepane_base.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : messagepane_base.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef MESSAGEPANE_BASE_CLASSES_H
-#define MESSAGEPANE_BASE_CLASSES_H
+#ifndef CODELITE_LITEEDITOR_MESSAGEPANE_BASE_CLASSES_H
+#define CODELITE_LITEEDITOR_MESSAGEPANE_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -42,6 +42,12 @@
 #include <wx/stattext.h>
 #include <wx/checkbox.h>
 #include <wx/button.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class MessagePaneBase : public wxPanel
 {
@@ -66,6 +72,16 @@ protected:
     virtual void OnActionButton2(wxCommandEvent& event) { event.Skip(); }
 
 public:
+    wxStaticBitmap* GetBitmap1() { return m_bitmap1; }
+    wxStaticText* GetStaticText2() { return m_staticText2; }
+    wxStaticText* GetStaticTextMessage() { return m_staticTextMessage; }
+    wxCheckBox* GetDontAnnoyMeCheck() { return m_DontAnnoyMeCheck; }
+    wxPanel* GetPanel1() { return m_panel1; }
+    wxButton* GetButtonClose() { return m_buttonClose; }
+    wxButton* GetButtonAction() { return m_buttonAction; }
+    wxButton* GetButtonAction1() { return m_buttonAction1; }
+    wxButton* GetButtonAction2() { return m_buttonAction2; }
+    wxPanel* GetPanel2() { return m_panel2; }
     MessagePaneBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(-1,-1), long style = wxTAB_TRAVERSAL);
     virtual ~MessagePaneBase();
 };

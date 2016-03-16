@@ -20,11 +20,12 @@ PHPSettingsDlg::PHPSettingsDlg(wxWindow* parent)
     wxString strPort;
     strPort << data.GetXdebugPort();
     m_textCtrlXDebugPort->ChangeValue(strPort);
-
-    WindowAttrManager::Load(this, wxT("PHPSettingsDlg"), NULL);
+    m_textCtrlHost->ChangeValue(data.GetXdebugHost());
+    SetName("PHPSettingsDlg");
+    WindowAttrManager::Load(this);
 }
 
-PHPSettingsDlg::~PHPSettingsDlg() { WindowAttrManager::Save(this, wxT("PHPSettingsDlg"), NULL); }
+PHPSettingsDlg::~PHPSettingsDlg() {  }
 
 void PHPSettingsDlg::OnBrowseForIncludePath(wxCommandEvent& event)
 {
@@ -49,6 +50,7 @@ void PHPSettingsDlg::OnOK(wxCommandEvent& event)
     data.SetPhpExe(m_filePickerPHPPath->GetPath());
     data.SetXdebugIdeKey(m_textCtrlIdeKey->GetValue());
     data.SetRunLint(m_checkBoxRunLint->IsChecked());
+    data.SetXdebugHost(m_textCtrlHost->GetValue());
     wxString xdebugPort = m_textCtrlXDebugPort->GetValue();
     long port(0);
     if(xdebugPort.ToLong((long*)&port)) {

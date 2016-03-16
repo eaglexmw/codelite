@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitLogDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -46,10 +46,11 @@ GitLogDlg::GitLogDlg(wxWindow* parent, const wxString title)
     Layout();
 
     SetSize(1024, 560);
-    WindowAttrManager::Load(this, "GitLogDlg", NULL);
+    SetName("GitLogDlg");
+    WindowAttrManager::Load(this);
 }
 
-GitLogDlg::~GitLogDlg() { WindowAttrManager::Save(this, "GitLogDlg", NULL); }
+GitLogDlg::~GitLogDlg() {}
 
 void GitLogDlg::SetLog(const wxString& log)
 {

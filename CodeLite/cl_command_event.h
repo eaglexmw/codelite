@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cl_command_event.h
 //
 // -------------------------------------------------------------------------
@@ -32,6 +32,7 @@
 #include "entry.h"
 #include <wx/arrstr.h>
 #include <vector>
+#include "wxCodeCompletionBoxEntry.h"
 
 // Set of flags that can be passed within the 'S{G}etInt' function of clCommandEvent
 enum {
@@ -48,6 +49,8 @@ protected:
     wxString m_oldName;
     bool m_answer;
     bool m_allowed;
+    int m_lineNumber;
+    bool m_selected;
 
 public:
     clCommandEvent(wxEventType commandType = wxEVT_NULL, int winid = 0);
@@ -55,27 +58,64 @@ public:
     clCommandEvent& operator=(const clCommandEvent& src);
     virtual ~clCommandEvent();
 
+    clCommandEvent& SetSelected(bool selected)
+    {
+        this->m_selected = selected;
+        return *this;
+    }
+    bool IsSelected() const { return m_selected; }
+    
     // Veto management
-    void SetAllowed(bool allowed) { this->m_allowed = allowed; }
-    bool IsAllowed() const { return m_allowed; }
     void Veto() { this->m_allowed = false; }
     void Allow() { this->m_allowed = true; }
 
     // Hides wxCommandEvent::Set{Get}ClientObject
     void SetClientObject(wxClientData* clientObject);
 
-    void SetOldName(const wxString& oldName) { this->m_oldName = oldName; }
-    const wxString& GetOldName() const { return m_oldName; }
     wxClientData* GetClientObject() const;
-
     virtual wxEvent* Clone() const;
 
-    void SetAnswer(bool answer) { this->m_answer = answer; }
+    clCommandEvent& SetLineNumber(int lineNumber)
+    {
+        this->m_lineNumber = lineNumber;
+        return *this;
+    }
+    int GetLineNumber() const { return m_lineNumber; }
+    clCommandEvent& SetAllowed(bool allowed)
+    {
+        this->m_allowed = allowed;
+        return *this;
+    }
+    clCommandEvent& SetAnswer(bool answer)
+    {
+        this->m_answer = answer;
+        return *this;
+    }
+    clCommandEvent& SetFileName(const wxString& fileName)
+    {
+        this->m_fileName = fileName;
+        return *this;
+    }
+    clCommandEvent& SetOldName(const wxString& oldName)
+    {
+        this->m_oldName = oldName;
+        return *this;
+    }
+    clCommandEvent& SetPtr(const wxSharedPtr<wxClientData>& ptr)
+    {
+        this->m_ptr = ptr;
+        return *this;
+    }
+    clCommandEvent& SetStrings(const wxArrayString& strings)
+    {
+        this->m_strings = strings;
+        return *this;
+    }
+    bool IsAllowed() const { return m_allowed; }
     bool IsAnswer() const { return m_answer; }
-
-    void SetFileName(const wxString& fileName) { this->m_fileName = fileName; }
     const wxString& GetFileName() const { return m_fileName; }
-    void SetStrings(const wxArrayString& strings) { this->m_strings = strings; }
+    const wxString& GetOldName() const { return m_oldName; }
+    const wxSharedPtr<wxClientData>& GetPtr() const { return m_ptr; }
     const wxArrayString& GetStrings() const { return m_strings; }
     wxArrayString& GetStrings() { return m_strings; }
 };
@@ -92,7 +132,7 @@ class WXDLLIMPEXP_CL clCodeCompletionEvent : public clCommandEvent
     int m_position;
     wxString m_tooltip;
     bool m_insideCommentOrString;
-    TagEntryPtr m_tagEntry;
+    wxCodeCompletionBoxEntry::Ptr_t m_entry;
     wxArrayString m_definitions;
 
 public:
@@ -104,13 +144,8 @@ public:
 
     void SetDefinitions(const wxArrayString& definitions) { this->m_definitions = definitions; }
     const wxArrayString& GetDefinitions() const { return m_definitions; }
-    void SetTagEntry(TagEntryPtr tag) { this->m_tagEntry = tag; }
-
-    /**
-     * @brief return the tag entry associated with this event.
-     * This usually makes sense for event wxEVT_CC_CODE_COMPLETE_BOX_DISMISSED
-     */
-    TagEntryPtr GetTagEntry() const { return m_tagEntry; }
+    void SetEntry(wxCodeCompletionBoxEntry::Ptr_t entry) { this->m_entry = entry; }
+    wxCodeCompletionBoxEntry::Ptr_t GetEntry() { return m_entry; }
 
     void SetInsideCommentOrString(bool insideCommentOrString) { this->m_insideCommentOrString = insideCommentOrString; }
 
@@ -178,6 +213,8 @@ class WXDLLIMPEXP_CL clBuildEvent : public clCommandEvent
     wxString m_configurationName;
     wxString m_command;
     bool m_projectOnly;
+    size_t m_warningCount;
+    size_t m_errorCount;
 
 public:
     clBuildEvent(wxEventType commandType = wxEVT_NULL, int winid = 0);
@@ -194,6 +231,11 @@ public:
     void SetProjectName(const wxString& projectName) { this->m_projectName = projectName; }
     const wxString& GetConfigurationName() const { return m_configurationName; }
     const wxString& GetProjectName() const { return m_projectName; }
+
+    void SetErrorCount(size_t errorCount) { this->m_errorCount = errorCount; }
+    void SetWarningCount(size_t warningCount) { this->m_warningCount = warningCount; }
+    size_t GetErrorCount() const { return m_errorCount; }
+    size_t GetWarningCount() const { return m_warningCount; }
 };
 
 typedef void (wxEvtHandler::*clBuildEventFunction)(clBuildEvent&);
@@ -313,6 +355,31 @@ public:
 
 typedef void (wxEvtHandler::*clCompilerEventFunction)(clCompilerEvent&);
 #define clCompilerEventHandler(func) wxEVENT_HANDLER_CAST(clCompilerEventFunction, func)
+
+// --------------------------------------------------------------
+// Processs event
+// --------------------------------------------------------------
+class IProcess;
+class WXDLLIMPEXP_CL clProcessEvent : public clCommandEvent
+{
+    wxString m_output;
+    IProcess* m_process;
+
+public:
+    clProcessEvent(wxEventType commandType = wxEVT_NULL, int winid = 0);
+    clProcessEvent(const clProcessEvent& event);
+    clProcessEvent& operator=(const clProcessEvent& src);
+    virtual ~clProcessEvent();
+    virtual wxEvent* Clone() const { return new clProcessEvent(*this); }
+
+    void SetOutput(const wxString& output) { this->m_output = output; }
+    void SetProcess(IProcess* process) { this->m_process = process; }
+    const wxString& GetOutput() const { return m_output; }
+    IProcess* GetProcess() { return m_process; }
+};
+
+typedef void (wxEvtHandler::*clProcessEventFunction)(clProcessEvent&);
+#define clProcessEventHandler(func) wxEVENT_HANDLER_CAST(clProcessEventFunction, func)
 
 //---------------------------------------------------------------
 // Source formatting event

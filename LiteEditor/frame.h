@@ -41,7 +41,7 @@
 #include "tags_options_dlg.h"
 #include <wx/html/htmlwin.h>
 #include "debuggerpane.h"
-#include "notebook_ex.h"
+#include "Notebook.h"
 #include "mainbook.h"
 #include <set>
 #include "theme_handler.h"
@@ -49,8 +49,14 @@
 #include "ZombieReaperPOSIX.h"
 #include "macros.h"
 #include <wx/splash.h>
+#include "clStatusBar.h"
+#include <wx/cmndata.h>
+#include "clDockingManager.h"
+#include "clMainFrameHelper.h"
 
 // forward decls
+class clSingleInstanceThread;
+class wxCustomStatusBar;
 class TagEntry;
 class WorkspacePane;
 class wxToolBar;
@@ -66,7 +72,6 @@ class clSplashScreen;
 //--------------------------------
 // Helper class
 //--------------------------------
-extern const wxEventType wxEVT_UPDATE_STATUS_BAR;
 extern const wxEventType wxEVT_LOAD_PERSPECTIVE;
 extern const wxEventType wxEVT_REFRESH_PERSPECTIVE_MENU;
 extern const wxEventType wxEVT_ACTIVATE_EDITOR;
@@ -77,25 +82,11 @@ struct StartPageData {
     wxString action;
 };
 
-class StatusbarTimer : public wxTimer // Notify() clears pane 0 of the statusbar
-{
-public:
-    StatusbarTimer(wxFrame* frame)
-        : m_frame(frame)
-    {
-    }
-
-protected:
-    void Notify() { m_frame->SetStatusText(wxT(""), 0); }
-
-    wxFrame* m_frame;
-};
-
 class clMainFrame : public wxFrame
 {
     MainBook* m_mainBook;
     static clMainFrame* m_theFrame;
-    wxAuiManager m_mgr;
+    clDockingManager m_mgr;
     OutputPane* m_outputPane;
     WorkspacePane* m_workspacePane;
     wxArrayString m_files;
@@ -107,7 +98,6 @@ class clMainFrame : public wxFrame
     GeneralInfo m_frameGeneralInfo;
     std::map<int, wxString> m_toolbars;
     std::map<int, wxString> m_panes;
-    std::vector<std::map<int, wxString> > m_status;
     wxMenu* m_cppMenu;
     bool m_highlightWord;
     DockablePaneMenuManager* m_DPmenuMgr;
@@ -117,7 +107,6 @@ class clMainFrame : public wxFrame
     bool m_workspaceRetagIsRequired;
     bool m_loadLastSession;
     wxSizer* m_horzSizer;
-    StatusbarTimer* m_statusbarTimer;
     MyMenuBar* m_myMenuBar;
     wxMenu* m_bookmarksDropDownMenu;
     ThemeHandler m_themeHandler;
@@ -127,15 +116,32 @@ class clMainFrame : public wxFrame
 #endif
     // Maintain a set of core toolbars (i.e. toolbars not owned by any plugin)
     wxStringSet_t m_coreToolbars;
+    clStatusBar* m_statusBar;
+    clSingleInstanceThread* m_singleInstanceThread;
+    bool m_toggleToolBar;
+
+    // Printing
+    wxPrintDialogData m_printDlgData;
+    wxToolBar* m_mainToolBar;
+    clMainFrameHelper::Ptr_t m_frameHelper;
     
+public:
+    static bool m_initCompleted;
+
 protected:
     bool IsEditorEvent(wxEvent& event);
     void DoCreateBuildDropDownMenu(wxMenu* menu);
-    void DoShowToolbars(bool show);
-    
+    void DoShowToolbars(bool show, bool update = true);
+    void InitializeLogo();
+
 public:
     static clMainFrame* Get();
     static void Initialize(bool loadLastSession);
+
+    /**
+     * @brief return the status bar
+     */
+    clStatusBar* GetStatusBar() { return m_statusBar; }
 
     /**
      * @brief update the parser (code completion) search paths using the
@@ -196,13 +202,6 @@ public:
     bool GetHighlightWord() { return m_highlightWord; }
 
     /**
-     * @brief Return language name by menu item id
-     * @param id
-     * @return
-     */
-    wxString GetViewAsLanguageById(int id) const;
-
-    /**
      * @brief
      * @param editor
      */
@@ -260,8 +259,8 @@ public:
 
     const GeneralInfo& GetFrameGeneralInfo() const { return m_frameGeneralInfo; }
 
-    void OnSingleInstanceOpenFiles(wxCommandEvent& e);
-    void OnSingleInstanceRaise(wxCommandEvent& e);
+    void OnSingleInstanceOpenFiles(clCommandEvent& e);
+    void OnSingleInstanceRaise(clCommandEvent& e);
 
     /**
      * @brief rebuild the give project
@@ -280,17 +279,9 @@ public:
     void OnBuildCustomTarget(wxCommandEvent& event);
 
     /**
-     * @brief set a status message
-     * @param msg the string to display
-     * @param col the statusbar pane to use
-     * @param seconds_to_live how many seconds to display it for; 0 == forever; -1 == use the default
-     */
-    void SetStatusMessage(const wxString& msg, int col, int seconds_to_live = wxID_ANY);
-
-    /**
      * @brief save the current IDE layout and session
      */
-    void SaveLayoutAndSession();
+    bool SaveLayoutAndSession();
 
     /**
      * @brief create the recently-opened-workspaces menu
@@ -298,18 +289,17 @@ public:
     void CreateRecentlyOpenedWorkspacesMenu();
     void DoSuggestRestart();
 
-    void LocateCompilersIfNeeded();
+    void Bootstrap();
 
 private:
     // make our frame's constructor private
     clMainFrame(wxWindow* pParent,
-                wxWindowID id,
-                const wxString& title,
-                const wxPoint& pos,
-                const wxSize& size,
-                long style = wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX | wxCAPTION | wxSYSTEM_MENU |
-                             wxRESIZE_BORDER |
-                             wxCLIP_CHILDREN);
+        wxWindowID id,
+        const wxString& title,
+        const wxPoint& pos,
+        const wxSize& size,
+        long style = wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX | wxCAPTION | wxSYSTEM_MENU | wxRESIZE_BORDER |
+            wxCLIP_CHILDREN);
     wxString CreateWorkspaceTable();
     wxString CreateFilesTable();
     void StartTimer();
@@ -319,7 +309,7 @@ private:
      * Construct all the GUI controls of the main frame. this function is called
      * at construction time
      */
-    void CreateGUIControls(void);
+    void CreateGUIControls();
     /**
      * \brief update the path & name of the build tool
      * on windows, try to locate make, followed by mingw32-make
@@ -332,10 +322,10 @@ private:
      */
     void DispatchCommandEvent(wxCommandEvent& event);
     void DispatchUpdateUIEvent(wxUpdateUIEvent& event);
-    
-    void OnSplitSelection(wxCommandEvent &event);
+
+    void OnSplitSelection(wxCommandEvent& event);
     void OnSplitSelectionUI(wxUpdateUIEvent& event);
-    
+
     /// Toolbar management
     void CreateToolbars24();
     void CreateToolbars16();
@@ -343,23 +333,35 @@ private:
     void CreateNativeToolbar16();
     void ToggleToolBars(bool all);
 
+    void SetToolBar(wxToolBar* tb);
+
     void ViewPaneUI(const wxString& paneName, wxUpdateUIEvent& event);
-    void CreateViewAsSubMenu();
     void CreateRecentlyOpenedFilesMenu();
     void CreateWelcomePage();
     bool ReloadExternallyModifiedProjectFiles();
     void DoEnableWorkspaceViewFlag(bool enable, int flag);
     void DoUpdatePerspectiveMenu();
     bool IsWorkspaceViewFlagEnabled(int flag);
-
+    /**
+     * @brief show the startup wizard
+     * @return true if a restart is needed
+     */
+    bool StartSetupWizard();
+    
+    void DoShowCaptions(bool show);
+    
 public:
     void ViewPane(const wxString& paneName, bool checked);
     void ShowOrHideCaptions();
+    wxToolBar* GetMainToolBar() const { return m_mainToolBar; }
 
 protected:
     //----------------------------------------------------
     // event handlers
     //----------------------------------------------------
+    void OnDebugStarted(clDebugEvent& event);
+    void OnDebugEnded(clDebugEvent& event);
+
     void OnRestoreDefaultLayout(wxCommandEvent& e);
     void OnIdle(wxIdleEvent& e);
     void OnBuildEnded(clCommandEvent& event);
@@ -367,6 +369,7 @@ protected:
     void OnClose(wxCloseEvent& event);
 
     void OnSave(wxCommandEvent& event);
+    void OnDuplicateTab(wxCommandEvent& event);
     void OnFileSaveUI(wxUpdateUIEvent& event);
     void OnSaveAs(wxCommandEvent& event);
     void OnFileReload(wxCommandEvent& event);
@@ -378,49 +381,52 @@ protected:
     void OnFunctionCalltip(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnCheckForUpdate(wxCommandEvent& e);
+    void OnRunSetupWizard(wxCommandEvent& e);
     void OnFileNew(wxCommandEvent& event);
     void OnFileOpen(wxCommandEvent& event);
+    void OnFileOpenFolder(wxCommandEvent& event);
     void OnFileClose(wxCommandEvent& event);
     void OnFileCloseUI(wxUpdateUIEvent& event);
     void OnFileSaveAll(wxCommandEvent& event);
     void OnFileSaveTabGroup(wxCommandEvent& event);
     void OnFileExistUpdateUI(wxUpdateUIEvent& event);
+    void OnCopyFilePathRelativeToWorkspaceUI(wxUpdateUIEvent& event);
     void OnFileSaveAllUI(wxUpdateUIEvent& event);
     void OnCompleteWordUpdateUI(wxUpdateUIEvent& event);
     void OnFunctionCalltipUI(wxUpdateUIEvent& event);
     void OnIncrementalSearch(wxCommandEvent& event);
+    void OnIncrementalReplace(wxCommandEvent& event);
     void OnIncrementalSearchUI(wxUpdateUIEvent& event);
     void OnViewToolbar(wxCommandEvent& event);
     void OnViewToolbarUI(wxUpdateUIEvent& event);
-
-    // View -> Workspace View -> ...
-    void OnViewShowWorkspaceTab(wxCommandEvent& e);
-    void OnViewShowWorkspaceTabUI(wxUpdateUIEvent& event);
-    void OnViewShowExplorerTab(wxCommandEvent& e);
-    void OnViewShowExplorerTabUI(wxUpdateUIEvent& event);
-    void OnViewShowTabs(wxCommandEvent& e);
-    void OnViewShowTabsUI(wxUpdateUIEvent& event);
-    void OnViewShowTabgroups(wxCommandEvent& e);
-    void OnViewShowTabgroupsUI(wxUpdateUIEvent& event);
+    void OnPrint(wxCommandEvent& event);
+    void OnPageSetup(wxCommandEvent& event);
+    void OnRecentWorkspaceUI(wxUpdateUIEvent& e);
 
     void OnViewOptions(wxCommandEvent& event);
     void OnToggleMainTBars(wxCommandEvent& event);
     void OnTogglePluginTBars(wxCommandEvent& event);
     void OnTogglePanes(wxCommandEvent& event);
+    void OnToggleMinimalView(wxCommandEvent& event);
+    void OnToggleMinimalViewUI(wxUpdateUIEvent& event);
     void OnShowStatusBar(wxCommandEvent& event);
     void OnShowStatusBarUI(wxUpdateUIEvent& event);
     void OnShowToolbar(wxCommandEvent& event);
     void OnShowToolbarUI(wxUpdateUIEvent& event);
+    void OnShowTabBar(wxCommandEvent& event);
+    void OnShowTabBarUI(wxUpdateUIEvent& event);
     void OnProjectNewWorkspace(wxCommandEvent& event);
     void OnProjectNewProject(wxCommandEvent& event);
     void OnReloadWorkspace(wxCommandEvent& event);
     void OnReloadWorkspaceUI(wxUpdateUIEvent& event);
     void OnSwitchWorkspace(wxCommandEvent& event);
     void OnSwitchWorkspaceUI(wxUpdateUIEvent& event);
+    void OnNewWorkspaceUI(wxUpdateUIEvent& event);
     void OnCloseWorkspace(wxCommandEvent& event);
     void OnProjectAddProject(wxCommandEvent& event);
     void OnReconcileProject(wxCommandEvent& event);
     void OnWorkspaceOpen(wxUpdateUIEvent& event);
+    void OnNewProjectUI(wxUpdateUIEvent& event);
     void OnRetagWorkspaceUI(wxUpdateUIEvent& event);
     void OnAddEnvironmentVariable(wxCommandEvent& event);
     void OnAdvanceSettings(wxCommandEvent& event);
@@ -447,6 +453,7 @@ protected:
     void OnImportMSVS(wxCommandEvent& e);
     void OnDebugAttach(wxCommandEvent& event);
     void OnCopyFilePath(wxCommandEvent& event);
+    void OnCopyFilePathRelativeToWorkspace(wxCommandEvent& event);
     void OnCopyFilePathOnly(wxCommandEvent& event);
     void OnCopyFileName(wxCommandEvent& event);
     void OnHighlightWord(wxCommandEvent& event);
@@ -455,6 +462,8 @@ protected:
     void OnOpenShellFromFilePath(wxCommandEvent& e);
     void OnOpenFileExplorerFromFilePath(wxCommandEvent& e);
     void OnDetachEditor(wxCommandEvent& e);
+    void OnMarkEditorReadonly(wxCommandEvent& e);
+    void OnMarkEditorReadonlyUI(wxUpdateUIEvent& e);
     void OnDetachEditorUI(wxUpdateUIEvent& e);
     void OnQuickDebug(wxCommandEvent& e);
     void OnQuickDebugUI(wxUpdateUIEvent& e);
@@ -491,6 +500,10 @@ protected:
     void OnDebugStopUI(wxUpdateUIEvent& e);
     void OnDebugManageBreakpointsUI(wxUpdateUIEvent& e);
     void OnDebugCmd(wxCommandEvent& e);
+    void OnToggleReverseDebugging(wxCommandEvent& e);
+    void OnToggleReverseDebuggingRecording(wxCommandEvent& e);
+    void OnToggleReverseDebuggingUI(wxUpdateUIEvent& e);
+    void OnToggleReverseDebuggingRecordingUI(wxUpdateUIEvent& e);
     void OnDebugCmdUI(wxUpdateUIEvent& e);
     void OnDebuggerSettings(wxCommandEvent& e);
     void OnLinkClicked(wxHtmlLinkEvent& e);
@@ -505,6 +518,7 @@ protected:
     void OnCompileFile(wxCommandEvent& e);
     void OnCompileFileUI(wxUpdateUIEvent& e);
     void OnCloseAllButThis(wxCommandEvent& e);
+    void OnCloseTabsToTheRight(wxCommandEvent& e);
     void OnWorkspaceMenuUI(wxUpdateUIEvent& e);
     void OnUpdateBuildRefactorIndexBar(wxCommandEvent& e);
     void OnUpdateNumberOfBuildProcesses(wxCommandEvent& e);
@@ -534,6 +548,7 @@ protected:
     void OnViewPane(wxCommandEvent& event);
     void OnViewPaneUI(wxUpdateUIEvent& event);
     void OnDetachWorkspaceViewTab(wxCommandEvent& e);
+    void OnHideWorkspaceViewTab(wxCommandEvent& e);
     void OnDetachDebuggerViewTab(wxCommandEvent& e);
     void OnNewDetachedPane(wxCommandEvent& e);
     void OnDestroyDetachedPane(wxCommandEvent& e);
@@ -550,8 +565,10 @@ protected:
     void OnSyntaxHighlight(wxCommandEvent& e);
     void OnShowWhitespaceUI(wxUpdateUIEvent& e);
     void OnShowWhitespace(wxCommandEvent& e);
+    void OnNextTab(wxCommandEvent& e);
+    void OnPrevTab(wxCommandEvent& e);
+    void OnNextPrevTab_UI(wxUpdateUIEvent& e);
     void OnShowFullScreen(wxCommandEvent& e);
-    void OnSetStatusMessage(wxCommandEvent& e);
     void OnFindResourceXXX(wxCommandEvent& e);
     void OnShowActiveProjectSettings(wxCommandEvent& e);
     void OnShowActiveProjectSettingsUI(wxUpdateUIEvent& e);
@@ -568,14 +585,15 @@ protected:
     void OnActivateEditor(wxCommandEvent& e);
     void OnActiveEditorChanged(wxCommandEvent& e);
     void OnUpdateCustomTargetsDropDownMenu(wxCommandEvent& e);
+    void OnWorkspaceLoaded(wxCommandEvent& e);
     void OnRefactoringCacheStatus(wxCommandEvent& e);
     void OnWorkspaceClosed(wxCommandEvent& e);
     void OnChangeActiveBookmarkType(wxCommandEvent& e);
     void OnShowBookmarkMenu(wxAuiToolBarEvent& e);
     void OnSettingsChanged(wxCommandEvent& e);
     void OnEditMenuOpened(wxMenuEvent& e);
-    void OnProjectRenamed(clCommandEvent &event);
-    void OnColoursAndFontsLoaded(clColourEvent &event);
+    void OnProjectRenamed(clCommandEvent& event);
+
     DECLARE_EVENT_TABLE()
 };
 

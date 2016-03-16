@@ -44,99 +44,76 @@
 #include <wx/xrc/xmlres.h>
 #include "parse_thread.h"
 #include "outline_symbol_tree.h"
+#include "codelite_events.h"
+#include "cl_command_event.h"
 
 //--------------------------------------------
-//Plugin Interface
+// Plugin Interface
 //--------------------------------------------
 
 static SymbolViewPlugin* thePlugin = NULL;
 
-//Define the plugin entry point
-extern "C" EXPORT IPlugin *CreatePlugin(IManager *manager)
+// Define the plugin entry point
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
-    if (thePlugin == 0) {
+    if(thePlugin == 0) {
         thePlugin = new SymbolViewPlugin(manager);
     }
     return thePlugin;
 }
 
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
+    static PluginInfo info;
     info.SetAuthor(wxT("Eran Ifrah"));
     info.SetName(wxT("Outline"));
     info.SetDescription(_("Show Current the Layout of the current file"));
     info.SetVersion(wxT("v1.0"));
-    return info;
+    return &info;
 }
 
-extern "C" EXPORT int GetPluginInterfaceVersion()
-{
-    return PLUGIN_INTERFACE_VERSION;
-}
-
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 
 //--------------------------------------------
-//Constructors/Destructors
+// Constructors/Destructors
 //--------------------------------------------
 
-SymbolViewPlugin::SymbolViewPlugin(IManager *manager)
+SymbolViewPlugin::SymbolViewPlugin(IManager* manager)
     : IPlugin(manager)
 {
     m_longName = _("Outline Plugin");
     m_shortName = wxT("Outline");
-    
+
     OutlineSettings os;
     os.Load();
-    
-    Notebook *book = m_mgr->GetWorkspacePaneNotebook();
-    if( IsPaneDetached() ) {
+
+    Notebook* book = m_mgr->GetWorkspacePaneNotebook();
+    if(IsPaneDetached()) {
         // Make the window child of the main panel (which is the grand parent of the notebook)
-        DockablePane *cp = new DockablePane(book->GetParent()->GetParent(), book, wxT("Outline"), wxNullBitmap, wxSize(200, 200));
+        DockablePane* cp =
+            new DockablePane(book->GetParent()->GetParent(), book, _("Outline"), false, wxNullBitmap, wxSize(200, 200));
         m_view = new OutlineTab(cp, m_mgr);
         cp->SetChildNoReparent(m_view);
 
     } else {
         m_view = new OutlineTab(book, m_mgr);
-        book->AddPage(m_view, wxT("Outline"), false);
+        book->AddPage(m_view, _("Outline"), false);
     }
+    EventNotifier::Get()->Bind(wxEVT_SHOW_WORKSPACE_TAB, &SymbolViewPlugin::OnToggleTab, this);
+    m_mgr->AddWorkspaceTab(_("Outline"));
 }
 
-SymbolViewPlugin::~SymbolViewPlugin()
-{
-    thePlugin = NULL;
-}
+SymbolViewPlugin::~SymbolViewPlugin() { thePlugin = NULL; }
 
-clToolBar *SymbolViewPlugin::CreateToolBar(wxWindow *parent)
-{
-    return NULL;
-}
+clToolBar* SymbolViewPlugin::CreateToolBar(wxWindow* parent) { return NULL; }
 
-void SymbolViewPlugin::CreatePluginMenu(wxMenu *pluginsMenu)
-{
-    wxUnusedVar(pluginsMenu);
-}
-
-void SymbolViewPlugin::HookPopupMenu(wxMenu *menu, MenuType type)
-{
-    if (type == MenuTypeEditor) {
-
-    } else if (type == MenuTypeFileExplorer) {
-
-    } else if (type == MenuTypeFileView_Workspace) {
-
-    } else if (type == MenuTypeFileView_Project) {
-
-    } else if (type == MenuTypeFileView_Folder) {
-
-    } else if (type == MenuTypeFileView_File) {
-    }
-}
+void SymbolViewPlugin::CreatePluginMenu(wxMenu* pluginsMenu) { wxUnusedVar(pluginsMenu); }
 
 void SymbolViewPlugin::UnPlug()
 {
-    size_t where = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(m_view);
-    if ( where != Notebook::npos ) {
+    EventNotifier::Get()->Unbind(wxEVT_SHOW_WORKSPACE_TAB, &SymbolViewPlugin::OnToggleTab, this);
+    int where = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(m_view);
+    if(where != wxNOT_FOUND) {
         // this window might be floating
         m_mgr->GetWorkspacePaneNotebook()->RemovePage(where);
     }
@@ -150,28 +127,25 @@ bool SymbolViewPlugin::IsPaneDetached()
     DetachedPanesInfo dpi;
     m_mgr->GetConfigTool()->ReadObject(wxT("DetachedPanesList"), &dpi);
     wxArrayString detachedPanes = dpi.GetPanes();
-    return detachedPanes.Index(wxT("Outline")) != wxNOT_FOUND;
+    return detachedPanes.Index(_("Outline")) != wxNOT_FOUND;
 }
 
-int SymbolViewPlugin::DoFindTabIndex()
-{
-    std::vector<wxWindow*> windows;
-    Notebook *book = m_mgr->GetWorkspacePaneNotebook();
-    
-#if !CL_USE_NATIVEBOOK
+int SymbolViewPlugin::DoFindTabIndex() { return m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(m_view); }
 
-    book->GetEditorsInOrder(windows);
-    
-#else
-    
-    for(size_t i=0; i<book->GetPageCount(); i++) {
-        windows.push_back( book->GetPage(i) );
+void SymbolViewPlugin::OnToggleTab(clCommandEvent& event)
+{
+    if(event.GetString() != _("Outline")) {
+        event.Skip();
+        return;
     }
-    
-#endif
-    for(size_t i=0; i<windows.size(); i++) {
-        if(windows.at(i) == m_view )
-            return i;
+
+    if(event.IsSelected()) {
+        // show it
+        m_mgr->GetWorkspacePaneNotebook()->InsertPage(0, m_view, _("Outline"), true);
+    } else {
+        int where = m_mgr->GetWorkspacePaneNotebook()->GetPageIndex(_("Outline"));
+        if(where != wxNOT_FOUND) {
+            m_mgr->GetWorkspacePaneNotebook()->RemovePage(where);
+        }
     }
-    return wxNOT_FOUND;
 }

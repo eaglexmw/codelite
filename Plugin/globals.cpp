@@ -75,6 +75,9 @@
 #include "macros.h"
 #include <wx/sstream.h>
 #include "cl_standard_paths.h"
+#include "clGetTextFromUserDialog.h"
+#include "fileutils.h"
+#include "macromanager.h"
 
 #ifdef __WXMSW__
 #include <Uxtheme.h>
@@ -110,23 +113,11 @@ public:
     {
     }
 
-    virtual ~clInternalEventHandlerData()
-    {
-        wxDELETE(m_arg);
-    }
+    virtual ~clInternalEventHandlerData() { wxDELETE(m_arg); }
 
-    wxClientData* GetArg() const
-    {
-        return m_arg;
-    }
-    clEventFunc_t GetFuncPtr() const
-    {
-        return m_funcPtr;
-    }
-    wxObject* GetThis()
-    {
-        return m_this;
-    }
+    wxClientData* GetArg() const { return m_arg; }
+    clEventFunc_t GetFuncPtr() const { return m_funcPtr; }
+    wxObject* GetThis() { return m_this; }
 };
 
 class clInternalEventHandler : public wxEvtHandler
@@ -135,25 +126,17 @@ public:
     clInternalEventHandler()
     {
         EventNotifier::Get()->Connect(wxEVT_COMMAND_CL_INTERNAL_0_ARGS,
-                                      wxCommandEventHandler(clInternalEventHandler::OnInternalEvent0),
-                                      NULL,
-                                      this);
+            wxCommandEventHandler(clInternalEventHandler::OnInternalEvent0), NULL, this);
         EventNotifier::Get()->Connect(wxEVT_COMMAND_CL_INTERNAL_1_ARGS,
-                                      wxCommandEventHandler(clInternalEventHandler::OnInternalEvent1),
-                                      NULL,
-                                      this);
+            wxCommandEventHandler(clInternalEventHandler::OnInternalEvent1), NULL, this);
     }
 
     virtual ~clInternalEventHandler()
     {
         EventNotifier::Get()->Disconnect(wxEVT_COMMAND_CL_INTERNAL_0_ARGS,
-                                         wxCommandEventHandler(clInternalEventHandler::OnInternalEvent0),
-                                         NULL,
-                                         this);
+            wxCommandEventHandler(clInternalEventHandler::OnInternalEvent0), NULL, this);
         EventNotifier::Get()->Disconnect(wxEVT_COMMAND_CL_INTERNAL_1_ARGS,
-                                         wxCommandEventHandler(clInternalEventHandler::OnInternalEvent1),
-                                         NULL,
-                                         this);
+            wxCommandEventHandler(clInternalEventHandler::OnInternalEvent1), NULL, this);
     }
 
     /**
@@ -197,11 +180,8 @@ clInternalEventHandler clEventHandlerHelper;
 // Internal handler to handle queuing requests... end
 // --------------------------------------------------------
 
-static wxString DoExpandAllVariables(const wxString& expression,
-                                     Workspace* workspace,
-                                     const wxString& projectName,
-                                     const wxString& confToBuild,
-                                     const wxString& fileName);
+static wxString DoExpandAllVariables(const wxString& expression, clCxxWorkspace* workspace, const wxString& projectName,
+    const wxString& confToBuild, const wxString& fileName);
 
 #ifdef __WXMAC__
 #include <mach-o/dyld.h>
@@ -233,12 +213,8 @@ static wxString MacGetInstallPath()
 #include <dirent.h>
 #endif
 
-struct ProjListCompartor
-{
-    bool operator()(const ProjectPtr p1, const ProjectPtr p2) const
-    {
-        return p1->GetName() > p2->GetName();
-    }
+struct ProjListCompartor {
+    bool operator()(const ProjectPtr p1, const ProjectPtr p2) const { return p1->GetName() > p2->GetName(); }
 };
 
 static bool IsBOMFile(const char* file_name)
@@ -325,20 +301,14 @@ static bool ReadFile8BitData(const char* file_name, wxString& content)
     return content.IsEmpty() == false;
 }
 
-bool SendCmdEvent(int eventId, void* clientData)
-{
-    return EventNotifier::Get()->SendCommandEvent(eventId, clientData);
-}
+bool SendCmdEvent(int eventId, void* clientData) { return EventNotifier::Get()->SendCommandEvent(eventId, clientData); }
 
 bool SendCmdEvent(int eventId, void* clientData, const wxString& str)
 {
     return EventNotifier::Get()->SendCommandEvent(eventId, clientData, str);
 }
 
-void PostCmdEvent(int eventId, void* clientData)
-{
-    EventNotifier::Get()->PostCommandEvent(eventId, clientData);
-}
+void PostCmdEvent(int eventId, void* clientData) { EventNotifier::Get()->PostCommandEvent(eventId, clientData); }
 
 void SetColumnText(wxListCtrl* list, long indx, long column, const wxString& rText, int imgId)
 {
@@ -452,22 +422,19 @@ bool IsValidCppFile(const wxString& id)
     return true;
 }
 
-wxString ExpandVariables(const wxString& expression, ProjectPtr proj, IEditor* editor)
+wxString ExpandVariables(const wxString& expression, ProjectPtr proj, IEditor* editor, const wxString& filename)
 {
     wxString project_name(proj->GetName());
-    wxString fileName;
-    if(editor) {
-        fileName = editor->GetFileName().GetFullPath();
+    wxString file = filename;
+    if(file.IsEmpty() && editor) {
+        file = editor->GetFileName().GetFullPath();
     }
-    return ExpandAllVariables(expression, WorkspaceST::Get(), project_name, wxEmptyString, fileName);
+    return ExpandAllVariables(expression, clCxxWorkspaceST::Get(), project_name, wxEmptyString, file);
 }
 
 // This functions accepts expression and expand all variables in it
-wxString ExpandAllVariables(const wxString& expression,
-                            Workspace* workspace,
-                            const wxString& projectName,
-                            const wxString& selConf,
-                            const wxString& fileName)
+wxString ExpandAllVariables(const wxString& expression, clCxxWorkspace* workspace, const wxString& projectName,
+    const wxString& selConf, const wxString& fileName)
 {
     // add support for backticks commands
     wxString tmpExp;
@@ -516,84 +483,85 @@ wxString ExpandAllVariables(const wxString& expression,
     return DoExpandAllVariables(tmpExp, workspace, projectName, selConf, fileName);
 }
 
-wxString DoExpandAllVariables(const wxString& expression,
-                              Workspace* workspace,
-                              const wxString& projectName,
-                              const wxString& confToBuild,
-                              const wxString& fileName)
+wxString DoExpandAllVariables(const wxString& expression, clCxxWorkspace* workspace, const wxString& projectName,
+    const wxString& confToBuild, const wxString& fileName)
 {
     wxString errMsg;
     wxString output(expression);
-    DollarEscaper de(output);
-    if(workspace) {
-        output.Replace(wxT("$(WorkspaceName)"), workspace->GetName());
-        ProjectPtr proj = workspace->FindProjectByName(projectName, errMsg);
-        if(proj) {
-            wxString project_name(proj->GetName());
 
-            // make sure that the project name does not contain any spaces
-            project_name.Replace(wxT(" "), wxT("_"));
+    size_t retries = 0;
+    wxString dummyname, dummfullname;
+    while((retries < 5) && MacroManager::Instance()->FindVariable(output, dummyname, dummyname)) {
+        ++retries;
+        DollarEscaper de(output);
+        if(workspace) {
+            output.Replace(wxT("$(WorkspaceName)"), workspace->GetName());
+            ProjectPtr proj = workspace->FindProjectByName(projectName, errMsg);
+            if(proj) {
+                wxString project_name(proj->GetName());
 
-            BuildConfigPtr bldConf = workspace->GetProjBuildConf(proj->GetName(), confToBuild);
-            output.Replace(wxT("$(ProjectPath)"),
-                           proj->GetFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-            output.Replace(wxT("$(WorkspacePath)"),
-                           workspace->GetWorkspaceFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-            output.Replace(wxT("$(ProjectName)"), project_name);
+                // make sure that the project name does not contain any spaces
+                project_name.Replace(wxT(" "), wxT("_"));
 
-            if(bldConf) {
-                output.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
+                BuildConfigPtr bldConf = workspace->GetProjBuildConf(proj->GetName(), confToBuild);
+                output.Replace(wxT("$(ProjectPath)"), proj->GetFileName().GetPath());
+                output.Replace(wxT("$(WorkspacePath)"), workspace->GetWorkspaceFileName().GetPath());
+                output.Replace(wxT("$(ProjectName)"), project_name);
 
-                // the IntermediateDirectory variable is special, since it can contains
-                // other variables in it.
-                wxString id(bldConf->GetIntermediateDirectory());
+                if(bldConf) {
+                    output.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
+                    output.Replace("$(OutputFile)", bldConf->GetOutputFileName());
 
-                // Substitute all macros from $(IntermediateDirectory)
-                id.Replace(wxT("$(ProjectPath)"),
-                           proj->GetFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-                id.Replace(wxT("$(WorkspacePath)"),
-                           workspace->GetWorkspaceFileName().GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
-                id.Replace(wxT("$(ProjectName)"), project_name);
-                id.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
+                    // the IntermediateDirectory variable is special, since it can contains
+                    // other variables in it.
+                    wxString id(bldConf->GetIntermediateDirectory());
 
-                output.Replace(wxT("$(IntermediateDirectory)"), id);
-                output.Replace(wxT("$(OutDir)"), id);
+                    // Substitute all macros from $(IntermediateDirectory)
+                    id.Replace(wxT("$(ProjectPath)"), proj->GetFileName().GetPath());
+                    id.Replace(wxT("$(WorkspacePath)"), workspace->GetWorkspaceFileName().GetPath());
+                    id.Replace(wxT("$(ProjectName)"), project_name);
+                    id.Replace(wxT("$(ConfigurationName)"), bldConf->GetName());
+
+                    output.Replace(wxT("$(IntermediateDirectory)"), id);
+                    output.Replace(wxT("$(OutDir)"), id);
+                }
+
+                if(output.Find(wxT("$(ProjectFiles)")) != wxNOT_FOUND)
+                    output.Replace(wxT("$(ProjectFiles)"), proj->GetFiles());
+
+                if(output.Find(wxT("$(ProjectFilesAbs)")) != wxNOT_FOUND)
+                    output.Replace(wxT("$(ProjectFilesAbs)"), proj->GetFiles(true));
             }
-
-            if(output.Find(wxT("$(ProjectFiles)")) != wxNOT_FOUND)
-                output.Replace(wxT("$(ProjectFiles)"), proj->GetFiles());
-
-            if(output.Find(wxT("$(ProjectFilesAbs)")) != wxNOT_FOUND)
-                output.Replace(wxT("$(ProjectFilesAbs)"), proj->GetFiles(true));
         }
+
+        if(fileName.IsEmpty() == false) {
+            wxFileName fn(fileName);
+
+            output.Replace(wxT("$(CurrentFileName)"), fn.GetName());
+
+            wxString fpath(fn.GetPath());
+            fpath.Replace(wxT("\\"), wxT("/"));
+            output.Replace(wxT("$(CurrentFilePath)"), fpath);
+            output.Replace(wxT("$(CurrentFileExt)"), fn.GetExt());
+
+            wxString ffullpath(fn.GetFullPath());
+            ffullpath.Replace(wxT("\\"), wxT("/"));
+            output.Replace(wxT("$(CurrentFileFullPath)"), ffullpath);
+            output.Replace(wxT("$(CurrentFileFullName)"), fn.GetFullName());
+        }
+
+        // exapnd common macros
+        wxDateTime now = wxDateTime::Now();
+        output.Replace(wxT("$(User)"), wxGetUserName());
+        output.Replace(wxT("$(Date)"), now.FormatDate());
+
+        if(workspace) {
+            output.Replace(wxT("$(CodeLitePath)"), workspace->GetStartupDir());
+        }
+
+        // call the environment & workspace variables expand function
+        output = EnvironmentConfig::Instance()->ExpandVariables(output, true);
     }
-
-    if(fileName.IsEmpty() == false) {
-        wxFileName fn(fileName);
-
-        output.Replace(wxT("$(CurrentFileName)"), fn.GetName());
-
-        wxString fpath(fn.GetPath());
-        fpath.Replace(wxT("\\"), wxT("/"));
-        output.Replace(wxT("$(CurrentFilePath)"), fpath);
-        output.Replace(wxT("$(CurrentFileExt)"), fn.GetExt());
-
-        wxString ffullpath(fn.GetFullPath());
-        ffullpath.Replace(wxT("\\"), wxT("/"));
-        output.Replace(wxT("$(CurrentFileFullPath)"), ffullpath);
-    }
-
-    // exapnd common macros
-    wxDateTime now = wxDateTime::Now();
-    output.Replace(wxT("$(User)"), wxGetUserName());
-    output.Replace(wxT("$(Date)"), now.FormatDate());
-
-    if(workspace) {
-        output.Replace(wxT("$(CodeLitePath)"), workspace->GetStartupDir());
-    }
-
-    // call the environment & workspace variables expand function
-    output = EnvironmentConfig::Instance()->ExpandVariables(output, true);
     return output;
 }
 
@@ -720,10 +688,7 @@ bool CopyToClipboard(const wxString& text)
     return ret;
 }
 
-wxColour MakeColourLighter(wxColour color, float level)
-{
-    return DrawingUtils::LightColour(color, level);
-}
+wxColour MakeColourLighter(wxColour color, float level) { return DrawingUtils::LightColour(color, level); }
 
 bool IsFileReadOnly(const wxFileName& filename)
 {
@@ -769,10 +734,7 @@ wxString ArrayToSmiColonString(const wxArrayString& array)
     return result.BeforeLast(wxT(';'));
 }
 
-void StripSemiColons(wxString& str)
-{
-    str.Replace(wxT(";"), wxT(" "));
-}
+void StripSemiColons(wxString& str) { str.Replace(wxT(";"), wxT(" ")); }
 
 wxString NormalizePath(const wxString& path)
 {
@@ -784,10 +746,7 @@ wxString NormalizePath(const wxString& path)
     return normalized_path;
 }
 
-time_t GetFileModificationTime(const wxFileName& filename)
-{
-    return GetFileModificationTime(filename.GetFullPath());
-}
+time_t GetFileModificationTime(const wxFileName& filename) { return GetFileModificationTime(filename.GetFullPath()); }
 
 time_t GetFileModificationTime(const wxString& filename)
 {
@@ -852,15 +811,18 @@ void WrapInShell(wxString& cmd)
 #ifdef __WXMSW__
     wxChar* shell = wxGetenv(wxT("COMSPEC"));
     if(!shell) shell = (wxChar*)wxT("CMD.EXE");
-
     command << shell << wxT(" /C ");
-    if(EditorConfigST::Get()->GetOptions()->MSWIsWrapCmdWithDoubleQuotes()) {
-        command << "\"" << cmd << "\"";
+#if 0
+    command << "\"" << cmd << "\"";
+#else
+    if(cmd.StartsWith("\"")) {
+        command << "\"" << cmd << "\"\"";
     } else {
         command << cmd;
     }
-    cmd = command;
+#endif
 
+    cmd = command;
 #else
     command << wxT("/bin/sh -c '");
     // escape any single quoutes
@@ -890,54 +852,61 @@ wxString clGetUserName()
     return (squashedname.IsEmpty() ? wxString(wxT("someone")) : squashedname);
 }
 
-void GetProjectTemplateList(std::list<ProjectPtr>& list)
+static void DoReadProjectTemplatesFromFolder(
+    const wxString& folder, std::list<ProjectPtr>& list, bool loadDefaults = true)
 {
-    wxString tmplateDir = clStandardPaths::Get().GetProjectTemplatesDir();
-
     // read all files under this directory
-    DirTraverser dt("*.project");
+    wxArrayString files;
+    if(wxFileName::DirExists(folder)) {
+        DirTraverser dt("*.project");
 
-    wxDir dir(tmplateDir);
-    dir.Traverse(dt);
+        wxDir dir(folder);
+        dir.Traverse(dt);
 
-    wxArrayString& files = dt.GetFiles();
+        files = dt.GetFiles();
+        if(files.GetCount() > 0) {
+            for(size_t i = 0; i < files.GetCount(); i++) {
+                ProjectPtr proj(new Project());
+                if(!proj->Load(files.Item(i))) {
+                    // corrupted xml file?
+                    wxLogMessage(wxT("Failed to load template project: ") + files.Item(i) + wxT(" (corrupted XML?)"));
+                    continue;
+                }
+                list.push_back(proj);
 
-    if(files.GetCount() > 0) {
-        for(size_t i = 0; i < files.GetCount(); i++) {
-            ProjectPtr proj(new Project());
-            if(!proj->Load(files.Item(i))) {
-                // corrupted xml file?
-                wxLogMessage(wxT("Failed to load template project: ") + files.Item(i) + wxT(" (corrupted XML?)"));
-                continue;
-            }
-            list.push_back(proj);
-
-            // load template icon
-            wxFileName fn(files.Item(i));
-            fn.SetFullName("icon.png");
-            if(fn.Exists()) {
-                wxBitmap bmp = wxBitmap(fn.GetFullPath(), wxBITMAP_TYPE_ANY);
-                if(bmp.IsOk() && bmp.GetWidth() == 16 && bmp.GetHeight() == 16) {
-                    proj->SetIconPath(fn.GetFullPath());
+                // load template icon
+                wxFileName fn(files.Item(i));
+                fn.SetFullName("icon.png");
+                if(fn.Exists()) {
+                    wxBitmap bmp = wxBitmap(fn.GetFullPath(), wxBITMAP_TYPE_ANY);
+                    if(bmp.IsOk() && bmp.GetWidth() == 16 && bmp.GetHeight() == 16) {
+                        proj->SetIconPath(fn.GetFullPath());
+                    }
                 }
             }
         }
+    }
 
-    } else {
+    if(loadDefaults && files.IsEmpty()) {
         // if we ended up here, it means the installation got screwed up since
         // there should be at least 8 project templates !
         // create 3 default empty projects
         ProjectPtr exeProj(new Project());
         ProjectPtr libProj(new Project());
         ProjectPtr dllProj(new Project());
-        libProj->Create(wxT("Static Library"), wxEmptyString, tmplateDir, Project::STATIC_LIBRARY);
-        dllProj->Create(wxT("Dynamic Library"), wxEmptyString, tmplateDir, Project::DYNAMIC_LIBRARY);
-        exeProj->Create(wxT("Executable"), wxEmptyString, tmplateDir, Project::EXECUTABLE);
+        libProj->Create(wxT("Static Library"), wxEmptyString, folder, Project::STATIC_LIBRARY);
+        dllProj->Create(wxT("Dynamic Library"), wxEmptyString, folder, Project::DYNAMIC_LIBRARY);
+        exeProj->Create(wxT("Executable"), wxEmptyString, folder, Project::EXECUTABLE);
         list.push_back(libProj);
         list.push_back(dllProj);
         list.push_back(exeProj);
     }
+}
 
+void GetProjectTemplateList(std::list<ProjectPtr>& list)
+{
+    DoReadProjectTemplatesFromFolder(clStandardPaths::Get().GetProjectTemplatesDir(), list);
+    DoReadProjectTemplatesFromFolder(clStandardPaths::Get().GetUserProjectTemplatesDir(), list, false);
     list.sort(ProjListCompartor());
 }
 
@@ -1012,15 +981,14 @@ bool IsCppKeyword(const wxString& word)
         words.insert(wxT("using"));
         words.insert(wxT("throw"));
         words.insert(wxT("catch"));
+        words.insert(wxT("nullptr"));
     }
 
     return words.count(word) != 0;
 }
 
-bool ExtractFileFromZip(const wxString& zipPath,
-                        const wxString& filename,
-                        const wxString& targetDir,
-                        wxString& targetFileName)
+bool ExtractFileFromZip(
+    const wxString& zipPath, const wxString& filename, const wxString& targetDir, wxString& targetFileName)
 {
     wxZipEntry* entry(NULL);
     wxFFileInputStream in(zipPath);
@@ -1058,8 +1026,8 @@ void MSWSetNativeTheme(wxWindow* win, const wxString& theme)
 #endif
 }
 
-void
-StringManager::AddStrings(size_t size, const wxString* strings, const wxString& current, wxControlWithItems* control)
+void StringManager::AddStrings(
+    size_t size, const wxString* strings, const wxString& current, wxControlWithItems* control)
 {
     m_size = size;
     m_unlocalisedStringArray = wxArrayString(size, strings);
@@ -1182,7 +1150,7 @@ wxString wxShellExec(const wxString& cmd, const wxString& projectName)
     WrapInShell(theCommand);
 
     wxArrayString dummy;
-    EnvSetter es(NULL, NULL, projectName);
+    EnvSetter es(NULL, NULL, projectName, wxEmptyString);
     theCommand = EnvironmentConfig::Instance()->ExpandVariables(theCommand, false);
     ProcUtils::SafeExecuteCommand(theCommand, dummy);
 
@@ -1270,18 +1238,11 @@ wxString wxIntToString(int val)
 // BOM
 ////////////////////////////////////////
 
-BOM::BOM(const char* buffer, size_t len)
-{
-    m_bom.AppendData(buffer, len);
-}
+BOM::BOM(const char* buffer, size_t len) { m_bom.AppendData(buffer, len); }
 
-BOM::BOM()
-{
-}
+BOM::BOM() {}
 
-BOM::~BOM()
-{
-}
+BOM::~BOM() {}
 
 wxFontEncoding BOM::Encoding()
 {
@@ -1321,10 +1282,10 @@ wxFontEncoding BOM::Encoding(const char* buff)
     wxFontEncoding encoding = wxFONTENCODING_SYSTEM; /* -1 */
 
     static const char UTF32be[] = { 0x00, 0x00, (char)0xfe, (char)0xff };
-    static const char UTF32le[] = {(char)0xff, (char)0xfe, 0x00, 0x00 };
-    static const char UTF16be[] = {(char)0xfe, (char)0xff };
-    static const char UTF16le[] = {(char)0xff, (char)0xfe };
-    static const char UTF8[] = {(char)0xef, (char)0xbb, (char)0xbf };
+    static const char UTF32le[] = { (char)0xff, (char)0xfe, 0x00, 0x00 };
+    static const char UTF16be[] = { (char)0xfe, (char)0xff };
+    static const char UTF16le[] = { (char)0xff, (char)0xfe };
+    static const char UTF8[] = { (char)0xef, (char)0xbb, (char)0xbf };
 
     if(memcmp(buff, UTF32be, sizeof(UTF32be)) == 0) {
         encoding = wxFONTENCODING_UTF32BE;
@@ -1351,10 +1312,7 @@ void BOM::SetData(const char* buffer, size_t len)
     m_bom.AppendData(buffer, len);
 }
 
-int BOM::Len() const
-{
-    return m_bom.GetDataLen();
-}
+int BOM::Len() const { return m_bom.GetDataLen(); }
 
 void BOM::Clear()
 {
@@ -1364,15 +1322,9 @@ void BOM::Clear()
 
 /////////////////////////////////////////////////////////////////
 
-clEventDisabler::clEventDisabler()
-{
-    EventNotifier::Get()->DisableEvents(true);
-}
+clEventDisabler::clEventDisabler() { EventNotifier::Get()->DisableEvents(true); }
 
-clEventDisabler::~clEventDisabler()
-{
-    EventNotifier::Get()->DisableEvents(false);
-}
+clEventDisabler::~clEventDisabler() { EventNotifier::Get()->DisableEvents(false); }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // UTF8/16 conversions methods copied from wxScintilla
@@ -1710,11 +1662,26 @@ static bool search_process_by_command(const wxString& name, wxString& tty, long&
 
 void LaunchTerminalForDebugger(const wxString& title, wxString& tty, wxString& realPts, long& pid)
 {
+    static wxString SLEEP_COMMAND_BASE("");
+
+    // We can't rely on the terminal's string being "sleep" here:
+    // konsole's is the full path e.g. "/bin/sleep", which would never be found
+    if(SLEEP_COMMAND_BASE.empty()) {
+        ProcUtils::Locate("sleep", SLEEP_COMMAND_BASE);
+    }
+    if(SLEEP_COMMAND_BASE.empty()) {
+        SLEEP_COMMAND_BASE = "sleep"; // Sensible default, which might even work
+    }
+
     pid = wxNOT_FOUND;
     tty.Clear();
     realPts.Clear();
-    
-#ifdef __WXMSW__
+
+#if defined(__WXMAC__)
+    FileUtils::OSXOpenDebuggerTerminalAndGetTTY(::wxGetCwd(), tty, pid);
+    realPts = tty;
+
+#elif defined(__WXMSW__)
     // Windows
     wxUnusedVar(title);
 
@@ -1728,27 +1695,32 @@ void LaunchTerminalForDebugger(const wxString& title, wxString& tty, wxString& r
     wxString secondsToSleep;
 
     secondsToSleep << (85765 + randomSeed);
+
     wxString SLEEP_COMMAND;
-    SLEEP_COMMAND << "sleep " << secondsToSleep;
+    SLEEP_COMMAND << SLEEP_COMMAND_BASE << " " << secondsToSleep;
 
-#if defined(__WXMAC__)
-    wxString consoleCommand;
-    wxString codelite_terminal;
-    wxFileName fnCodeLiteTerminal(wxStandardPaths::Get().GetExecutablePath());
-    fnCodeLiteTerminal.AppendDir("codelite-terminal.app");
-
-    consoleCommand << "/usr/bin/open " << fnCodeLiteTerminal.GetPath() << " --args "
-                   << "--dbg-terminal "
-                   << "--exit "
-                   << "--title \"" << title << "\" "
-                   << "--cmd " << SLEEP_COMMAND;
-
-#else // Linux / FreeBSD
     wxString consoleCommand = TERMINAL_CMD;
-    consoleCommand.Replace("$(CMD)", SLEEP_COMMAND);
-    consoleCommand.Replace("$(TITLE)", title);
+
+    wxString separate;
+#ifdef __WXGTK__
+    wxString grepcommand("grep 'x-terminal-emulator\\|konsole' ");
+    grepcommand << consoleCommand.BeforeFirst('\'');
+    wxString CCcontents = ProcUtils::SafeExecuteCommand(grepcommand);
+    if(CCcontents.Contains("konsole") ||
+        (CCcontents.Contains("x-terminal-emulator") &&
+            CLRealPath(ProcUtils::SafeExecuteCommand("which x-terminal-emulator").Trim()).Contains("konsole"))) {
+        // konsole hangs when the debugger stops and we kill the contained 'sleep' instance, warning that 'sleep' has
+        // crashed.
+        // So we have to kill it manually. However by default konsole opens new instances of itself as threads of
+        // existing ones.
+        // That means that killing one 'instance' kills them all. The fix is to add --separate to the launch command.
+        separate = " '--separate'";
+    }
 #endif
 
+    consoleCommand.Replace("$(CMD)", SLEEP_COMMAND);
+    consoleCommand.Replace("$(TITLE)", title);
+    consoleCommand << separate;
     ::wxExecute(consoleCommand);
 
     // Let it start ... (wait for it up to 5 seconds)
@@ -1757,10 +1729,10 @@ void LaunchTerminalForDebugger(const wxString& title, wxString& tty, wxString& r
 #ifdef __WXGTK__
             // On GTK, redirection to TTY does not work with lldb
             // as a workaround, we create a symlink with different name
-            
+
             // Keep the real tty
             realPts = tty;
-            
+
             wxString symlinkName = tty;
             symlinkName.Replace("/dev/pts/", "/tmp/pts");
             wxString lnCommand;
@@ -1788,7 +1760,7 @@ IProcess* LaunchTerminal(const wxString& title, bool forDebugger, IProcessCallba
 
 #else
     wxString command;
-    wxFileName fnCodeliteTerminal(wxStandardPaths::Get().GetExecutablePath());
+    wxFileName fnCodeliteTerminal(clStandardPaths::Get().GetExecutablePath());
 
 #if defined(__WXMAC__)
     command << "/usr/bin/open \"" << fnCodeliteTerminal.GetPath(true) << "codelite-terminal.app\" --args ";
@@ -1817,7 +1789,7 @@ wxString MakeExecInShellCommand(const wxString& cmd, const wxString& wd, bool wa
     wxString title(cmd);
 
     OptionsConfigPtr opts = EditorConfigST::Get()->GetOptions();
-    wxFileName fnCodeliteTerminal(wxStandardPaths::Get().GetExecutablePath());
+    wxFileName fnCodeliteTerminal(clStandardPaths::Get().GetExecutablePath());
     fnCodeliteTerminal.SetFullName("codelite-terminal");
 
 // change directory to the working directory
@@ -1850,7 +1822,7 @@ wxString MakeExecInShellCommand(const wxString& cmd, const wxString& wd, bool wa
         // build the command
         wxString command;
         wxString ld_lib_path;
-        wxFileName exePath(wxStandardPaths::Get().GetExecutablePath());
+        wxFileName exePath(clStandardPaths::Get().GetExecutablePath());
         wxFileName exeWrapper(exePath.GetPath(), wxT("codelite_exec"));
 
         if(wxGetEnv(wxT("LD_LIBRARY_PATH"), &ld_lib_path) && ld_lib_path.IsEmpty() == false) {
@@ -1889,13 +1861,8 @@ wxString MakeExecInShellCommand(const wxString& cmd, const wxString& wd, bool wa
     return execLine;
 }
 
-wxStandardID PromptForYesNoDialogWithCheckbox(const wxString& message,
-                                              const wxString& dlgId,
-                                              const wxString& yesLabel,
-                                              const wxString& noLabel,
-                                              const wxString& checkboxLabel,
-                                              long style,
-                                              bool checkboxInitialValue)
+wxStandardID PromptForYesNoDialogWithCheckbox(const wxString& message, const wxString& dlgId, const wxString& yesLabel,
+    const wxString& noLabel, const wxString& checkboxLabel, long style, bool checkboxInitialValue)
 {
     int res = clConfig::Get().GetAnnoyingDlgAnswer(dlgId, wxNOT_FOUND);
     if(res == wxNOT_FOUND) {
@@ -1905,7 +1872,7 @@ wxStandardID PromptForYesNoDialogWithCheckbox(const wxString& message,
         d.ShowCheckBox(checkboxLabel);
         d.SetYesNoLabels(yesLabel, noLabel);
         res = d.ShowModal();
-        if(d.IsCheckBoxChecked()) {
+        if(d.IsCheckBoxChecked() && (res != wxID_CANCEL)) {
             // store the user result
             clConfig::Get().SetAnnoyingDlgAnswer(dlgId, res);
         }
@@ -1964,9 +1931,9 @@ wxString GetCppExpressionFromPos(long pos, wxStyledTextCtrl* ctrl, bool forCC)
         // Comment?
         int style = ctrl->GetStyleAt(position);
         if(style == wxSTC_C_COMMENT || style == wxSTC_C_COMMENTLINE || style == wxSTC_C_COMMENTDOC ||
-           style == wxSTC_C_COMMENTLINEDOC || style == wxSTC_C_COMMENTDOCKEYWORD ||
-           style == wxSTC_C_COMMENTDOCKEYWORDERROR || style == wxSTC_C_STRING || style == wxSTC_C_STRINGEOL ||
-           style == wxSTC_C_CHARACTER) {
+            style == wxSTC_C_COMMENTLINEDOC || style == wxSTC_C_COMMENTDOCKEYWORD ||
+            style == wxSTC_C_COMMENTDOCKEYWORDERROR || style == wxSTC_C_STRING || style == wxSTC_C_STRINGEOL ||
+            style == wxSTC_C_CHARACTER) {
             continue;
         }
 
@@ -2120,4 +2087,84 @@ wxString MakeCommandRunInBackground(const wxString& cmd)
 void wxPGPropertyBooleanUseCheckbox(wxPropertyGrid* grid)
 {
     grid->SetPropertyAttributeAll(wxPG_BOOL_USE_CHECKBOX, true);
+}
+
+void clRecalculateSTCHScrollBar(wxStyledTextCtrl* ctrl)
+{
+    // recalculate and set the length of horizontal scrollbar
+    int maxPixel = 0;
+    int startLine = ctrl->GetFirstVisibleLine();
+    int endLine = startLine + ctrl->LinesOnScreen();
+    if(endLine >= (ctrl->GetLineCount() - 1)) endLine--;
+
+    for(int i = startLine; i <= endLine; i++) {
+        int visibleLine = (int)ctrl->DocLineFromVisible(i);      // get actual visible line, folding may offset lines
+        int endPosition = ctrl->GetLineEndPosition(visibleLine); // get character position from begin
+        int beginPosition = ctrl->PositionFromLine(visibleLine); // and end of line
+
+        wxPoint beginPos = ctrl->PointFromPosition(beginPosition);
+        wxPoint endPos = ctrl->PointFromPosition(endPosition);
+
+        int curLen = endPos.x - beginPos.x;
+
+        if(maxPixel < curLen) // If its the largest line yet
+            maxPixel = curLen;
+    }
+
+    if(maxPixel == 0) maxPixel++; // make sure maxPixel is valid
+
+    int currentLength = ctrl->GetScrollWidth(); // Get current scrollbar size
+    if(currentLength != maxPixel) {
+        // And if it is not the same, update it
+        ctrl->SetScrollWidth(maxPixel);
+    }
+}
+wxString clGetTextFromUser(
+    const wxString& title, const wxString& message, const wxString& initialValue, int charsToSelect, wxWindow* parent)
+{
+    clGetTextFromUserDialog dialog(
+        parent == NULL ? EventNotifier::Get()->TopFrame() : parent, title, message, initialValue, charsToSelect);
+    if(dialog.ShowModal() == wxID_OK) {
+        return dialog.GetValue();
+    }
+    return "";
+}
+
+static IManager* s_pluginManager = NULL;
+IManager* clGetManager()
+{
+    wxASSERT(s_pluginManager);
+    return s_pluginManager;
+}
+
+void clSetManager(IManager* manager) { s_pluginManager = manager; }
+
+#define BUFF_STATE_NORMAL 0
+#define BUFF_STATE_IN_ESC 1
+
+void clStripTerminalColouring(const wxString& buffer, wxString& modbuffer)
+{
+    modbuffer.Clear();
+    short state = BUFF_STATE_NORMAL;
+    wxString::const_iterator iter = buffer.begin();
+    for(; iter != buffer.end(); ++iter) {
+        wxChar ch = *iter;
+        if(ch == 7) continue; // BELL
+
+        switch(state) {
+        case BUFF_STATE_NORMAL:
+            if(ch == 0x1B) { // found ESC char
+                state = BUFF_STATE_IN_ESC;
+
+            } else {
+                modbuffer << ch;
+            }
+            break;
+        case BUFF_STATE_IN_ESC:
+            if(ch == 'm') { // end of color sequence
+                state = BUFF_STATE_NORMAL;
+            }
+            break;
+        }
+    }
 }

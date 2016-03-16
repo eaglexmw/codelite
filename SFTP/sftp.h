@@ -31,59 +31,67 @@
 #include "cl_command_event.h"
 #include "macros.h"
 #include "remote_file_info.h"
+#include "clFileSystemEvent.h"
+#include "clSFTPEvent.h"
+#include "clTabTogglerHelper.h"
 
 class SFTPStatusPage;
 class SFTPTreeView;
 
 class SFTP : public IPlugin
 {
-    wxFileName            m_workspaceFile;
+    wxFileName m_workspaceFile;
     SFTPWorkspaceSettings m_workspaceSettings;
-    SFTPStatusPage*       m_outputPane;
-    SFTPTreeView*         m_treeView;
+    SFTPStatusPage* m_outputPane;
+    SFTPTreeView* m_treeView;
     RemoteFileInfo::Map_t m_remoteFiles;
-    
+    clTabTogglerHelper::Ptr_t m_tabToggler;
+
 public:
-    SFTP(IManager *manager);
+    SFTP(IManager* manager);
     ~SFTP();
-    
-    void FileDownloadedSuccessfully( const wxString &localFileName );
+
+    void FileDownloadedSuccessfully(const wxString& localFileName);
+    void OpenWithDefaultApp(const wxString& localFileName);
+    void OpenContainingFolder(const wxString& localFileName);
     void AddRemoteFile(const RemoteFileInfo& remoteFile);
-    
+
 protected:
-    void OnSettings(wxCommandEvent &e);
-    void OnSetupWorkspaceMirroring(wxCommandEvent &e);
-    void OnDisableWorkspaceMirroring(wxCommandEvent &e);
-    void OnDisableWorkspaceMirroringUI(wxUpdateUIEvent &e);
-    void OnWorkspaceOpened(wxCommandEvent &e);
-    void OnWorkspaceClosed(wxCommandEvent &e);
-    void OnFileSaved(clCommandEvent &e);
-    void OnEditorClosed(wxCommandEvent &e);
-    
-    bool IsWorkspaceOpened() const {
-        return m_workspaceFile.IsOk();
-    }
+    void OnReplaceInFiles(clFileSystemEvent& e);
+    void OnAccountManager(wxCommandEvent& e);
+    void OnSettings(wxCommandEvent& e);
+    void OnSetupWorkspaceMirroring(wxCommandEvent& e);
+    void OnDisableWorkspaceMirroring(wxCommandEvent& e);
+    void OnDisableWorkspaceMirroringUI(wxUpdateUIEvent& e);
+    void OnWorkspaceOpened(wxCommandEvent& e);
+    void OnWorkspaceClosed(wxCommandEvent& e);
+    void OnFileSaved(clCommandEvent& e);
+    void OnEditorClosed(wxCommandEvent& e);
+    void MSWInitiateConnection();
+
+    void DoFileSaved(const wxString& filename);
+
+    bool IsWorkspaceOpened() const { return m_workspaceFile.IsOk(); }
     void DoSaveRemoteFile(const RemoteFileInfo& remoteFile);
-    
+    bool IsPaneDetached(const wxString& name) const;
+
     // API calls
-    void OnSaveFile(clCommandEvent &e);
-    
+    void OnSaveFile(clSFTPEvent& e);
+
 public:
     //--------------------------------------------
-    //Abstract methods
+    // Abstract methods
     //--------------------------------------------
-    virtual clToolBar *CreateToolBar(wxWindow *parent);
-    virtual void CreatePluginMenu(wxMenu *pluginsMenu);
-    virtual void HookPopupMenu(wxMenu *menu, MenuType type);
-    virtual void UnHookPopupMenu(wxMenu *menu, MenuType type);
+    virtual clToolBar* CreateToolBar(wxWindow* parent);
+    virtual void CreatePluginMenu(wxMenu* pluginsMenu);
+    virtual void HookPopupMenu(wxMenu* menu, MenuType type);
+    virtual void UnHookPopupMenu(wxMenu* menu, MenuType type);
     virtual void UnPlug();
-    IManager *GetManager() {
-        return m_mgr;
-    }
-    
+    IManager* GetManager() { return m_mgr; }
+
     // Callbacks
-    void OnFileWriteOK(const wxString &message);
-    void OnFileWriteError(const wxString &errorMessage);
+    void OnFileWriteOK(const wxString& message);
+    void OnFileWriteError(const wxString& errorMessage);
 };
 
-#endif //SFTP
+#endif // SFTP

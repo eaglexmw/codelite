@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : compilation_database.cpp
 //
 // -------------------------------------------------------------------------
@@ -39,8 +39,7 @@
 
 const wxString DB_VERSION = "2.0";
 
-struct wxFileNameSorter
-{
+struct wxFileNameSorter {
     bool operator()(const wxFileName& one, const wxFileName& two) const
     {
         return one.GetModificationTime().GetTicks() > two.GetModificationTime().GetTicks();
@@ -58,10 +57,7 @@ CompilationDatabase::CompilationDatabase(const wxString& filename)
 {
 }
 
-CompilationDatabase::~CompilationDatabase()
-{
-    Close();
-}
+CompilationDatabase::~CompilationDatabase() { Close(); }
 
 void CompilationDatabase::Open()
 {
@@ -74,7 +70,7 @@ void CompilationDatabase::Open()
     try {
 
         m_db = new wxSQLite3Database();
-        wxFileName dbfile(WorkspaceST::Get()->GetPrivateFolder(), "compilation.db");
+        wxFileName dbfile(clCxxWorkspaceST::Get()->GetPrivateFolder(), "compilation.db");
         m_db->Open(dbfile.GetFullPath());
         CreateDatabase();
 
@@ -89,7 +85,7 @@ wxFileName CompilationDatabase::GetFileName() const
 {
     wxFileName dbfile;
     if(!m_filename.IsOk()) {
-        dbfile = wxFileName(WorkspaceST::Get()->GetPrivateFolder(), "compilation.db");
+        dbfile = wxFileName(clCxxWorkspaceST::Get()->GetPrivateFolder(), "compilation.db");
 
     } else {
         dbfile = m_filename;
@@ -186,7 +182,7 @@ void CompilationDatabase::CreateDatabase()
 
     try {
         if(GetDbVersion() != DB_VERSION) DropTables();
-        
+
         // Create the schema
         m_db->ExecuteUpdate("CREATE TABLE IF NOT EXISTS COMPILATION_TABLE (FILE_NAME TEXT, FILE_PATH TEXT, CWD TEXT, "
                             "COMPILE_FLAGS TEXT)");
@@ -282,33 +278,36 @@ FileNameVector_t CompilationDatabase::GetCompileCommandsFiles() const
     // Since we can have multiple "compile_commands.json" files, we take the most updated file
     // Prepare a list of files to check
     FileNameVector_t files;
-    std::queue<wxString> dirs;
+    std::queue<std::pair<wxString, int> > dirs;
 
     // we start with the current path
-    dirs.push(fn.GetPath());
+    dirs.push(std::make_pair(fn.GetPath(), 0));
+
+    const int MAX_DEPTH = 2; // If no files were found, scan 2 levels only
 
     while(!dirs.empty()) {
-        wxString curdir = dirs.front();
+        std::pair<wxString, int> curdir = dirs.front();
         dirs.pop();
+        if(files.empty() && (curdir.second > MAX_DEPTH)) {
+            CL_DEBUG("Could not find compile_commands.json files while reaching depth 2, aborting");
+            break;
+        }
 
-        wxFileName fn(curdir, "compile_commands.json");
-        if(fn.Exists() && // file exists
-           (fn.GetModificationTime().GetTicks() >
-            databaseFile.GetModificationTime().GetTicks())) // and its newer than the database file
-        {
+        wxFileName fn(curdir.first, "compile_commands.json");
+        if(fn.Exists()) {
             CL_DEBUGS("CompilationDatabase: found file: " + fn.GetFullPath());
             files.push_back(fn);
         }
 
         // Check to see if there are more directories to recurse
         wxDir dir;
-        if(dir.Open(curdir)) {
+        if(dir.Open(curdir.first)) {
             wxString dirname;
             bool cont = dir.GetFirst(&dirname, "", wxDIR_DIRS);
             while(cont) {
                 wxString new_dir;
-                new_dir << curdir << wxFileName::GetPathSeparator() << dirname;
-                dirs.push(new_dir);
+                new_dir << curdir.first << wxFileName::GetPathSeparator() << dirname;
+                dirs.push(std::make_pair(new_dir, curdir.second + 1));
                 dirname.Clear();
                 cont = dir.GetNext(&dirname);
             }

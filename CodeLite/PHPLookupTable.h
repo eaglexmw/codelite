@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : PHPLookupTable.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPLOOKUPTABLE_H
 #define PHPLOOKUPTABLE_H
 
@@ -30,6 +55,7 @@ enum ePhpScopeType {
 class WXDLLIMPEXP_CL PHPLookupTable
 {
     wxSQLite3Database m_db;
+    wxFileName m_filename;
     size_t m_sizeLimit;
 
 public:
@@ -38,14 +64,14 @@ public:
         kLookupFlags_ExactMatch = (1 << 1),
         kLookupFlags_Contains = (1 << 2),
         kLookupFlags_StartsWith = (1 << 3),
-        kLookupFlags_Members = (1 << 4),           // Class members
-        kLookupFlags_Constants = (1 << 5),         // 'const'
-        kLookupFlags_StaticMembers = (1 << 6),     // include static members/functions (static::, class_type::)
-        kLookupFlags_SelfStaticMembers = (1 << 7), // Current class static members only (self::)
-        kLookupFlags_NameHintIsScope = (1 << 8),   // the namehint provided is of a class name. When enabled, the search
-                                                   // will try to take "\" into consideration
-        kLookupFlags_Parent = (1 << 9),            // Exclude 'this' from the results and return only
-                                                   // its parents parent::
+        kLookupFlags_Members = (1 << 4),         // Class members
+        kLookupFlags_Constants = (1 << 5),       // 'const'
+        kLookupFlags_Static = (1 << 6),   // include static members/functions (static::, class_type::)
+        kLookupFlags_Self = (1 << 7),            // self::
+        kLookupFlags_NameHintIsScope = (1 << 8), // the namehint provided is of a class name. When enabled, the search
+                                                 // will try to take "\" into consideration
+        kLookupFlags_Parent = (1 << 9),          // Exclude 'this' from the results and return only
+                                                 // its parents parent::
         kLookupFlags_FunctionsAndConstsOnly = (1 << 10), // Fetch functions and consts ONLY
         kLookupFlags_IncludeAbstractMethods = (1 << 11), // Include abstract functions in the result set
     };
@@ -58,6 +84,7 @@ public:
     static void DoSplitFullname(const wxString& fullname, wxString& ns, wxString& shortName);
 
 private:
+    void EnsureIntegrity(const wxFileName& filename);
     void DoAddNameFilter(wxString& sql, const wxString& nameHint, size_t flags);
 
     void CreateSchema();
@@ -68,7 +95,7 @@ private:
                                    std::vector<wxLongLong>& parents,
                                    std::set<wxLongLong>& parentsVisited,
                                    bool excludeSelf);
-    
+
     /**
      * @brief find namespace by fullname. If it does not exist, add it and return a pointer to it
      */
@@ -97,11 +124,11 @@ private:
                                  const wxString& tableName,
                                  const wxString& nameHint,
                                  eLookupFlags flags);
-
-    bool CollectingStatics(size_t flags) const
-    {
-        return flags & (kLookupFlags_SelfStaticMembers | kLookupFlags_StaticMembers);
-    }
+    
+    /**
+     * @brief use typed: static::
+     */
+    bool CollectingStatics(size_t flags) const { return (flags & kLookupFlags_Static) || (flags & kLookupFlags_Self); }
 
     /**
      * @brief return children of parentId _WITHOUT_ taking inheritance into consideration
@@ -121,10 +148,16 @@ private:
      */
     void UpdateFileLastParsedTimestamp(const wxFileName& filename);
 
+    /**
+     * @brief check the database disk image to see if it corrupted
+     */
+    bool CheckDiskImage(wxSQLite3Database& db);
+
 public:
     PHPLookupTable();
     virtual ~PHPLookupTable();
-    
+
+    void SetSizeLimit(size_t sizeLimit) {this->m_sizeLimit = sizeLimit;}
     /**
      * @brief return the entity at a given file/line
      */
@@ -136,6 +169,11 @@ public:
     void Open(const wxString& workspacePath);
 
     /**
+     * @brief open the symbols database
+     */
+    void Open(const wxFileName& dbfile);
+
+    /**
      * @brief
      * @return
      */
@@ -145,6 +183,11 @@ public:
      * @brief close the lookup table database
      */
     void Close();
+
+    /**
+     * @brief delete the symbols database file from the file system and recreate an empty one
+     */
+    void ResetDatabase();
 
     /**
      * @brief clear all cached data from the database
@@ -181,6 +224,12 @@ public:
      */
     PHPEntityBase::List_t
     FindChildren(wxLongLong parentId, size_t flags = kLookupFlags_None, const wxString& nameHint = "");
+
+    /**
+     * @brief find list of symbols with a given name (regardless of the type / scope)
+     * a "free style" search
+     */
+    PHPEntityBase::List_t FindSymbol(const wxString& name);
 
     /**
      * @brief load the global functions and consts that matches nameHint

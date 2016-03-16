@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : ps_compiler_page.cpp
 //
 // -------------------------------------------------------------------------
@@ -91,10 +91,7 @@ void PSCompilerPage::OnProjectEnabledUI(wxUpdateUIEvent& event) { event.Enable(m
 
 void PSCompilerPage::OnPropertyChanged(wxPropertyGridEvent& event) { m_dlg->SetIsDirty(true); }
 
-void PSCompilerPage::OnUpdateUI(wxUpdateUIEvent& event)
-{
-    event.Enable(!m_dlg->IsCustomBuildEnabled() && !m_checkCompilerNeeded->IsChecked());
-}
+void PSCompilerPage::OnUpdateUI(wxUpdateUIEvent& event) { event.Enable(true); }
 
 void PSCompilerPage::OnCustomEditorClicked(wxCommandEvent& event)
 {

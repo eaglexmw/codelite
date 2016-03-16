@@ -28,24 +28,45 @@
 #include "wx/msgdlg.h"
 #include "wx/dirdlg.h"
 #include "wx/filename.h"
+#include "cl_standard_paths.h"
+#include "cl_config.h"
 
 NewWorkspaceDlg::NewWorkspaceDlg(wxWindow* parent)
     : NewWorkspaceBase(parent)
 {
-    m_textCtrlWorkspacePath->SetValue(wxGetCwd());
+    wxArrayString history;
+    history = clConfig::Get().Read("C++NewWorkspace/Paths", history);
+
+    m_comboBoxPath->SetValue(clStandardPaths::Get().GetDocumentsDir());
+    m_comboBoxPath->Append(history);
+
     m_textCtrlWorkspaceName->SetFocus();
-    Centre();
-    WindowAttrManager::Load(this, wxT("NewWorkspaceDlg"), NULL);
+    CentreOnParent();
+    SetName("NewWorkspaceDlg");
+    WindowAttrManager::Load(this);
 }
 
-NewWorkspaceDlg::~NewWorkspaceDlg() { WindowAttrManager::Save(this, wxT("NewWorkspaceDlg"), NULL); }
+NewWorkspaceDlg::~NewWorkspaceDlg()
+{
+    // store the recent locations, we keep up to 20 locations
+    wxArrayString history = m_comboBoxPath->GetStrings();
+    history.Insert(m_comboBoxPath->GetValue(),
+        0); // Place the current value at the top so we make sure it gets stored in the history
+    wxArrayString uniqueArr;
+    for(size_t i = 0; i < history.size(); ++i) {
+        if(uniqueArr.Index(history.Item(i)) == wxNOT_FOUND && (uniqueArr.size() < 20)) {
+            uniqueArr.Add(history.Item(i));
+        }
+    }
+    clConfig::Get().Write("C++NewWorkspace/Paths", uniqueArr);
+}
 
 void NewWorkspaceDlg::OnWorkspacePathUpdated(wxCommandEvent& event)
 {
     // update the static text control with the actual path
 
     wxString workspacePath;
-    workspacePath << m_textCtrlWorkspacePath->GetValue();
+    workspacePath << m_comboBoxPath->GetValue();
 
     workspacePath = workspacePath.Trim().Trim(false);
 
@@ -71,22 +92,21 @@ void NewWorkspaceDlg::OnWorkspacePathUpdated(wxCommandEvent& event)
 
 void NewWorkspaceDlg::OnWorkspaceDirPicker(wxCommandEvent& event)
 {
-    const wxString& dir = wxDirSelector(_("Choose a folder:"));
+    const wxString& dir = ::wxDirSelector(_("Choose a folder:"), m_comboBoxPath->GetValue());
     if(!dir.empty()) {
 
         static wxString INVALID_CHARS = " ,'()";
         if(dir.find_first_of(INVALID_CHARS) != wxString::npos) {
             int answer = ::wxMessageBox(wxString() << _("The selected project path '") << dir
                                                    << _("'\nContains some invalid characters\nContinue anyways?"),
-                                        "CodeLite",
-                                        wxYES_NO | wxCANCEL | wxICON_WARNING,
-                                        this);
+                "CodeLite", wxYES_NO | wxCANCEL | wxICON_WARNING, this);
             if(answer != wxYES) {
                 return;
             }
         }
 
-        m_textCtrlWorkspacePath->ChangeValue(dir);
+        // Use SetValue to ensure that an TEXT_UPDATE event is fired
+        m_comboBoxPath->SetValue(dir);
     }
 }
 
@@ -107,7 +127,4 @@ void NewWorkspaceDlg::OnButtonCreate(wxCommandEvent& event)
     }
     EndModal(wxID_OK);
 }
-void NewWorkspaceDlg::OnOKUI(wxUpdateUIEvent& event)
-{
-    event.Enable(!m_textCtrlWorkspaceName->IsEmpty());
-}
+void NewWorkspaceDlg::OnOKUI(wxUpdateUIEvent& event) { event.Enable(!m_textCtrlWorkspaceName->IsEmpty()); }

@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : NewProjectWizard.cpp
 //
 // -------------------------------------------------------------------------
@@ -34,6 +34,7 @@
 #include <wx/filename.h>
 #include <wx/dirdlg.h>
 #include <wx/msgdlg.h>
+#include "cl_config.h"
 
 class NewProjectDlgData : public SerializedObject
 {
@@ -116,19 +117,22 @@ public:
 
 NewProjectWizard::NewProjectWizard(wxWindow* parent, const clNewProjectEvent::Template::Vec_t& additionalTemplates)
     : NewProjectWizardBase(parent)
+    , m_selectionMade(false)
 {
     m_additionalTemplates = additionalTemplates;
     NewProjectDlgData info;
     EditorConfigST::Get()->ReadObject(wxT("NewProjectDlgData"), &info);
 
     NewProjImgList images;
-    // Get list of project templates
+    
+    // Get list of project templates (bot the installed ones + user)
     GetProjectTemplateList(m_list);
 
     // Populate the dataview model
     m_dataviewTemplatesModel->Clear();
     std::map<wxString, wxDataViewItem> categoryMap;
-
+    std::map<wxString, wxStringSet_t> projectsPerCategory;
+    
     // list of compilers
     wxArrayString compilerChoices;
 
@@ -157,9 +161,17 @@ NewProjectWizard::NewProjectWizard(wxWindow* parent, const clNewProjectEvent::Te
             }
             cols.push_back(DVTemplatesModel::CreateIconTextVariant(category, bmp));
             categoryMap[category] = m_dataviewTemplatesModel->AppendItem(wxDataViewItem(0), cols);
+            projectsPerCategory.insert(std::make_pair(category, wxStringSet_t()));
         }
 
         {
+            wxString name = newTemplate.m_template;
+            if(projectsPerCategory[category].count(name)) {
+                // already exists
+                continue;
+            }
+            projectsPerCategory[category].insert(name); // add it to the unique list
+            
             wxVector<wxVariant> cols;
             wxBitmap bmp = wxXmlResource::Get()->LoadBitmap(newTemplate.m_templatePng);
             if(!bmp.IsOk()) {
@@ -190,12 +202,20 @@ NewProjectWizard::NewProjectWizard(wxWindow* parent, const clNewProjectEvent::Te
             v << ict;
             cols.push_back(v);
             categoryMap[internalType] = m_dataviewTemplatesModel->AppendItem(wxDataViewItem(0), cols);
+            projectsPerCategory.insert(std::make_pair(internalType, wxStringSet_t()));
         }
 
         wxString imgId = (*iter)->GetProjectIconName();
         wxBitmap bmp = images.Bitmap(imgId);
         // Allow the user to override it
-
+        
+        // Remove the entry
+        if(projectsPerCategory[internalType].count((*iter)->GetName())) {
+            // already exists
+            continue;
+        }
+        projectsPerCategory[internalType].insert((*iter)->GetName()); // add it to the unique list
+        
         cols.clear();
         wxIcon icn;
         icn.CopyFromBitmap(bmp);
@@ -224,7 +244,7 @@ NewProjectWizard::NewProjectWizard(wxWindow* parent, const clNewProjectEvent::Te
         m_choiceCompiler->SetSelection(0);
     }
 
-    m_textCtrlProjectPath->SetValue(WorkspaceST::Get()->GetWorkspaceFileName().GetPath());
+    m_textCtrlProjectPath->SetValue(clCxxWorkspaceST::Get()->GetWorkspaceFileName().GetPath());
 
     // Get list of debuggers
     wxArrayString knownDebuggers = DebuggerMgr::Get().GetAvailableDebuggers();
@@ -246,7 +266,7 @@ NewProjectWizard::NewProjectWizard(wxWindow* parent, const clNewProjectEvent::Te
             m_projectData.m_srcProject = cd->getProject();
         }
     }
-
+    
     UpdateProjectPage();
 }
 
@@ -255,7 +275,10 @@ NewProjectWizard::~NewProjectWizard()
     // Keep the options
     NewProjectDlgData info;
     size_t flags(0);
-
+    
+    clConfig::Get().Write("CxxWizard/Compiler", m_choiceCompiler->GetStringSelection());
+    clConfig::Get().Write("CxxWizard/Debugger", m_choiceDebugger->GetStringSelection());
+    
     if(m_cbSeparateDir->IsChecked()) flags |= NewProjectDlgData::NpSeparateDirectory;
 
     info.SetFlags(flags);
@@ -308,7 +331,6 @@ void NewProjectWizard::UpdateProjectPage()
         wxString desc = m_projectData.m_srcProject->GetDescription();
         desc = desc.Trim().Trim(false);
         desc.Replace(wxT("\t"), wxT(" "));
-        // m_txtDescription->SetValue( desc );
 
         // select the correct compiler
         ProjectSettingsPtr settings = m_projectData.m_srcProject->GetSettings();
@@ -317,8 +339,26 @@ void NewProjectWizard::UpdateProjectPage()
             BuildConfigPtr buildConf = settings->GetFirstBuildConfiguration(ck);
             if(buildConf) {
                 m_choiceCompiler->SetStringSelection(buildConf->GetCompilerType());
-                m_choiceCompiler->SetStringSelection(buildConf->GetDebuggerType());
+                m_choiceDebugger->SetStringSelection(buildConf->GetDebuggerType());
             }
+        }
+    }
+    
+    // Restore previous selections
+    wxString lastCompiler = clConfig::Get().Read("CxxWizard/Compiler", wxString());
+    wxString lastDebugger = clConfig::Get().Read("CxxWizard/Debugger", wxString());
+    
+    if(!lastDebugger.IsEmpty()) {
+        int where = m_choiceDebugger->FindString(lastDebugger);
+        if(where != wxNOT_FOUND) {
+            m_choiceDebugger->SetSelection(where);
+        }
+    }
+    
+    if(!lastCompiler.IsEmpty()) {
+        int where = m_choiceCompiler->FindString(lastCompiler);
+        if(where != wxNOT_FOUND) {
+            m_choiceCompiler->SetSelection(where);
         }
     }
 }
@@ -413,13 +453,12 @@ void NewProjectWizard::OnPageChanging(wxWizardEvent& event)
 {
     if(event.GetDirection()) {
         wxDataViewItem sel = m_dataviewTemplates->GetSelection();
-        NewProjectClientData* cd =
-            dynamic_cast<NewProjectClientData*>(m_dataviewTemplatesModel->GetClientObject(sel));
+        NewProjectClientData* cd = dynamic_cast<NewProjectClientData*>(m_dataviewTemplatesModel->GetClientObject(sel));
 
         if(event.GetPage() == m_wizardPageTemplate) {
-        // -------------------------------------------------------
-        // Switching from the Templates page
-        // -------------------------------------------------------
+            // -------------------------------------------------------
+            // Switching from the Templates page
+            // -------------------------------------------------------
             if(!CheckProjectTemplate()) {
                 event.Veto();
                 return;
@@ -436,44 +475,41 @@ void NewProjectWizard::OnPageChanging(wxWizardEvent& event)
             m_txtProjName->SetFocus(); // This should have happened in the base-class ctor, but in practice it doesn't
 
         } else if(event.GetPage() == m_wizardPageDetails) {
-        // -------------------------------------------------------
-        // Switching from the Name/Path page
-        // -------------------------------------------------------
+            // -------------------------------------------------------
+            // Switching from the Name/Path page
+            // -------------------------------------------------------
             if(!CheckProjectName() || !CheckProjectPath()) {
                 event.Veto();
                 return;
             }
-        }
+        } else if(event.GetPage() == m_wizardPageToolchain) {
+            wxFileName fn(m_stxtFullFileName->GetLabel());
 
-        // Try to offer a sensible toolchain/debugger combination as default
-        wxString defaultDebugger;
-        if (cd && cd->GetTemplate().Lower().Contains("php")) {
-            for (size_t n=0; n < m_choiceCompiler->GetCount(); ++n) {
-                if (m_choiceCompiler->GetString(n).Lower().Contains("php")) {
-                    m_choiceCompiler->SetSelection(n);
-                    break;
+            // make sure that there is no conflict in files between the template project and the selected path
+            if(m_projectData.m_srcProject) {
+                ProjectPtr p = m_projectData.m_srcProject;
+                wxString base_dir(fn.GetPath());
+                std::vector<wxFileName> files;
+                p->GetFiles(files);
+
+                for(size_t i = 0; i < files.size(); ++i) {
+                    wxFileName f = files.at(i);
+                    wxString new_file = base_dir + wxT("/") + f.GetFullName();
+
+                    if(wxFileName::FileExists(new_file)) {
+                        // this file already - notify the user
+                        wxString msg;
+                        msg << _("The File '") << f.GetFullName() << _("' already exists at the target directory '")
+                            << base_dir << wxT("'\n");
+                        msg << _("Please select a different project path\n");
+                        msg << _("The file '") << f.GetFullName() << _("' is part of the template project [")
+                            << p->GetName() << wxT("]");
+                        wxMessageBox(msg, _("CodeLite"), wxOK | wxICON_HAND);
+                        event.Veto();
+                        return;
+                    }
                 }
             }
-            defaultDebugger = "XDebug";
-
-        } else {      
-            // If it's not a PHP project we can't be sure of anything except we don't want php tools; so select the first that isn't
-            for (size_t n=0; n < m_choiceCompiler->GetCount(); ++n) {
-                if (!m_choiceCompiler->GetString(n).Lower().Contains("php")) {
-                    m_choiceCompiler->SetSelection(n);
-                    break;
-                }
-            }
-#if defined(__WXMAC__)
-            defaultDebugger = "LLDB Debugger";
-#else
-            defaultDebugger = "GNU gdb debugger";
-#endif
-        }
-
-        int index = m_choiceDebugger->FindString(defaultDebugger);
-        if (index != wxNOT_FOUND) {
-           m_choiceDebugger->SetSelection(index);
         }
     }
     event.Skip();
@@ -515,4 +551,16 @@ bool NewProjectWizard::CheckProjectTemplate()
         return false;
     }
     return true;
+}
+
+void NewProjectWizard::OnCompilerSelected(wxCommandEvent& event)
+{
+    event.Skip();
+    m_selectionMade = true;
+}
+
+void NewProjectWizard::OnDebuggerSelected(wxCommandEvent& event)
+{
+    event.Skip();
+    m_selectionMade = true;
 }

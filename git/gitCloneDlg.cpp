@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitCloneDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -31,10 +31,11 @@ gitCloneDlg::gitCloneDlg(wxWindow* parent)
     : gitCloneDlgBaseClass(parent)
 {
     m_textCtrlURL->SetFocus();
-    WindowAttrManager::Load(this, "gitCloneDlg", NULL);
+    SetName("gitCloneDlg");
+    WindowAttrManager::Load(this);
 }
 
-gitCloneDlg::~gitCloneDlg() { WindowAttrManager::Save(this, "gitCloneDlg", NULL); }
+gitCloneDlg::~gitCloneDlg() {}
 
 void gitCloneDlg::OnOKUI(wxUpdateUIEvent& event)
 {

@@ -13,6 +13,7 @@ clInitializeDialog::clInitializeDialog(wxWindow* parent)
         wxEVT_UPGRADE_LEXERS_END, clCommandEventHandler(clInitializeDialog::OnLexersUpgradeEnd), NULL, this);
     EventNotifier::Get()->Connect(
         wxEVT_UPGRADE_LEXERS_PROGRESS, clCommandEventHandler(clInitializeDialog::OnLexersUpgradeProgress), NULL, this);
+    CenterOnScreen();
 }
 
 clInitializeDialog::~clInitializeDialog()
@@ -46,5 +47,9 @@ void clInitializeDialog::StartUpgrade()
 void clInitializeDialog::OnLexersUpgradeStart(clCommandEvent& e)
 {
     e.Skip();
-    m_gauge->SetRange(e.GetInt());
+    static bool rangeSet = false;
+    if(!rangeSet) {
+        m_gauge->SetRange(e.GetInt());
+        rangeSet = true;
+    }
 }

@@ -22,12 +22,6 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jul 28 2007)
-// http://www.wxformbuilder.org/
-//
-// PLEASE DO "NOT" EDIT THIS FILE!
-///////////////////////////////////////////////////////////////////////////
 
 #ifdef WX_PRECOMP
 
@@ -39,7 +33,7 @@
 
 #else
 #include <wx/wx.h>
-#endif //WX_PRECOMP
+#endif // WX_PRECOMP
 
 #include "quickoutlinedlg.h"
 #include "drawingutils.h"
@@ -52,92 +46,74 @@
 extern wxImageList* CreateSymbolTreeImages();
 
 ///////////////////////////////////////////////////////////////////////////
-BEGIN_EVENT_TABLE(QuickOutlineDlg, wxDialog)
-	EVT_CHAR_HOOK(QuickOutlineDlg::OnCharHook)
-	EVT_TEXT(wxID_ANY, QuickOutlineDlg::OnTextEntered)
-END_EVENT_TABLE()
+// BEGIN_EVENT_TABLE(QuickOutlineDlg, wxDialog)
+// EVT_CHAR_HOOK(QuickOutlineDlg::OnCharHook)
+// EVT_TEXT(wxID_ANY, QuickOutlineDlg::OnTextEntered)
+// END_EVENT_TABLE()
 
-QuickOutlineDlg::QuickOutlineDlg(wxWindow* parent, const wxString &fileName, int id, wxString title, wxPoint pos, wxSize size, int style )
-		: wxDialog( parent, id, title, pos, size, style|wxRESIZE_BORDER)
-		, m_fileName(fileName)
+QuickOutlineDlg::QuickOutlineDlg(
+    wxWindow* parent, const wxString& fileName, int id, wxString title, wxPoint pos, wxSize size, int style)
+    : wxDialog(parent, id, title, pos, size, style | wxRESIZE_BORDER)
+    , m_fileName(fileName)
 {
-	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+    wxBoxSizer* dialogSizer = new wxBoxSizer(wxVERTICAL);
+    SetSizer(dialogSizer);
+    wxPanel* mainPanel = new wxPanel(this);
+    dialogSizer->Add(mainPanel, 1, wxEXPAND);
+    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+    mainPanel->SetSizer(mainSizer);
+
 #ifdef __WXGTK__
-	wxColour bgCol = DrawingUtils::GetPanelBgColour();
-	wxColour fgCol = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOWTEXT );
+    wxColour bgCol = DrawingUtils::GetPanelBgColour();
+    wxColour fgCol = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
 #else
-	wxColour bgCol = wxSystemSettings::GetColour( wxSYS_COLOUR_INFOBK   );
-	wxColour fgCol = wxSystemSettings::GetColour( wxSYS_COLOUR_INFOTEXT );
+    wxColour bgCol = wxSystemSettings::GetColour(wxSYS_COLOUR_INFOBK);
+    wxColour fgCol = wxSystemSettings::GetColour(wxSYS_COLOUR_INFOTEXT);
 #endif
 
-	this->SetBackgroundColour( bgCol );
+    mainPanel->SetBackgroundColour(bgCol);
 
-	wxBoxSizer* bSizer1;
-	bSizer1 = new wxBoxSizer( wxVERTICAL );
-	m_textFilter = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0|wxNO_BORDER |wxTE_RICH2);
+    // build the outline view
+    m_treeOutline =
+        new CppSymbolTree(mainPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE | wxNO_BORDER);
+    m_keyboard.reset(new clTreeKeyboardInput(m_treeOutline));
+    m_treeOutline->Bind(wxEVT_KEY_DOWN, &QuickOutlineDlg::OnKeyDown, this);
+    m_treeOutline->SetBackgroundColour(bgCol);
+    m_treeOutline->SetForegroundColour(fgCol);
+    m_treeOutline->SetSymbolsImages(CreateSymbolTreeImages());
 
-	m_textFilter->SetBackgroundColour( bgCol );
-	m_textFilter->SetForegroundColour( fgCol );
+    Connect(wxEVT_CMD_CPP_SYMBOL_ITEM_SELECTED, wxCommandEventHandler(QuickOutlineDlg::OnItemSelected), NULL, this);
+    mainSizer->Add(m_treeOutline, 1, wxALL | wxEXPAND, 5);
 
-	bSizer1->Add( m_textFilter, 0, wxALL|wxEXPAND, 5 );
-	m_staticline1 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-	m_staticline1->SetBackgroundColour( bgCol );
-	bSizer1->Add( m_staticline1, 0, wxEXPAND|wxLEFT|wxRIGHT, 5 );
+    SetName("QuickOutlineDlg");
+    SetMinClientSize(wxSize(500, 400));
+    Layout();
 
-	//build the outline view
-	m_treeOutline = new CppSymbolTree( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTR_DEFAULT_STYLE|wxNO_BORDER);
-	m_treeOutline->SetBackgroundColour( bgCol );
-	m_treeOutline->SetForegroundColour( fgCol );
-	m_treeOutline->SetSymbolsImages(CreateSymbolTreeImages());
+    // no hidden root
+    m_treeOutline->BuildTree(m_fileName);
+    m_treeOutline->ExpandAll();
+    m_treeOutline->CallAfter(&CppSymbolTree::SetFocus);
 
-	Connect(wxEVT_CMD_CPP_SYMBOL_ITEM_SELECTED, wxCommandEventHandler(QuickOutlineDlg::OnItemSelected), NULL, this);
-
-	//no hidden root
-	m_treeOutline->BuildTree(m_fileName);
-	m_treeOutline->ExpandAll();
-
-	bSizer1->Add( m_treeOutline, 1, wxALL|wxEXPAND, 5 );
-	this->SetSizer( bSizer1 );
-	this->Layout();
-	Centre();
-	m_textFilter->SetFocus();
-	WindowAttrManager::Load(this, wxT("QuickOutlineDlg"), NULL);
+    WindowAttrManager::Load(this);
+    CentreOnParent();
 }
 
 QuickOutlineDlg::~QuickOutlineDlg()
 {
-	WindowAttrManager::Save(this, wxT("QuickOutlineDlg"), NULL);
-}
-
-void QuickOutlineDlg::OnCharHook(wxKeyEvent &e)
-{
-	if (e.GetKeyCode() == WXK_ESCAPE) {
-		EndModal(wxID_CANCEL);
-
-	} else if (e.GetKeyCode() == WXK_NUMPAD_ENTER || e.GetKeyCode() == WXK_RETURN) {
-		m_treeOutline->ActivateSelectedItem();
-
-	} else if (e.GetKeyCode() == WXK_UP) {
-		m_treeOutline->AdvanceSelection(false);
-
-	} else if (e.GetKeyCode() == WXK_DOWN) {
-		m_treeOutline->AdvanceSelection();
-
-	} else {
-		e.Skip();
-	}
-}
-
-void QuickOutlineDlg::OnTextEntered(wxCommandEvent &WXUNUSED(e))
-{
-	wxString curname = m_textFilter->GetValue();
-	if (curname.IsEmpty() == false) {
-		m_treeOutline->SelectItemByName(curname);
-	}
+    m_keyboard.reset(NULL);
+    m_treeOutline->Unbind(wxEVT_KEY_DOWN, &QuickOutlineDlg::OnKeyDown, this);
 }
 
 void QuickOutlineDlg::OnItemSelected(wxCommandEvent& e)
 {
-	wxUnusedVar(e);
-	Close();
+    wxUnusedVar(e);
+    Close();
+}
+
+void QuickOutlineDlg::OnKeyDown(wxKeyEvent& e)
+{
+    e.Skip();
+    if(e.GetKeyCode() == WXK_ESCAPE) {
+        Close();
+    }
 }

@@ -49,10 +49,11 @@ TestClassDlg::TestClassDlg(wxWindow* parent, IManager* mgr, UnitTestPP* plugin)
     if(m_choiceProjects->IsEmpty() == false) {
         m_choiceProjects->SetSelection(0);
     }
-    WindowAttrManager::Load(this, wxT("TestClassDlgAttr"), m_manager->GetConfigTool());
+    SetName("TestClassDlg");
+    WindowAttrManager::Load(this);
 }
 
-TestClassDlg::~TestClassDlg() { WindowAttrManager::Save(this, wxT("TestClassDlgAttr"), m_manager->GetConfigTool()); }
+TestClassDlg::~TestClassDlg() {  }
 
 void TestClassDlg::OnRefreshFunctions(wxCommandEvent& event)
 {
@@ -125,10 +126,10 @@ void TestClassDlg::OnShowClassListDialog(wxCommandEvent& e)
 {
     m_textCtrlClassName->SetFocus();
     OpenResourceDialog dlg(m_manager->GetTheApp()->GetTopWindow(), m_manager, "");
-    if(dlg.ShowModal() == wxID_OK) {
+    if(dlg.ShowModal() == wxID_OK && dlg.GetSelection()) {
 
         // do something with the selected text
-        m_textCtrlClassName->SetValue(dlg.GetSelection().m_name);
+        m_textCtrlClassName->SetValue(dlg.GetSelection()->m_name);
 
         // display the class methods
         DoRefreshFunctions();

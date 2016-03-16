@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : cppchecker.h
 //
 // -------------------------------------------------------------------------
@@ -29,6 +29,7 @@
 #include "plugin.h"
 #include "asyncprocess.h"
 #include "cppcheck_settings.h"
+#include "clTabTogglerHelper.h"
 
 class wxMenuItem;
 class CppCheckReportPage;
@@ -47,6 +48,7 @@ class CppCheckPlugin : public IPlugin
     size_t m_fileCount;
     CppCheckSettings m_settings;
     size_t m_fileProcessed;
+    clTabTogglerHelper::Ptr_t m_tabHelper;
 
 protected:
     wxString DoGetCommand(ProjectPtr proj);
@@ -96,13 +98,13 @@ protected:
      * @brief handles the cppcheck process termination
      * @param e
      */
-    void OnCppCheckTerminated(wxCommandEvent& e);
+    void OnCppCheckTerminated(clProcessEvent& e);
 
     /**
      * @brief there is data to read from the process
      * @param e
      */
-    void OnCppCheckReadData(wxCommandEvent& e);
+    void OnCppCheckReadData(clProcessEvent& e);
 
     /**
      * @brief handle the workspace closed event and clear the view
@@ -119,6 +121,12 @@ protected:
      * @param e event
      */
     void OnSettingsItemProject(wxCommandEvent& e);
+
+    /**
+     * @brief editor context menu is about to be shown.
+     * Append our content if the active editor is a Cxx file
+     */
+    void OnEditorContextMenu(clContextMenuEvent& event);
 
 public:
     CppCheckPlugin(IManager* manager);
@@ -138,11 +146,6 @@ public:
      */
     void StopAnalysis();
     /**
-     * @brief stop the analysis of the current file
-     * this method does not clear the queue
-     */
-    void SkipCurrentFile();
-    /**
      * @brief return true if analysis currently running
      */
     bool AnalysisInProgress() const { return m_cppcheckProcess != NULL; }
@@ -152,8 +155,6 @@ public:
      * @return value between 0-100
      */
     size_t GetProgress();
-
-    DECLARE_EVENT_TABLE()
 };
 
 #endif // CppChecker

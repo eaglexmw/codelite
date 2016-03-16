@@ -82,18 +82,20 @@ const wxEventType wxEVT_TAGS_DB_UPGRADE_INTER = XRCID("tags_db_upgraded_now");
 //---------------------------------------------------------------------------
 // Misc
 
+#if 0
 static bool isDarkColor(const wxColour& color)
 {
     int evg = (color.Red() + color.Green() + color.Blue()) / 3;
     if(evg < 127) return true;
     return false;
 }
+#endif
 
 // Descending sorting function
 struct SDescendingSort {
     bool operator()(const TagEntryPtr& rStart, const TagEntryPtr& rEnd)
     {
-        return rStart->GetName().Cmp(rEnd->GetName()) > 0;
+        return rStart->GetName().CmpNoCase(rEnd->GetName()) > 0;
     }
 };
 
@@ -101,7 +103,7 @@ struct SDescendingSort {
 struct SAscendingSort {
     bool operator()(const TagEntryPtr& rStart, const TagEntryPtr& rEnd)
     {
-        return rEnd->GetName().Cmp(rStart->GetName()) > 0;
+        return rEnd->GetName().CmpNoCase(rStart->GetName()) > 0;
     }
 };
 
@@ -135,12 +137,6 @@ TagsManager* TagsManagerST::Get()
 // CTAGS Manager
 //------------------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(TagsManager, wxEvtHandler)
-EVT_COMMAND(wxID_ANY, wxEVT_PROC_TERMINATED, TagsManager::OnIndexerTerminated)
-END_EVENT_TABLE()
-
-// ToDo: use GetScopesByScopeName method - DRY
-
 TagsManager::TagsManager()
     : wxEvtHandler()
     , m_codeliteIndexerPath(wxT("codelite_indexer"))
@@ -150,6 +146,7 @@ TagsManager::TagsManager()
     , m_evtHandler(NULL)
     , m_encoding(wxFONTENCODING_DEFAULT)
 {
+    Bind(wxEVT_ASYNC_PROCESS_TERMINATED, &TagsManager::OnIndexerTerminated, this);
 
     m_db = new TagsStorageSQLite();
     m_db->SetSingleSearchLimit(MAX_SEARCH_LIMIT);
@@ -328,12 +325,10 @@ void TagsManager::RestartCodeLiteIndexer()
 
 void TagsManager::SetCodeLiteIndexerPath(const wxString& path) { m_codeliteIndexerPath = path; }
 
-void TagsManager::OnIndexerTerminated(wxCommandEvent& event)
+void TagsManager::OnIndexerTerminated(clProcessEvent& event)
 {
-    if(m_codeliteIndexerProcess) {
-        delete m_codeliteIndexerProcess;
-        m_codeliteIndexerProcess = NULL;
-    }
+    wxUnusedVar(event);
+    wxDELETE(m_codeliteIndexerProcess);
     StartCodeLiteIndexer();
 }
 
@@ -590,7 +585,7 @@ bool TagsManager::WordCompletionCandidates(const wxFileName& fileName,
             // No need to call it twice...
             GetGlobalTags(word, globals);
         }
-        
+
         if(showLanguageKeywords) {
             // Collect language keywords
             GetKeywordsTagsForLanguage(word, kCxx, keywords);
@@ -646,7 +641,8 @@ bool TagsManager::WordCompletionCandidates(const wxFileName& fileName,
 
         std::vector<TagEntryPtr> tmpCandidates, tmpCandidates1;
         TagsByScopeAndName(scope, word, tmpCandidates);
-
+        DoFilterCtorDtorIfNeeded(tmpCandidates, oper);
+        
         wxString partialName(word);
         partialName.MakeLower();
 
@@ -755,9 +751,14 @@ bool TagsManager::AutoCompleteCandidates(const wxFileName& fileName,
         filter.Add(wxT("member"));
         filter.Add(wxT("prototype"));
         PERF_BLOCK("TagsByScope") { TagsByScope(scope, filter, candidates, true); }
+        DoFilterCtorDtorIfNeeded(candidates, oper);
     }
 
     PERF_END();
+
+    std::vector<TagEntryPtr> noDupsVec;
+    DoFilterDuplicatesBySignature(candidates, noDupsVec);
+    noDupsVec.swap(candidates);
 
     DoSortByVisibility(candidates);
     return candidates.empty() == false;
@@ -999,8 +1000,7 @@ void TagsManager::FindImplDecl(const wxFileName& fileName,
         if(scopeName != wxT("<global>")) {
             visibleScopes.push_back(scopeName);
             wxArrayString outerScopes = BreakToOuterScopes(scopeName);
-            for(size_t i = 0; i < outerScopes.GetCount(); i++)
-                visibleScopes.push_back(outerScopes.Item(i));
+            for(size_t i = 0; i < outerScopes.GetCount(); i++) visibleScopes.push_back(outerScopes.Item(i));
         }
 
         // collect tags from all the visible scopes
@@ -1167,11 +1167,8 @@ void TagsManager::FilterDeclarations(const std::vector<TagEntryPtr>& src, std::v
     }
 }
 
-clCallTipPtr TagsManager::GetFunctionTip(const wxFileName& fileName,
-                                         int lineno,
-                                         const wxString& expr,
-                                         const wxString& text,
-                                         const wxString& word)
+clCallTipPtr TagsManager::GetFunctionTip(
+    const wxFileName& fileName, int lineno, const wxString& expr, const wxString& text, const wxString& word)
 {
     wxString path;
     wxString typeName, typeScope, tmp;
@@ -1566,12 +1563,7 @@ bool TagsManager::GetDerivationList(const wxString& path,
 
 void TagsManager::TipsFromTags(const std::vector<TagEntryPtr>& tags, const wxString& word, std::vector<wxString>& tips)
 {
-    bool isDarkBG = isDarkColor(wxSystemSettings::GetColour(wxSYS_COLOUR_INFOBK));
-    wxString retValueColour = "\"BLUE\"";
-    if(isDarkBG) {
-        retValueColour = "\"YELLOW\"";
-    }
-
+    wxString retValueColour = "\"white\"";
     for(size_t i = 0; i < tags.size(); i++) {
         if(tags.at(i)->GetName() != word) continue;
 
@@ -1608,21 +1600,21 @@ void TagsManager::TipsFromTags(const std::vector<TagEntryPtr>& tags, const wxStr
 
             wxString ret_value = GetFunctionReturnValueFromPattern(t);
             if(ret_value.IsEmpty() == false) {
-                tip << "<b><color=" << retValueColour << ">" << ret_value << wxT("</color></b> ");
+                tip << "<b>" << ret_value << wxT("</b> ");
             } else {
                 wxString retValue = t->GetReturnValue();
                 if(retValue.IsEmpty() == false) {
-                    tip << "<b><color=" << retValueColour << ">" << retValue << wxT("</color></b> ");
+                    tip << "<b>" << retValue << wxT("</b> ");
                 }
             }
 
             // add the scope
-            if(!t->IsScopeGlobal()) {
+            if(!t->IsScopeGlobal() && !t->IsConstructor() && !t->IsDestructor()) {
                 tip << t->GetScope() << wxT("::");
             }
 
             // name
-            tip << "<b>" << t->GetName() << "</b>";
+            tip << "<b><color=\"white\">" << t->GetName() << "</color></b>";
 
             // method signature
             tip << NormalizeFunctionSig(t->GetSignature(), Normalize_Func_Name | Normalize_Func_Default_value);
@@ -1636,7 +1628,7 @@ void TagsManager::TipsFromTags(const std::vector<TagEntryPtr>& tags, const wxStr
         tip = WrapLines(tip);
 
         if(!tips.empty()) {
-            tip.Prepend("\n<hr>\n");
+            tip.Prepend("\n");
         }
 
         // prepend any comment if exists
@@ -2257,7 +2249,7 @@ TagsManager::NormalizeFunctionSig(const wxString& sig, size_t flags, std::vector
     if(paramLen) {
         paramLen->clear();
     }
-    if(flags & Normalize_Func_Arg_Per_Line && li.size()) {
+    if(flags & Normalize_Func_Arg_Per_Line && !li.empty()) {
         str_output << wxT("\n    ");
     }
 
@@ -2328,7 +2320,7 @@ TagsManager::NormalizeFunctionSig(const wxString& sig, size_t flags, std::vector
             paramLen->push_back(std::pair<int, int>(start_offset, str_output.length() - start_offset));
         }
         str_output << wxT(", ");
-        if(flags & Normalize_Func_Arg_Per_Line && li.size()) {
+        if(flags & Normalize_Func_Arg_Per_Line && !li.empty()) {
             str_output << wxT("\n    ");
         }
     }
@@ -2707,7 +2699,7 @@ void TagsManager::GetDereferenceOperator(const wxString& scope, std::vector<TagE
         tmpScope = DoReplaceMacros(tmpScope);
 
         GetDatabase()->GetDereferenceOperator(tmpScope, tags);
-        if(tags.size()) {
+        if(!tags.empty()) {
 
             // No need to further check
             break;
@@ -2731,7 +2723,7 @@ void TagsManager::GetSubscriptOperator(const wxString& scope, std::vector<TagEnt
         tmpScope = DoReplaceMacros(tmpScope);
 
         GetDatabase()->GetSubscriptOperator(scope, tags);
-        if(tags.size()) {
+        if(!tags.empty()) {
 
             // No need to further check
             break;
@@ -2746,11 +2738,8 @@ void TagsManager::ClearAllCaches()
     GetDatabase()->ClearCache();
 }
 
-CppToken TagsManager::FindLocalVariable(const wxFileName& fileName,
-                                        int pos,
-                                        int lineNumber,
-                                        const wxString& word,
-                                        const wxString& modifiedText)
+CppToken TagsManager::FindLocalVariable(
+    const wxFileName& fileName, int pos, int lineNumber, const wxString& word, const wxString& modifiedText)
 {
     // Load the file and get a state map + the text from the scanner
     TagEntryPtr tag(NULL);
@@ -3095,11 +3084,8 @@ void TagsManager::GetScopesByScopeName(const wxString& scopeName, wxArrayString&
     }
 }
 
-void TagsManager::InsertForwardDeclaration(const wxString& classname,
-                                           const wxString& fileContent,
-                                           wxString& lineToAdd,
-                                           int& line,
-                                           const wxString& impExpMacro)
+void TagsManager::InsertForwardDeclaration(
+    const wxString& classname, const wxString& fileContent, wxString& lineToAdd, int& line, const wxString& impExpMacro)
 {
     lineToAdd << "class ";
     if(!impExpMacro.IsEmpty()) {
@@ -3275,15 +3261,92 @@ void TagsManager::GetKeywordsTagsForLanguage(const wxString& filter, eLanguage l
 {
     wxString keywords;
     if(lang == kCxx) {
-        keywords = wxT("and and_eq asm auto bitand bitor bool break case catch char class compl const const_cast "
-                       "continue default delete "
-                       "do double dynamic_cast else enum explicit export extern false float for friend goto if "
-                       "inline int long mutable namespace "
-                       "new not not_eq operator or or_eq private protected public register reinterpret_cast return "
-                       "short signed sizeof size_t static "
-                       "static_cast struct switch template this throw true try typedef typeid typename union "
-                       "unsigned using virtual void volatile "
-                       "wchar_t while xor xor_eq ifdef undef define defined include endif elif ifndef");
+        keywords = wxT(" alignas"
+                       " alignof"
+                       " and"
+                       " and_eq"
+                       " asm"
+                       " auto"
+                       " bitand"
+                       " bitor"
+                       " bool"
+                       " break"
+                       " case"
+                       " catch"
+                       " char"
+                       " char16_t"
+                       " char32_t"
+                       " class"
+                       " compl"
+                       " concept"
+                       " const"
+                       " constexpr"
+                       " const_cast"
+                       " continue"
+                       " decltype"
+                       " default"
+                       " delete"
+                       " do"
+                       " double"
+                       " dynamic_cast"
+                       " else"
+                       " enum"
+                       " explicit"
+                       " export"
+                       " extern"
+                       " false"
+                       " float"
+                       " for"
+                       " friend"
+                       " goto"
+                       " if"
+                       " inline"
+                       " int"
+                       " long"
+                       " mutable"
+                       " namespace"
+                       " new"
+                       " noexcept"
+                       " not"
+                       " not_eq"
+                       " nullptr"
+                       " operator"
+                       " or"
+                       " or_eq"
+                       " private"
+                       " protected"
+                       " public"
+                       " register"
+                       " reinterpret_cast"
+                       " requires"
+                       " return"
+                       " short"
+                       " signed"
+                       " sizeof"
+                       " static"
+                       " static_assert"
+                       " static_cast"
+                       " struct"
+                       " switch"
+                       " template"
+                       " this"
+                       " thread_local"
+                       " throw"
+                       " true"
+                       " try"
+                       " typedef"
+                       " typeid"
+                       " typename"
+                       " union"
+                       " unsigned"
+                       " using"
+                       " virtual"
+                       " void"
+                       " volatile"
+                       " wchar_t"
+                       " while"
+                       " xor"
+                       " xor_eq");
     } else if(lang == kJavaScript) {
         keywords = "abstract boolean break byte case catch char class "
                    "const continue debugger default delete do double else enum export extends "
@@ -3304,5 +3367,20 @@ void TagsManager::GetKeywordsTagsForLanguage(const wxString& filter, eLanguage l
             tag->SetKind(wxT("cpp_keyword"));
             tags.push_back(tag);
         }
+    }
+}
+
+void TagsManager::DoFilterCtorDtorIfNeeded(std::vector<TagEntryPtr>& tags, const wxString& oper)
+{
+    if((oper == "->") || (oper == ".")) {
+        // filter out the constructors / destructors
+        std::vector<TagEntryPtr> candidatesNoCtorDtor;
+        candidatesNoCtorDtor.reserve(tags.size());
+        std::for_each(tags.begin(), tags.end(), [&](TagEntryPtr tag) {
+            if(!tag->IsConstructor() && !tag->IsDestructor()) {
+                candidatesNoCtorDtor.push_back(tag);
+            }
+        });
+        tags.swap(candidatesNoCtorDtor);
     }
 }

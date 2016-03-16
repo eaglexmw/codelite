@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : PhpLexerAPI.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef CppLexerAPI_H__
 #define CppLexerAPI_H__
 
@@ -15,7 +40,8 @@ enum eLexerOptions {
     kPhpLexerOpt_ReturnAllNonPhp = 0x00000004,
 };
 
-struct WXDLLIMPEXP_CL phpLexerToken {
+struct WXDLLIMPEXP_CL phpLexerToken
+{
     int type;
     std::string text;
     int lineNumber;
@@ -33,22 +59,19 @@ struct WXDLLIMPEXP_CL phpLexerToken {
     /**
      * @brief is the current token a comment? (c++ or c comment)
      */
-    bool IsAnyComment() const {
-        return type == kPHP_T_C_COMMENT || type == kPHP_T_CXX_COMMENT;
-    }
+    bool IsAnyComment() const { return type == kPHP_T_C_COMMENT || type == kPHP_T_CXX_COMMENT; }
     /**
      * @brief is the current token a PHP Doc comment?
      */
-    bool IsDocComment() const {
-        return type == kPHP_T_C_COMMENT;
-    }
+    bool IsDocComment() const { return type == kPHP_T_C_COMMENT; }
     typedef std::vector<phpLexerToken> Vet_t;
 };
 
 /**
  * @class phpLexerUserData
  */
-struct WXDLLIMPEXP_CL phpLexerUserData {
+struct WXDLLIMPEXP_CL phpLexerUserData
+{
 private:
     size_t m_flags;
     std::string m_comment;
@@ -89,7 +112,14 @@ public:
     bool IsCollectingComments() const { return m_flags & kPhpLexerOpt_ReturnComments; }
     bool IsCollectingWhitespace() const { return m_flags & kPhpLexerOpt_ReturnWhitespace; }
     bool IsCollectingAllNonPhp() const { return m_flags & kPhpLexerOpt_ReturnAllNonPhp; }
-
+    void SetCollectingWhitespace(bool b)
+    {
+        if(b) {
+            m_flags |= kPhpLexerOpt_ReturnWhitespace;
+        } else {
+            m_flags &= ~kPhpLexerOpt_ReturnWhitespace;
+        }
+    }
     void SetInsidePhp(bool insidePhp) { this->m_insidePhp = insidePhp; }
     bool IsInsidePhp() const { return m_insidePhp; }
 
@@ -128,6 +158,11 @@ typedef void* PHPScanner_t;
 WXDLLIMPEXP_CL PHPScanner_t phpLexerNew(const wxFileName& filename, size_t options = kPhpLexerOpt_None);
 
 /**
+ * @brief return the user data associated with this scanner
+ */
+WXDLLIMPEXP_CL phpLexerUserData* phpLexerGetUserData(PHPScanner_t scanner);
+
+/**
  * @brief create a new Lexer for a given file content
  */
 WXDLLIMPEXP_CL PHPScanner_t phpLexerNew(const wxString& content, size_t options = kPhpLexerOpt_None);
@@ -151,5 +186,35 @@ WXDLLIMPEXP_CL bool phpLexerIsPHPCode(PHPScanner_t scanner);
  * @brief peek at the next token
  */
 WXDLLIMPEXP_CL void phpLexerUnget(PHPScanner_t scanner);
+
+/**
+ * @class PHPScannerLocker
+ * @brief a wrapper around the C API for PHPScanner
+ */
+struct WXDLLIMPEXP_CL PHPScannerLocker
+{
+    PHPScanner_t scanner;
+    PHPScannerLocker(const wxString& content, size_t options = kPhpLexerOpt_None)
+    {
+        scanner = ::phpLexerNew(content, options);
+    }
+
+    PHPScannerLocker(const wxFileName& filename, size_t options = kPhpLexerOpt_None)
+    {
+        scanner = ::phpLexerNew(filename, options);
+    }
+
+    PHPScannerLocker(PHPScanner_t phpScanner)
+        : scanner(phpScanner)
+    {
+    }
+
+    ~PHPScannerLocker()
+    {
+        if(scanner) {
+            ::phpLexerDestroy(&scanner);
+        }
+    }
+};
 
 #endif

@@ -50,9 +50,6 @@ function( CL_PLUGIN PLUGIN_NAME )
         add_definitions(-include "${CL_PCH_FILE}")
         add_definitions(-Winvalid-pch)
     endif ( USE_PCH )
-
-    # Add RPATH
-    set (LINKER_OPTIONS -Wl,-rpath,"${PLUGINS_DIR}")
     
     ## By default, use the sources under the current folder
     FILE(GLOB_RECURSE PLUGIN_SRCS "${CMAKE_CURRENT_LIST_DIR}/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/*.c")
@@ -63,18 +60,13 @@ function( CL_PLUGIN PLUGIN_NAME )
     # Codelite plugins doesn't use the "lib" prefix.
     set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
     target_link_libraries(${PLUGIN_NAME}
-        ${LINKER_OPTIONS}
-        ${PLUGIN_EXTRA_LIBS}
-        ${wxWidgets_LIBRARIES}
-        -L"${CL_LIBPATH}"
-        -llibcodelite
-        -lplugin
-        -lwxsqlite3 
-        -lsqlite3lib
-    )
-
-    # The plugin library is required
-    add_dependencies(${PLUGIN_NAME} plugin)
+                        ${LINKER_OPTIONS}
+                        ${wxWidgets_LIBRARIES}
+                        libcodelite
+                        plugin
+                        wxsqlite3 
+                        sqlite3lib
+                        )
 
     # Installation destination
     install(TARGETS ${PLUGIN_NAME} DESTINATION ${PLUGINS_DIR})

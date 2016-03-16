@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : implement_parent_virtual_functions.cpp
 //
 // -------------------------------------------------------------------------
@@ -72,7 +72,8 @@ ImplementParentVirtualFunctionsDialog::ImplementParentVirtualFunctionsDialog( wx
     m_dataviewModel->SetColCount(colCount);
     m_dataview->AssociateModel( m_dataviewModel.get() );
 
-    WindowAttrManager::Load(this, wxT("ImplementParentVirtualFunctionsDialog"), NULL);
+    SetName("ImplementParentVirtualFunctionsDialog");
+    WindowAttrManager::Load(this);
     ImplParentVirtualFunctionsData data;
     EditorConfigST::Get()->ReadObject(wxT("ImplParentVirtualFunctionsData"), &data);
 
@@ -91,7 +92,7 @@ ImplementParentVirtualFunctionsDialog::~ImplementParentVirtualFunctionsDialog()
 
     data.SetFlags(flags);
     EditorConfigST::Get()->WriteObject(wxT("ImplParentVirtualFunctionsData"), &data);
-    WindowAttrManager::Save(this, wxT("ImplementParentVirtualFunctionsDialog"), NULL);
+    
 }
 
 void ImplementParentVirtualFunctionsDialog::DoInitialize(bool updateDoxyOnly)

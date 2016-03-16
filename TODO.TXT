@@ -1,2 +1,4 @@
-- Allow multiple file open in open-resource dialog
-- Allow open <file>:<line> in open-resource dialog
+* Git: add an option to open the commit in GitHub
+* Replace the CMake plugin with a custom build workspace type
+* Auto Save Plugin
+

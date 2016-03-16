@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : gitCommitListDlg.cpp
 //
 // -------------------------------------------------------------------------
@@ -42,16 +42,15 @@
 static int ID_COPY_COMMIT_HASH = wxNewId();
 static int ID_REVERT_COMMIT = wxNewId();
 
-BEGIN_EVENT_TABLE(GitCommitListDlg, wxDialog)
-EVT_COMMAND(wxID_ANY, wxEVT_PROC_DATA_READ, GitCommitListDlg::OnProcessOutput)
-EVT_COMMAND(wxID_ANY, wxEVT_PROC_TERMINATED, GitCommitListDlg::OnProcessTerminated)
-END_EVENT_TABLE()
-
 GitCommitListDlg::GitCommitListDlg(wxWindow* parent, const wxString& workingDir, GitPlugin* git)
     : GitCommitListDlgBase(parent)
     , m_git(git)
     , m_workingDir(workingDir)
+    , m_skip(100)
 {
+    Bind(wxEVT_ASYNC_PROCESS_OUTPUT, &GitCommitListDlg::OnProcessOutput, this);
+    Bind(wxEVT_ASYNC_PROCESS_TERMINATED, &GitCommitListDlg::OnProcessTerminated, this);
+
     LexerConf::Ptr_t lex = EditorConfigST::Get()->GetLexer("diff");
     if(lex) {
         lex->Apply(m_stcDiff, true);
@@ -69,32 +68,23 @@ GitCommitListDlg::GitCommitListDlg(wxWindow* parent, const wxString& workingDir,
     if(m_gitPath.IsEmpty()) {
         m_gitPath = "git";
     }
-    WindowAttrManager::Load(this, wxT("GitCommitListDlg"), NULL);
+    SetName("GitCommitListDlg");
+    WindowAttrManager::Load(this);
 
-    m_dvListCtrlCommitList->Connect(ID_COPY_COMMIT_HASH,
-                                    wxEVT_COMMAND_MENU_SELECTED,
-                                    wxCommandEventHandler(GitCommitListDlg::OnCopyCommitHashToClipboard),
-                                    NULL,
-                                    this);
-    m_dvListCtrlCommitList->Connect(ID_REVERT_COMMIT,
-                                    wxEVT_COMMAND_MENU_SELECTED,
-                                    wxCommandEventHandler(GitCommitListDlg::OnRevertCommit),
-                                    NULL,
-                                    this);
+    m_dvListCtrlCommitList->Connect(ID_COPY_COMMIT_HASH, wxEVT_COMMAND_MENU_SELECTED,
+        wxCommandEventHandler(GitCommitListDlg::OnCopyCommitHashToClipboard), NULL, this);
+    m_dvListCtrlCommitList->Connect(ID_REVERT_COMMIT, wxEVT_COMMAND_MENU_SELECTED,
+        wxCommandEventHandler(GitCommitListDlg::OnRevertCommit), NULL, this);
 }
 
 /*******************************************************************************/
-GitCommitListDlg::~GitCommitListDlg()
-{
-    WindowAttrManager::Save(this, wxT("GitCommitListDlg"), NULL);
-    // m_git->CallAfter( &GitPlugin::GitCommitListDlgClosed );
-}
+GitCommitListDlg::~GitCommitListDlg() { m_git->m_commitListDlg = NULL; }
 
 /*******************************************************************************/
 void GitCommitListDlg::SetCommitList(const wxString& commits)
 {
     m_commitList = commits;
-
+    m_history.insert(std::make_pair(m_skip, m_commitList));
     // Load all commits, un-filtered
     DoLoadCommits("");
 }
@@ -110,12 +100,13 @@ void GitCommitListDlg::OnChangeFile(wxCommandEvent& e)
 }
 
 /*******************************************************************************/
-void GitCommitListDlg::OnProcessTerminated(wxCommandEvent& event)
+void GitCommitListDlg::OnProcessTerminated(clProcessEvent& event)
 {
-    ProcessEventData* ped = (ProcessEventData*)event.GetClientData();
-    wxDELETE(ped);
+    wxUnusedVar(event);
     wxDELETE(m_process);
 
+    m_stcCommitMessage->SetEditable(true);
+    m_stcDiff->SetEditable(true);
     m_stcCommitMessage->ClearAll();
     m_fileListBox->Clear();
     m_diffMap.clear();
@@ -147,27 +138,22 @@ void GitCommitListDlg::OnProcessTerminated(wxCommandEvent& event)
     for(std::map<wxString, wxString>::iterator it = m_diffMap.begin(); it != m_diffMap.end(); ++it) {
         m_fileListBox->Append((*it).first);
     }
-    m_stcDiff->SetReadOnly(false);
+
     m_stcDiff->ClearAll();
 
     if(m_diffMap.size() != 0) {
         std::map<wxString, wxString>::iterator it = m_diffMap.begin();
         m_stcDiff->SetText((*it).second);
         m_fileListBox->Select(0);
-        m_stcDiff->SetReadOnly(true);
     }
 
+    m_stcDiff->SetEditable(false);
     m_commandOutput.Clear();
+    m_stcCommitMessage->SetEditable(false);
 }
 /*******************************************************************************/
-void GitCommitListDlg::OnProcessOutput(wxCommandEvent& event)
-{
-    ProcessEventData* ped = (ProcessEventData*)event.GetClientData();
-    if(ped) {
-        m_commandOutput.Append(ped->GetData());
-        delete ped;
-    }
-}
+void GitCommitListDlg::OnProcessOutput(clProcessEvent& event) { m_commandOutput.Append(event.GetOutput()); }
+
 void GitCommitListDlg::OnSelectionChanged(wxDataViewEvent& event)
 {
     wxVariant v;
@@ -223,9 +209,16 @@ void GitCommitListDlg::OnOK(wxCommandEvent& event) { Destroy(); }
 
 void GitCommitListDlg::DoLoadCommits(const wxString& filter)
 {
+    m_stcDiff->SetEditable(true);
+    m_stcCommitMessage->SetEditable(true);
+
     m_dvListCtrlCommitList->DeleteAllItems();
     m_stcCommitMessage->ClearAll();
     m_fileListBox->Clear();
+    m_stcDiff->ClearAll();
+
+    m_stcCommitMessage->SetEditable(false);
+    m_stcDiff->SetEditable(false);
 
     // hash @ subject @ author-name @ date
     wxArrayString gitList = wxStringTokenize(m_commitList, wxT("\n"), wxTOKEN_STRTOK);
@@ -267,3 +260,24 @@ bool GitCommitListDlg::IsMatchFilter(const wxArrayString& filters, const wxArray
     }
     return match;
 }
+void GitCommitListDlg::OnNext(wxCommandEvent& event)
+{
+    m_skip += 100;
+    // Check the cache first
+    if(m_history.count(m_skip)) {
+        SetCommitList(m_history.find(m_skip)->second);
+    } else {
+        m_git->FetchNextCommits(m_skip);
+    }
+}
+
+void GitCommitListDlg::OnPrevious(wxCommandEvent& event)
+{
+    int skip = m_skip - 100;
+    if(m_history.count(skip)) {
+        m_skip -= 100;
+        SetCommitList(m_history.find(m_skip)->second);
+    }
+}
+
+void GitCommitListDlg::OnPreviousUI(wxUpdateUIEvent& event) { event.Enable(m_skip > 100); }

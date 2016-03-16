@@ -129,7 +129,7 @@ typedef SmartPtr<ProjectTree> ProjectTreePtr;
 typedef TreeNode<wxString, ProjectItem> ProjectTreeNode;
 
 class Project;
-class Workspace;
+class clCxxWorkspace;
 
 typedef SmartPtr<Project> ProjectPtr;
 typedef std::set<wxFileName> FileNameSet_t;
@@ -164,7 +164,7 @@ public:
 
     typedef std::map<wxString, wxXmlNode*> NodeMap_t;
 
-    friend class Workspace;
+    friend class clCxxWorkspace;
 
 private:
     wxXmlDocument m_doc;
@@ -174,7 +174,7 @@ private:
     bool m_isModified;
     NodeMap_t m_vdCache;
     time_t m_modifyTime;
-    Workspace* m_workspace;
+    clCxxWorkspace* m_workspace;
     ProjectSettingsPtr m_settings;
     wxString m_iconPath; /// Not serializable
 
@@ -230,7 +230,7 @@ public:
      * @brief return the workspace associated with the project
      * If no workspace is associated, then the global workspace is returned
      */
-    Workspace* GetWorkspace();
+    clCxxWorkspace* GetWorkspace();
 
     /**
      * @brief a project was renamed - update our dependeices if needed
@@ -252,7 +252,7 @@ public:
     /**
      * @brief the const version of the above
      */
-    const Workspace* GetWorkspace() const;
+    const clCxxWorkspace* GetWorkspace() const;
     const wxFileName& GetFileName() const { return m_fileName; }
 
     const wxString& GetProjectPath() const { return m_projectPath; }
@@ -278,7 +278,13 @@ public:
     // default constructor
     Project();
     virtual ~Project();
-
+    
+    /**
+     * @brief return list of macros used in the configuration which could not be resolved
+     * by CodeLite
+     */
+    void GetUnresolvedMacros(const wxString& configName, wxArrayString& vars) const;
+    
     /**
      * \return project name
      */
@@ -654,13 +660,18 @@ public:
      * @param configName configuration name. If non provided, returns the build configuration
      * that matches the current workspace configuration
      */
-    BuildConfigPtr GetBuildConfiguration(const wxString& configName = "");
-
+    BuildConfigPtr GetBuildConfiguration(const wxString& configName = "") const;
+    
+    /**
+     * @brief clear the backtick expansion info
+     */
+    static void ClearBacktickCache();
+    
 private:
     /**
      * @brief associate this project with a workspace
      */
-    void AssociateToWorkspace(Workspace* workspace);
+    void AssociateToWorkspace(clCxxWorkspace* workspace);
 
     wxString DoFormatVirtualFolderName(const wxXmlNode* node) const;
 

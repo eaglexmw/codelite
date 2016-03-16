@@ -48,10 +48,10 @@
 
 static Cscope* thePlugin = NULL;
 
-static const wxString CSCOPE_NAME = wxT("CScope");
+static const wxString CSCOPE_NAME = _("CScope");
 
 // Define the plugin entry point
-extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
+CL_PLUGIN_API IPlugin* CreatePlugin(IManager* manager)
 {
     if(thePlugin == 0) {
         thePlugin = new Cscope(manager);
@@ -59,17 +59,17 @@ extern "C" EXPORT IPlugin* CreatePlugin(IManager* manager)
     return thePlugin;
 }
 
-extern "C" EXPORT PluginInfo GetPluginInfo()
+CL_PLUGIN_API PluginInfo* GetPluginInfo()
 {
-    PluginInfo info;
+    static PluginInfo info;
     info.SetAuthor(wxT("Eran Ifrah, patched by Stefan Roesch"));
     info.SetName(CSCOPE_NAME);
     info.SetDescription(_("CScope Integration for CodeLite"));
     info.SetVersion(wxT("v1.1"));
-    return info;
+    return &info;
 }
 
-extern "C" EXPORT int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
+CL_PLUGIN_API int GetPluginInterfaceVersion() { return PLUGIN_INTERFACE_VERSION; }
 
 Cscope::Cscope(IManager* manager)
     : IPlugin(manager)
@@ -81,7 +81,9 @@ Cscope::Cscope(IManager* manager)
 
     m_cscopeWin = new CscopeTab(m_mgr->GetOutputPaneNotebook(), m_mgr);
     m_mgr->GetOutputPaneNotebook()->AddPage(
-        m_cscopeWin, CSCOPE_NAME, false, wxXmlResource::Get()->LoadBitmap(wxT("cscope")));
+        m_cscopeWin, CSCOPE_NAME, false, m_mgr->GetStdIcons()->LoadBitmap("cscope"));
+    m_tabHelper.reset(new clTabTogglerHelper(CSCOPE_NAME, m_cscopeWin, "", NULL));
+    m_tabHelper->SetOutputTabBmp(m_mgr->GetStdIcons()->LoadBitmap("cscope"));
 
     Connect(wxEVT_CSCOPE_THREAD_DONE, wxCommandEventHandler(Cscope::OnCScopeThreadEnded), NULL, this);
     Connect(wxEVT_CSCOPE_THREAD_UPDATE_STATUS, wxCommandEventHandler(Cscope::OnCScopeThreadUpdateStatus), NULL, this);
@@ -90,19 +92,18 @@ Cscope::Cscope(IManager* manager)
     CScopeThreadST::Get()->Start();
 
     // Register keyboard shortcuts for CScope
-    clKeyboardManager::Get()->AddGlobalAccelerator("cscope_find_user_symbol", "Ctrl-Shift-)", "Plugins::CScope::Find");
+    clKeyboardManager::Get()->AddGlobalAccelerator("cscope_find_user_symbol", "Alt-)", "Plugins::CScope::Find");
     clKeyboardManager::Get()->AddGlobalAccelerator(
-        "cscope_find_symbol", "Ctrl-Alt-0", "Plugins::CScope::Find selected text");
+        "cscope_find_symbol", "Alt-0", "Plugins::CScope::Find selected text");
     clKeyboardManager::Get()->AddGlobalAccelerator(
-        "cscope_find_global_definition", "Ctrl-Alt-1", "Plugins::CScope::Find this global definition");
-    clKeyboardManager::Get()->AddGlobalAccelerator("cscope_functions_calling_this_function",
-                                                   "Ctrl-Alt-2",
-                                                   "Plugins::CScope::Find functions called by this function");
-    clKeyboardManager::Get()->AddGlobalAccelerator("cscope_functions_called_by_this_function",
-                                                   "Ctrl-Alt-3",
-                                                   "Plugins::CScope::Find functions calling this function");
+        "cscope_find_global_definition", "Alt-1", "Plugins::CScope::Find this global definition");
     clKeyboardManager::Get()->AddGlobalAccelerator(
-        "cscope_create_db", "Ctrl-Alt-4", "Plugins::CScope::Create CScope database");
+        "cscope_functions_calling_this_function", "Alt-2", "Plugins::CScope::Find functions called by this function");
+    clKeyboardManager::Get()->AddGlobalAccelerator(
+        "cscope_functions_called_by_this_function", "Alt-3", "Plugins::CScope::Find functions calling this function");
+    clKeyboardManager::Get()->AddGlobalAccelerator(
+        "cscope_create_db", "Alt-4", "Plugins::CScope::Create CScope database");
+    EventNotifier::Get()->Bind(wxEVT_CONTEXT_MENU_EDITOR, &Cscope::OnEditorContentMenu, this);
 }
 
 Cscope::~Cscope() {}
@@ -114,41 +115,25 @@ clToolBar* Cscope::CreateToolBar(wxWindow* parent)
 
     clToolBar* tb = NULL;
     if(m_mgr->AllowToolbar()) {
-        tb = new clToolBar(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, clTB_DEFAULT_STYLE);
+        tb = new clToolBar(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, clTB_DEFAULT_STYLE_PLUGIN);
         tb->SetToolBitmapSize(wxSize(size, size));
 
         // Sample code that adds single button to the toolbar
         // and associates an image to it
         BitmapLoader* bitmapLoader = m_mgr->GetStdIcons();
-        if(size == 24) {
-            // use the large icons set
-            tb->AddTool(XRCID("cscope_find_symbol"),
-                        _("Find this C symbol"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/24/cscope/find_symbol")),
-                        _("Find this C symbol"));
-            tb->AddTool(XRCID("cscope_functions_calling_this_function"),
-                        _("Find functions calling this function"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/24/cscope/function_calling_this_function")),
-                        _("Find functions calling this function"));
-            tb->AddTool(XRCID("cscope_functions_called_by_this_function"),
-                        _("Find functions called by this function"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/24/cscope/functions_called_by_this_function")),
-                        _("Find functions called by this function"));
-        } else {
-            // 16
-            tb->AddTool(XRCID("cscope_find_symbol"),
-                        _("Find this C symbol"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/16/cscope/find_symbol")),
-                        _("Find this C symbol"));
-            tb->AddTool(XRCID("cscope_functions_calling_this_function"),
-                        _("Find functions calling this function"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/16/cscope/function_calling_this_function")),
-                        _("Find functions calling this function"));
-            tb->AddTool(XRCID("cscope_functions_called_by_this_function"),
-                        _("Find functions called by this function"),
-                        bitmapLoader->LoadBitmap(wxT("toolbars/16/cscope/functions_called_by_this_function")),
-                        _("Find functions called by this function"));
-        }
+        // use the large icons set
+        tb->AddTool(XRCID("cscope_find_symbol"),
+                    _("Find this C symbol"),
+                    bitmapLoader->LoadBitmap("find", size),
+                    _("Find this C symbol"));
+        tb->AddTool(XRCID("cscope_functions_calling_this_function"),
+                    _("Find functions calling this function"),
+                    bitmapLoader->LoadBitmap("step_in", size),
+                    _("Find functions calling this function"));
+        tb->AddTool(XRCID("cscope_functions_called_by_this_function"),
+                    _("Find functions called by this function"),
+                    bitmapLoader->LoadBitmap("step_out", size),
+                    _("Find functions called by this function"));
         tb->Realize();
     }
 
@@ -291,16 +276,9 @@ void Cscope::CreatePluginMenu(wxMenu* pluginsMenu)
     pluginsMenu->Append(wxID_ANY, CSCOPE_NAME, menu);
 }
 
-void Cscope::HookPopupMenu(wxMenu* menu, MenuType type)
-{
-    // at first, we hook cscope into the editor's context menu
-    if(type == MenuTypeEditor) {
-        menu->Append(XRCID("CSCOPE_EDITOR_POPUP"), CSCOPE_NAME, CreateEditorPopMenu());
-    }
-}
-
 void Cscope::UnPlug()
 {
+    m_tabHelper.reset(NULL);
     m_topWindow->Disconnect(XRCID("cscope_functions_called_by_this_function"),
                             wxEVT_UPDATE_UI,
                             wxUpdateUIEventHandler(Cscope::OnCscopeUI),
@@ -371,7 +349,7 @@ void Cscope::UnPlug()
             break;
         }
     }
-
+    EventNotifier::Get()->Unbind(wxEVT_CONTEXT_MENU_EDITOR, &Cscope::OnEditorContentMenu, this);
     CScopeThreadST::Get()->Stop();
     CScopeThreadST::Free();
 }
@@ -457,7 +435,7 @@ wxString Cscope::DoCreateListFile(bool force)
     m_mgr->GetConfigTool()->ReadObject(wxT("CscopeSettings"), &settings);
 
     // create temporary file and save the file there
-    wxString privateFolder = WorkspaceST::Get()->GetPrivateFolder();
+    wxString privateFolder = clCxxWorkspaceST::Get()->GetPrivateFolder();
     wxFileName list_file(privateFolder, "cscope_file.list");
     if(force || settings.GetRebuildOption() || !list_file.FileExists()) {
         wxArrayString projects;
@@ -559,7 +537,7 @@ void Cscope::DoCscopeCommand(const wxString& command, const wxString& findWhat, 
     req->SetCmd(command);
     req->SetEndMsg(endMsg);
     req->SetFindWhat(findWhat);
-    req->SetWorkingDir(WorkspaceST::Get()->GetPrivateFolder());
+    req->SetWorkingDir(clCxxWorkspaceST::Get()->GetPrivateFolder());
 
     CScopeThreadST::Get()->Add(req);
 }
@@ -726,7 +704,7 @@ void Cscope::OnDoSettings(wxCommandEvent& e)
     CScopeConfData settings;
     m_mgr->GetConfigTool()->ReadObject(wxT("CscopeSettings"), &settings);
     wxString filepath = settings.GetCscopeExe();
-    
+
     CScopeSettingsDlg dlg(EventNotifier::Get()->TopFrame());
     if(dlg.ShowModal() == wxID_OK) {
         settings.SetCscopeExe(dlg.GetPath());
@@ -824,4 +802,14 @@ void Cscope::DoFindSymbol(const wxString& word)
     command << GetCscopeExeName() << rebuildOption << wxT(" -L -0 ") << word << wxT(" -i ") << list_file;
     endMsg << wxT("cscope results for: find C symbol '") << word << wxT("'");
     DoCscopeCommand(command, word, endMsg);
+}
+
+void Cscope::OnEditorContentMenu(clContextMenuEvent& event)
+{
+    event.Skip();
+    IEditor* editor = m_mgr->GetActiveEditor();
+    CHECK_PTR_RET(editor);
+    if(FileExtManager::IsCxxFile(editor->GetFileName())) {
+        event.GetMenu()->Append(wxID_ANY, _("CScope"), CreateEditorPopMenu());
+    }
 }

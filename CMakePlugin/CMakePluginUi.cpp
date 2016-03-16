@@ -37,7 +37,7 @@ CMakeSettingsDialogBase::CMakeSettingsDialogBase(wxWindow* parent, wxWindowID id
     
     flexGridSizer->Add(m_staticTextProgram, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
     
-    m_filePickerProgram = new wxFilePickerCtrl(this, wxID_ANY, wxEmptyString, wxT("Select a file"), wxT("*"), wxDefaultPosition, wxSize(-1,-1), wxFLP_DEFAULT_STYLE|wxFLP_USE_TEXTCTRL);
+    m_filePickerProgram = new wxFilePickerCtrl(this, wxID_ANY, wxEmptyString, _("Select a file"), wxT("*"), wxDefaultPosition, wxSize(-1,-1), wxFLP_DEFAULT_STYLE|wxFLP_USE_TEXTCTRL);
     m_filePickerProgram->SetToolTip(_("Path to cmake executable."));
     
     flexGridSizer->Add(m_filePickerProgram, 1, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
@@ -49,7 +49,7 @@ CMakeSettingsDialogBase::CMakeSettingsDialogBase(wxWindow* parent, wxWindowID id
     
     wxArrayString m_choiceDefaultGeneratorArr;
     m_choiceDefaultGenerator = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_choiceDefaultGeneratorArr, 0);
-    m_choiceDefaultGenerator->SetToolTip(_("You can specify default generator for all projects (if is not overrided by project settings). If generator is not selected the CMake uses platform's default."));
+    m_choiceDefaultGenerator->SetToolTip(_("You can specify default generator for all projects (if is not overridden by project settings). If generator is not selected the CMake uses platform's default."));
     
     flexGridSizer->Add(m_choiceDefaultGenerator, 1, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
     
@@ -65,12 +65,20 @@ CMakeSettingsDialogBase::CMakeSettingsDialogBase(wxWindow* parent, wxWindowID id
     m_stdBtnSizer->AddButton(m_buttonCancel);
     m_stdBtnSizer->Realize();
     
+    SetName(wxT("CMakeSettingsDialogBase"));
     SetMinSize( wxSize(400,150) );
     SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
+#if wxVERSION_NUMBER >= 2900
+    if(!wxPersistenceManager::Get().Find(this)) {
+        wxPersistenceManager::Get().RegisterAndRestore(this);
+    } else {
+        wxPersistenceManager::Get().Restore(this);
+    }
+#endif
 }
 
 CMakeSettingsDialogBase::~CMakeSettingsDialogBase()
@@ -119,7 +127,7 @@ CMakeHelpTabBase::CMakeHelpTabBase(wxWindow* parent, wxWindowID id, const wxPoin
     m_choiceTopicsArr.Add(wxT("Commands"));
     m_choiceTopicsArr.Add(wxT("Properties"));
     m_choiceTopicsArr.Add(wxT("Variables"));
-    m_choiceTopics = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_choiceTopicsArr, 0);
+    m_choiceTopics = new wxChoice(this, wxID_REFRESH, wxDefaultPosition, wxSize(-1,-1), m_choiceTopicsArr, 0);
     m_choiceTopics->SetSelection(0);
     
     flexGridSizer225->Add(m_choiceTopics, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5);
@@ -129,18 +137,17 @@ CMakeHelpTabBase::CMakeHelpTabBase(wxWindow* parent, wxWindowID id, const wxPoin
     
     flexGridSizer225->Add(m_buttonReload, 0, wxALL, 5);
     
-    m_splitter = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxSP_LIVE_UPDATE|wxSP_NO_XP_THEME|wxSP_3DSASH);
-    m_splitter->SetSashGravity(0.3);
-    m_splitter->SetMinimumPaneSize(100);
+    m_gaugeLoad = new wxGauge(this, wxID_ANY, 100, wxDefaultPosition, wxSize(-1,-1), wxGA_HORIZONTAL);
+    m_gaugeLoad->Hide();
+    m_gaugeLoad->SetValue(0);
     
-    boxSizerMain->Add(m_splitter, 1, wxALL|wxEXPAND, 5);
-    
-    m_splitterPageList = new wxPanel(m_splitter, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
+    boxSizerMain->Add(m_gaugeLoad, 0, wxLEFT|wxRIGHT|wxBOTTOM|wxEXPAND, 5);
     
     wxBoxSizer* boxSizerList = new wxBoxSizer(wxVERTICAL);
-    m_splitterPageList->SetSizer(boxSizerList);
     
-    m_searchCtrlFilter = new wxSearchCtrl(m_splitterPageList, wxID_ANY, wxT(""), wxDefaultPosition, wxSize(-1,-1), wxTE_PROCESS_ENTER);
+    boxSizerMain->Add(boxSizerList, 1, wxALL|wxEXPAND, 5);
+    
+    m_searchCtrlFilter = new wxSearchCtrl(this, wxID_ANY, wxT(""), wxDefaultPosition, wxSize(-1,-1), wxTE_PROCESS_ENTER);
     m_searchCtrlFilter->SetFocus();
     m_searchCtrlFilter->ShowSearchButton(true);
     m_searchCtrlFilter->ShowCancelButton(false);
@@ -149,35 +156,18 @@ CMakeHelpTabBase::CMakeHelpTabBase(wxWindow* parent, wxWindowID id, const wxPoin
     m_searchCtrlFilter->SetMinSize(wxSize(-1,22));
     
     wxArrayString m_listBoxListArr;
-    m_listBoxList = new wxListBox(m_splitterPageList, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_listBoxListArr, wxLB_SINGLE);
+    m_listBoxList = new wxListBox(this, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), m_listBoxListArr, wxLB_SINGLE);
     m_listBoxList->SetToolTip(_("Double click to insert in the current editor."));
     
     boxSizerList->Add(m_listBoxList, 1, wxALL|wxEXPAND, 0);
     m_listBoxList->SetMinSize(wxSize(100,200));
     
-    m_splitterPageText = new wxPanel(m_splitter, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxTAB_TRAVERSAL);
-    m_splitter->SplitVertically(m_splitterPageList, m_splitterPageText, 100);
-    
-    wxBoxSizer* boxSizerText = new wxBoxSizer(wxVERTICAL);
-    m_splitterPageText->SetSizer(boxSizerText);
-    
-    m_htmlWinText = new wxHtmlWindow(m_splitterPageText, wxID_ANY, wxDefaultPosition, wxSize(-1,-1), wxHW_SCROLLBAR_AUTO|wxBORDER_THEME);
-    m_htmlWinText->SetPage(wxT(""));
-    
-    boxSizerText->Add(m_htmlWinText, 1, wxALL|wxEXPAND, 0);
-    
-    m_gaugeLoad = new wxGauge(this, wxID_ANY, 100, wxDefaultPosition, wxSize(-1,-1), wxGA_HORIZONTAL);
-    m_gaugeLoad->Hide();
-    m_gaugeLoad->SetValue(0);
-    
-    boxSizerMain->Add(m_gaugeLoad, 0, wxLEFT|wxRIGHT|wxBOTTOM|wxEXPAND, 5);
-    
-    SetMinSize( wxSize(300,400) );
-    SetSizeHints(300,400);
+    SetName(wxT("CMakeHelpTabBase"));
+    SetSizeHints(-1,-1);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     m_staticTextVersion->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
     m_staticTextVersionValue->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
@@ -186,7 +176,6 @@ CMakeHelpTabBase::CMakeHelpTabBase(wxWindow* parent, wxWindowID id, const wxPoin
     m_choiceTopics->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
     m_buttonReload->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CMakeHelpTabBase::OnReload), NULL, this);
     m_buttonReload->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
-    m_splitter->Connect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(CMakeHelpTabBase::OnRightClick), NULL, this);
     m_searchCtrlFilter->Connect(wxEVT_COMMAND_SEARCHCTRL_SEARCH_BTN, wxCommandEventHandler(CMakeHelpTabBase::OnSearch), NULL, this);
     m_searchCtrlFilter->Connect(wxEVT_COMMAND_SEARCHCTRL_CANCEL_BTN, wxCommandEventHandler(CMakeHelpTabBase::OnSearchCancel), NULL, this);
     m_searchCtrlFilter->Connect(wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler(CMakeHelpTabBase::OnSearch), NULL, this);
@@ -194,7 +183,6 @@ CMakeHelpTabBase::CMakeHelpTabBase(wxWindow* parent, wxWindowID id, const wxPoin
     m_listBoxList->Connect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(CMakeHelpTabBase::OnSelect), NULL, this);
     m_listBoxList->Connect(wxEVT_COMMAND_LISTBOX_DOUBLECLICKED, wxCommandEventHandler(CMakeHelpTabBase::OnInsert), NULL, this);
     m_listBoxList->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
-    m_htmlWinText->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
     
 }
 
@@ -207,7 +195,6 @@ CMakeHelpTabBase::~CMakeHelpTabBase()
     m_choiceTopics->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
     m_buttonReload->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CMakeHelpTabBase::OnReload), NULL, this);
     m_buttonReload->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
-    m_splitter->Disconnect(wxEVT_RIGHT_DOWN, wxMouseEventHandler(CMakeHelpTabBase::OnRightClick), NULL, this);
     m_searchCtrlFilter->Disconnect(wxEVT_COMMAND_SEARCHCTRL_SEARCH_BTN, wxCommandEventHandler(CMakeHelpTabBase::OnSearch), NULL, this);
     m_searchCtrlFilter->Disconnect(wxEVT_COMMAND_SEARCHCTRL_CANCEL_BTN, wxCommandEventHandler(CMakeHelpTabBase::OnSearchCancel), NULL, this);
     m_searchCtrlFilter->Disconnect(wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler(CMakeHelpTabBase::OnSearch), NULL, this);
@@ -215,7 +202,6 @@ CMakeHelpTabBase::~CMakeHelpTabBase()
     m_listBoxList->Disconnect(wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler(CMakeHelpTabBase::OnSelect), NULL, this);
     m_listBoxList->Disconnect(wxEVT_COMMAND_LISTBOX_DOUBLECLICKED, wxCommandEventHandler(CMakeHelpTabBase::OnInsert), NULL, this);
     m_listBoxList->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
-    m_htmlWinText->Disconnect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeHelpTabBase::OnUpdateUi), NULL, this);
     
 }
 
@@ -258,7 +244,7 @@ CMakeProjectSettingsPanelBase::CMakeProjectSettingsPanelBase(wxWindow* parent, w
     
     flexGridSizer->Add(m_staticTextSourceDir, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 0);
     
-    m_dirPickerSourceDir = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, wxT("Select a folder"), wxDefaultPosition, wxSize(-1,-1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
+    m_dirPickerSourceDir = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, _("Select a folder"), wxDefaultPosition, wxSize(-1,-1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
     m_dirPickerSourceDir->SetToolTip(_("Path to directory where CMakeLists.txt is located."));
     
     flexGridSizer->Add(m_dirPickerSourceDir, 0, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 0);
@@ -267,7 +253,7 @@ CMakeProjectSettingsPanelBase::CMakeProjectSettingsPanelBase(wxWindow* parent, w
     
     flexGridSizer->Add(m_staticTextBuildDir, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 0);
     
-    m_dirPickerBuildDir = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, wxT("Select a folder"), wxDefaultPosition, wxSize(-1,-1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
+    m_dirPickerBuildDir = new wxDirPickerCtrl(this, wxID_ANY, wxEmptyString, _("Select a folder"), wxDefaultPosition, wxSize(-1,-1), wxDIRP_DEFAULT_STYLE|wxDIRP_USE_TEXTCTRL);
     m_dirPickerBuildDir->SetToolTip(_("Directory where the project will be built. Path is relative to $(WorkspacePath)."));
     
     flexGridSizer->Add(m_dirPickerBuildDir, 0, wxALL|wxEXPAND, 0);
@@ -309,12 +295,13 @@ CMakeProjectSettingsPanelBase::CMakeProjectSettingsPanelBase(wxWindow* parent, w
     
     boxSizer->Add(m_textCtrlArguments, 1, wxALL|wxEXPAND, 5);
     
+    SetName(wxT("CMakeProjectSettingsPanelBase"));
     SetMinSize( wxSize(400,300) );
     SetSizeHints(400,300);
     if ( GetSizer() ) {
          GetSizer()->Fit(this);
     }
-    Centre(wxBOTH);
+    CentreOnParent(wxBOTH);
     // Connect events
     m_staticTextParent->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeProjectSettingsPanelBase::OnCheck), NULL, this);
     m_choiceParent->Connect(wxEVT_UPDATE_UI, wxUpdateUIEventHandler(CMakeProjectSettingsPanelBase::OnCheck), NULL, this);

@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
-// file name            : gizmos_base.h
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : gizmos_base.h
 //
 // -------------------------------------------------------------------------
 // A
@@ -29,8 +29,8 @@
 // Do not modify this file by hand!
 //////////////////////////////////////////////////////////////////////
 
-#ifndef GIZMOS_BASE_CLASSES_H
-#define GIZMOS_BASE_CLASSES_H
+#ifndef CODELITE_GIZMOS_GIZMOS_BASE_CLASSES_H
+#define CODELITE_GIZMOS_GIZMOS_BASE_CLASSES_H
 
 #include <wx/settings.h>
 #include <wx/xrc/xmlres.h>
@@ -43,6 +43,12 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 #include <wx/filepicker.h>
+#if wxVERSION_NUMBER >= 2900
+#include <wx/persist.h>
+#include <wx/persist/toplevel.h>
+#include <wx/persist/bookctrl.h>
+#include <wx/persist/treebook.h>
+#endif
 
 class PluginWizardBase : public wxWizard
 {
@@ -67,6 +73,17 @@ protected:
     virtual void OnProjectPathChanged(wxFileDirPickerEvent& event) { event.Skip(); }
 
 public:
+    wxStaticText* GetStaticText14() { return m_staticText14; }
+    wxTextCtrl* GetTextCtrlName() { return m_textCtrlName; }
+    wxStaticText* GetStaticText18() { return m_staticText18; }
+    wxTextCtrl* GetTextCtrlDescription() { return m_textCtrlDescription; }
+    wxWizardPageSimple* GetWizardPage1() { return m_wizardPage1; }
+    wxStaticText* GetStaticText42() { return m_staticText42; }
+    wxDirPickerCtrl* GetDirPickerCodeliteDir() { return m_dirPickerCodeliteDir; }
+    wxStaticText* GetStaticText26() { return m_staticText26; }
+    wxDirPickerCtrl* GetDirPickerPluginPath() { return m_dirPickerPluginPath; }
+    wxTextCtrl* GetTextCtrlPreview() { return m_textCtrlPreview; }
+    wxWizardPageSimple* GetWizardPage2() { return m_wizardPage2; }
     PluginWizardBase(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("New Plugin Wizard"), const wxBitmap& bmp = wxNullBitmap, const wxPoint& pos = wxDefaultPosition, long style = wxDEFAULT_DIALOG_STYLE);
     wxWizardPageSimple* GetFirstPage() const { if(!m_pages.empty()) return m_pages.at(0); return NULL; }
     virtual ~PluginWizardBase();

@@ -1,3 +1,28 @@
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//
+// Copyright            : (C) 2015 Eran Ifrah
+// File name            : PHPSourceFile.h
+//
+// -------------------------------------------------------------------------
+// A
+//              _____           _      _     _ _
+//             /  __ \         | |    | |   (_) |
+//             | /  \/ ___   __| | ___| |    _| |_ ___
+//             | |    / _ \ / _  |/ _ \ |   | | __/ _ )
+//             | \__/\ (_) | (_| |  __/ |___| | ||  __/
+//              \____/\___/ \__,_|\___\_____/_|\__\___|
+//
+//                                                  F i l e
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef PHPPARSER_H
 #define PHPPARSER_H
 
@@ -27,6 +52,12 @@ public:
 
 protected:
     /**
+     * @brief the lexer just read $something = ...
+     * read the "..." and create a variable hint from it
+     */
+    bool ReadVariableInitialization(PHPEntityBase::Ptr_t var);
+    
+    /**
      * @brief calls phpLexerNextToken. Use this call instead of the global phpLexerNextToken
      * since this function will handle all PHP comments found
      */
@@ -49,7 +80,7 @@ protected:
      * @param tokens [output]
      */
     bool ReadExpression(wxString& expression);
-
+    
     /**
      * @brief unget the token
      */
@@ -70,7 +101,18 @@ protected:
      * @brief read the type
      */
     wxString ReadType();
-
+    
+    /**
+     * @brief read the value that comes after the 'extends' keyword
+     */
+    wxString ReadExtends();
+    
+    /**
+     * @brief read the tokens after the implements keyword
+     */
+    void ReadImplements(wxArrayString& impls);
+    
+    
     /**
      * @brief parse 'use' statements (outer scope, for aliasing)
      */
@@ -82,6 +124,20 @@ protected:
     void OnUseTrait();
     
     /**
+     * @brief we are looking at a case like:
+     * use A, B { 
+     *  B::bigTalk as talk;
+     * }
+     * parse the inner block and scan for aliases
+     */
+    void ParseUseTraitsBody();
+    
+    /**
+     * @brief found 'foreach' statement
+     */
+    void OnForEach();
+    
+    /**
      * @brief 'namespace' keyword found
      */
     void OnNamespace();
@@ -90,7 +146,12 @@ protected:
      * @brief 'function' keyword found
      */
     void OnFunction();
-
+    
+    /**
+     * @brief found catch keyword
+     */
+    void OnCatch();
+    
     /**
      * @brief found a global variable
      */
@@ -150,8 +211,14 @@ protected:
 public:
     PHPSourceFile(const wxFileName& filename);
     PHPSourceFile(const wxString& content);
+    
     virtual ~PHPSourceFile();
-
+    
+    /**
+     * @brief check if we are inside a PHP block at the end of the given buffer
+     */
+    static bool IsInPHPSection(const wxString& buffer);
+    
     /**
      * @brief return list of aliases (their short name) that appears on this file
      */

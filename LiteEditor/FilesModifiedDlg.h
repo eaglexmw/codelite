@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : FilesModifiedDlg.h
 //
 // -------------------------------------------------------------------------
@@ -33,6 +33,7 @@ public:
     enum {
         kID_BUTTON_CHOOSE = ID_BUTTON_CHOOSE,
         kID_BUTTON_LOAD   = ID_BUTTON_LOAD,
+        kID_BUTTON_IGNORE = ID_BUTTON_IGNORE,
     };
     
 public:
@@ -43,6 +44,7 @@ public:
         return m_checkBoxRemember->IsChecked();
     }
 protected:
+    virtual void OnIgnore(wxCommandEvent& event);
     virtual void OnChoose(wxCommandEvent& event);
     virtual void OnLoad(wxCommandEvent& event);
 };

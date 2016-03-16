@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : IHunSpell.cpp
 //
 // -------------------------------------------------------------------------
@@ -35,6 +35,7 @@
 /////////////////////////////////////////////////////////////////////////////
 // For compilers that support precompilation, includes "wx/wx.h".
 #include "wx/wxprec.h"
+#include <wx/log.h>
 
 #ifndef WX_PRECOMP
 #include "wx/wx.h"
@@ -91,13 +92,13 @@ bool IHunSpell::InitEngine()
     wxFileName fna(aff);
 
     if(!fna.FileExists()) {
-        ::wxMessageBox(_("Could not find aff file!"));
+        wxLogMessage(_("Could not find aff file!"));
         return false;
     }
     wxFileName fnd(dict);
 
     if(!fnd.FileExists()) {
-        ::wxMessageBox(_("Could not find dictionary file!"));
+        wxLogMessage(_("Could not find dictionary file!"));
         return false;
     }
     // so far ok, init engine
@@ -105,7 +106,7 @@ bool IHunSpell::InitEngine()
 
     return true;
 
-    ::wxMessageBox(_("Could not initialize spelling engine!"));
+    wxLogMessage(_("Could not initialize spelling engine!"));
     return false;
 }
 // ------------------------------------------------------------
@@ -145,11 +146,10 @@ void IHunSpell::CheckCppSpelling(const wxString& check)
 
     if(!pEditor) return;
 
-    int offset = 0;
     int retVal = kNoSpellingError;
     wxString text = check + wxT(" ");
     m_parseValues.clear();
-    wxStyledTextCtrl* pTextCtrl = pEditor->GetSTC();
+    wxStyledTextCtrl* pTextCtrl = pEditor->GetCtrl();
 
     // check if engine is initialized, if not do so
     if(!InitEngine()) return;
@@ -519,7 +519,7 @@ int IHunSpell::CheckCppType(IEditor* pEditor)
             if(token.Len() <= MIN_TOKEN_LEN) continue;
 
             if(m_parseValues[i].second == kString) { // ignore filenames in #include
-                wxString line = pEditor->GetSTC()->GetLine(pEditor->LineFromPos(pl.first));
+                wxString line = pEditor->GetCtrl()->GetLine(pEditor->LineFromPos(pl.first));
 
                 if(line.Find(s_include) != wxNOT_FOUND) continue;
             }
@@ -601,7 +601,7 @@ int IHunSpell::MarkErrors(IEditor* pEditor)
             if(token.Len() <= MIN_TOKEN_LEN) continue;
 
             if(m_parseValues[i].second == kString) {
-                wxString line = pEditor->GetSTC()->GetLine(pEditor->LineFromPos(pl.first));
+                wxString line = pEditor->GetCtrl()->GetLine(pEditor->LineFromPos(pl.first));
 
                 if(line.Find(s_include) != wxNOT_FOUND) // ignore filenames
                     continue;

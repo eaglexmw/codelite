@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //
-// copyright            : (C) 2014 The CodeLite Team
+// copyright            : (C) 2014 Eran Ifrah
 // file name            : LLDBCommand.cpp
 //
 // -------------------------------------------------------------------------
@@ -159,9 +159,10 @@ void LLDBCommand::UpdatePaths(const LLDBPivot& pivot)
         // m_workingDirectory
         // m_executable
         // m_breakpoints
+#if 0
         m_workingDirectory = pivot.ToRemote( m_workingDirectory );
         m_executable       = pivot.ToRemote( m_executable );
-        
+#endif
         for(size_t i=0; i<m_breakpoints.size(); ++i) {
             m_breakpoints.at(i)->SetFilename( pivot.ToRemote( m_breakpoints.at(i)->GetFilename() ) );
         }
